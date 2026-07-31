@@ -3,6 +3,8 @@ import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import Groq from 'groq-sdk';
+import 'dotenv/config';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,6 +15,9 @@ const PORT = process.env.PORT || 5001;
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Initialize Groq SDK (picks up GROQ_API_KEY from environment variables automatically)
+const groq = new Groq();
 
 // Load moderation blacklist from moderation.json safely
 let restrictedWords = [];
@@ -102,7 +107,7 @@ app.post('/api/history/save', (req, res) => {
   res.json({ success: true, history: historyDatabase[userId] });
 });
 
-// --- 3. UNIVERSAL DIAGNOSE ENDPOINT (Protected by moderation.json) ---
+// --- 3. UNIVERSAL DIAGNOSE ENDPOINT (Powered by Groq LLM & Protected by moderation.json) ---
 app.post('/api/diagnose', async (req, res) => {
   try {
     const { title, description, context } = req.body;
@@ -119,52 +124,70 @@ app.post('/api/diagnose', async (req, res) => {
       });
     }
 
-    let normalizedResponse = {
-      confidence: 'Strong',
-      situation: description,
-      riskAssessment: {
-        severityScore: 5,
-        financialExposure: 'Evaluated per request',
-        timeSensitivity: 'Active'
-      },
-      needsClarification: false,
-      clarifyingQuestions: [],
-      nextSteps: [
-        { 
-          step: `Analyze the core objective for: "${description.substring(0, 50)}..."`, 
-          why: "Breaks down your input into clear, structured execution milestones." 
-        },
-        { 
-          step: "Execute primary action plan and verify output constraints", 
-          why: "Ensures immediate progress toward your goal." 
-        }
+    // Construct system instructions to prompt Groq to return clean analytical breakdowns
+    const systemPrompt = `You are Verlo, an advanced decision intelligence AI engine. 
+Analyze the user's dilemma/request and output a strict JSON object with the following keys:
+- confidence (string, e.g., "Strong" or "Moderate")
+- situation (string summary)
+- riskAssessment (object with severityScore number, financialExposure string, timeSensitivity string)
+- needsClarification (boolean)
+- clarifyingQuestions (array of strings)
+- nextSteps (array of objects with "step" and "why")
+- knownFacts (array of strings)
+- missingInformation (array of strings)
+- options (array of objects with "title" and "bestFor")
+- draftTemplate (object with "recipient", "subject", "body")
+- risks (array of strings)
+- verificationNeeded (array of strings)
+Return ONLY valid JSON. Do not include markdown code ticks or conversational text outside the JSON.`;
+
+    const userPrompt = `Title: ${title || 'General Dilemma'}
+Description: ${description}
+Context: ${context || 'None provided'}`;
+
+    // Call Groq LLM Inference via official SDK
+    const chatCompletion = await groq.chat.completions.create({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
       ],
-      knownFacts: [
-        `User Input: ${description}`,
-        `Context Parameters: ${context || 'General inquiry'}`,
-        `Engine Status: Fully Universal & Operational`
-      ],
-      missingInformation: [],
-      options: [
-        { title: "Direct Execution & Action Strategy", bestFor: "Immediate, targeted resolution" }
-      ],
-      draftTemplate: {
-        recipient: 'Target / Self / Output Channel',
-        subject: `Action Plan: ${title || 'Universal Request'}`,
-        body: `PROMPT ANALYSIS:\n"${description}"\n\nRECOMMENDED EXECUTION PATHWAY:\n1. Review parameters and objectives.\n2. Apply structured breakdown and solve.\n3. Verify final results.`
-      },
-      risks: ["Proceeding without defining clear intermediate success criteria."],
-      verificationNeeded: ["Confirming alignment with your primary objective."]
-    };
+      model: 'llama-3.3-70b-versatile',
+      temperature: 0.3,
+      response_format: { type: 'json_object' }
+    });
+
+    let rawContent = chatCompletion.choices[0]?.message?.content || '{}';
+    let normalizedResponse;
+
+    try {
+      normalizedResponse = JSON.parse(rawContent);
+    } catch (parseErr) {
+      console.error('Failed to parse model JSON output:', rawContent);
+      // Fallback fallback structured response if raw text wasn't strictly JSON
+      normalizedResponse = {
+        confidence: 'Strong',
+        situation: description,
+        riskAssessment: { severityScore: 4, financialExposure: 'Low', timeSensitivity: 'Standard' },
+        needsClarification: false,
+        clarifyingQuestions: [],
+        nextSteps: [{ step: "Evaluate strategy parameters", why: "Ensures targeted execution." }],
+        knownFacts: [description],
+        missingInformation: [],
+        options: [{ title: "Primary Action Route", bestFor: "Immediate progress" }],
+        draftTemplate: { recipient: "Self", subject: title || "Action Plan", body: rawContent },
+        risks: ["Undefined constraints"],
+        verificationNeeded: ["Confirm objective alignment"]
+      };
+    }
 
     res.json({ data: normalizedResponse });
   } catch (error) {
     console.error('Diagnose API Error:', error);
-    res.status(500).json({ error: 'Internal engine processing error.' });
+    res.status(500).json({ error: 'Internal engine processing error with Groq AI.' });
   }
 });
 
-// --- 4. UNIVERSAL CHAT ENDPOINT (Protected by moderation.json) ---
+// --- 4. UNIVERSAL CHAT ENDPOINT (Powered by Groq LLM & Protected by moderation.json) ---
 app.post('/api/chat', async (req, res) => {
   try {
     const { question, currentSituation } = req.body;
@@ -180,15 +203,25 @@ app.post('/api/chat', async (req, res) => {
       });
     }
 
-    // Short simulated delay for responsiveness
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    // Call Groq LLM for contextual follow-up chat
+    const chatCompletion = await groq.chat.completions.create({
+      messages: [
+        { 
+          role: 'system', 
+          content: `You are Verlo, an expert decision intelligence assistant. Provide sharp, structured, direct guidance based on the current situation context: "${currentSituation || 'General inquiry'}"` 
+        },
+        { role: 'user', content: question }
+      ],
+      model: 'llama-3.3-70b-versatile',
+      temperature: 0.5,
+    });
 
-    let contextualAnswer = `Regarding your input on "${question}" (in the context of "${currentSituation || 'your active topic'}"): Here is the direct breakdown and solution pathway you need. Review the core components, execute the necessary steps sequentially, and ensure your deliverables match your target goals.`;
+    const contextualAnswer = chatCompletion.choices[0]?.message?.content || 'No response generated.';
 
     res.json({ reply: contextualAnswer });
   } catch (error) {
     console.error('Chat API Error:', error);
-    res.status(500).json({ error: 'Failed to process chat follow-up' });
+    res.status(500).json({ error: 'Failed to process chat follow-up with Groq AI.' });
   }
 });
 
