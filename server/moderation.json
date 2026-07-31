@@ -1,0 +1,16 @@
+{
+  "blacklisted_words": [
+    "nsfw", "porn", "xxx", "explicit", "anal", "anus", "arse", "ass", "asshole", 
+    "ballsack", "bastard", "bitch", "biatch", "blowjob", "bollock", "boner", 
+    "boob", "bugger", "buttplug", "clitoris", "cock", "crap", "cunt", "dick", 
+    "dildo", "dyke", "fag", "faggot", "fuck", "fucker", "fucking", "gangbang", 
+    "homo", "jizz", "labia", "nigger", "nigga", "penis", "piss", "prick", 
+    "pussy", "queer", "scrotum", "sex", "shag", "shemale", "shit", "skank", 
+    "slut", "snatch", "turd", "twat", "vagina", "wank", "whore",
+    "rape", "rapist", "molest", "molester", "assault", "harass", "harassment", 
+    "incest", "pedophile", "pedo", "groomer", "grooming", "bestiality", 
+    "suicide", "selfharm", "cutters", "overdose", "murder", "homicide", 
+    "terrorist", "terrorism", "bomb", "shooting", 
+    "spic", "chink", "kike", "wetback", "tranny", "hebe", "beaner", "whitepower", "nazi", "hitler", "lynch"
+  ]
+}
