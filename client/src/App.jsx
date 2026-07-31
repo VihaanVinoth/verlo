@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import './index.css';
 
+// Dynamically check if VITE_API_URL is provided (Netlify production), otherwise fallback to local backend
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5001';
+
 export default function App() {
   const [step, setStep] = useState('landing');
   const [title, setTitle] = useState('');
@@ -41,7 +44,7 @@ export default function App() {
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem('verlo_user', JSON.stringify(currentUser));
-      fetch(`http://127.0.0.1:5001/api/history/${currentUser.id}`)
+      fetch(`${API_URL}/api/history/${currentUser.id}`)
         .then(res => res.json())
         .then(data => {
           if (data.history) setUserHistory(data.history);
@@ -67,7 +70,7 @@ export default function App() {
     const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/signup';
 
     try {
-      const res = await fetch(`http://127.0.0.1:5001${endpoint}`, {
+      const res = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: authEmail, password: authPassword })
@@ -94,7 +97,7 @@ export default function App() {
     }
 
     try {
-      const res = await fetch('http://127.0.0.1:5001/api/history/save', {
+      const res = await fetch(`${API_URL}/api/history/save`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: currentUser.id, report: { title: title || 'Unnamed Request', description, result: resultData } })
@@ -123,7 +126,7 @@ export default function App() {
 
     let apiPromise;
     try {
-      apiPromise = fetch('http://127.0.0.1:5001/api/diagnose', {
+      apiPromise = fetch(`${API_URL}/api/diagnose`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, description, context: userContext }),
@@ -210,7 +213,7 @@ export default function App() {
         )}
       </div>
 
-      {/* Main Content Area (flex: 1 pushes the footer down) */}
+      {/* Main Content Area */}
       <div style={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
         {step === 'landing' && (
           <div className="page-transition" key="landing">
@@ -468,7 +471,7 @@ export default function App() {
         )}
       </div>
 
-      {/* Footer Component locked to bottom */}
+      {/* Footer Component */}
       <footer style={{ borderTop: '1px solid var(--border-subtle)', padding: '2rem 1rem', background: 'var(--bg-surface)', marginTop: 'auto', textAlign: 'center', flexShrink: 0 }}>
         <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -513,7 +516,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Auth Modal (Login / Signup) */}
+      {/* Auth Modal */}
       {showAuthModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 200 }}>
           <div style={{ background: 'var(--bg-card)', padding: '2rem', borderRadius: '12px', border: '1px solid var(--border-subtle)', width: '100%', maxWidth: '400px' }}>
