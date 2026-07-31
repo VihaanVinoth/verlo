@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
+    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
+    "preview": "vite preview",
+    "fresh-install": "rm -rf node_modules package-lock.json && npm install"
   },
   "dependencies": {
     "@azure/msal-browser": "^5.17.3",
