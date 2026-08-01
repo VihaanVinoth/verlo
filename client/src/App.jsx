@@ -16,8 +16,12 @@ export default function App() {
 
   // Persistent Auth state using localStorage
   const [currentUser, setCurrentUser] = useState(() => {
-    const savedUser = localStorage.getItem('verlo_user');
-    return savedUser ? JSON.parse(savedUser) : null;
+    try {
+      const savedUser = localStorage.getItem('verlo_user');
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch (e) {
+      return null;
+    }
   });
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState('login'); // 'login' or 'signup'
@@ -40,9 +44,9 @@ export default function App() {
   const wordCount = description.trim() ? description.trim().split(/\s+/).length : 0;
   const MIN_WORDS = 5;
 
-  // Sync user session to localStorage
+  // Sync user session and fetch persistent history from backend
   useEffect(() => {
-    if (currentUser) {
+    if (currentUser && currentUser.id) {
       localStorage.setItem('verlo_user', JSON.stringify(currentUser));
       fetch(`${API_URL}/api/history/${currentUser.id}`)
         .then(res => res.json())
@@ -73,7 +77,7 @@ export default function App() {
       const res = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: authEmail, password: authPassword })
+        body: JSON.stringify({ email: authEmail.trim(), password: authPassword })
       });
       const data = await res.json();
 
@@ -88,6 +92,13 @@ export default function App() {
     } catch (err) {
       setAuthError(err.message);
     }
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem('verlo_user');
+    setUserHistory([]);
+    setStep('landing');
   };
 
   const handleSaveToAccount = async (resultData) => {
@@ -193,11 +204,11 @@ export default function App() {
               onClick={() => setShowHistoryDrawer(!showHistoryDrawer)}
               style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer' }}
             >
-              📁 Saved History ({userHistory.length})
+              Saved History ({userHistory.length})
             </button>
             <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>👤 {currentUser.email}</span>
             <button 
-              onClick={() => setCurrentUser(null)} 
+              onClick={handleLogout} 
               style={{ background: 'none', border: '1px solid var(--border-subtle)', color: 'var(--danger)', padding: '0.3rem 0.6rem', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}
             >
               Logout
@@ -205,7 +216,7 @@ export default function App() {
           </div>
         ) : (
           <button 
-            onClick={() => { setAuthMode('login'); setShowAuthModal(true); }}
+            onClick={() => { setAuthMode('login'); setAuthError(null); setShowAuthModal(true); }}
             style={{ background: 'var(--accent)', color: 'var(--bg-primary)', border: 'none', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
           >
             Login / Signup
@@ -267,28 +278,6 @@ export default function App() {
                     )}
                   >
                     🏠 <strong>Unreturned security deposit</strong> &mdash; Landlord withholding funds past legal deadline.
-                  </div>
-                  <div 
-                    className="verlo-card" 
-                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0 }}
-                    onClick={() => handleExampleSelect(
-                      'Defective warranty denial', 
-                      'My premium smartphone battery swelled up and cracked the internal screen within 11 months of purchase. The manufacturer service center claims physical damage and voided the warranty, ignoring consumer protection standards.',
-                      'Relying on this device daily for remote work income'
-                    )}
-                  >
-                    📱 <strong>Defective warranty denial</strong> &mdash; Manufacturer rejecting valid hardware repair.
-                  </div>
-                  <div 
-                    className="verlo-card" 
-                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0 }}
-                    onClick={() => handleExampleSelect(
-                      'Unauthorized medical billing', 
-                      'An in-network hospital visit resulted in an unexpected $1,200 out-of-network lab fee balance bill, even though I pre-approved all services and verified network participation beforehand.',
-                      'Managing fixed monthly healthcare outlays'
-                    )}
-                  >
-                    🏥 <strong>Unauthorized medical billing</strong> &mdash; Surprise balance billing after pre-approval.
                   </div>
                 </div>
               </div>
@@ -447,6 +436,24 @@ export default function App() {
             </div>
 
             <div className="result-section">
+              <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem' }}>📋 Full Step-by-Step Action Pathway</h3>
+              <div style={{ display: 'grid', gap: '1rem' }}>
+                {analysisData.nextSteps?.map((item, idx) => (
+                  <div key={idx} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', padding: '1rem', borderRadius: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                      <span style={{ background: 'var(--accent)', color: 'var(--bg-primary)', width: '22px', height: '22px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700 }}>{idx + 1}</span>
+                      <strong style={{ fontSize: '0.95rem', color: 'var(--text-main)' }}>{item.step}</strong>
+                    </div>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '1.75rem', marginBottom: '0.2rem' }}><strong>Why:</strong> {item.why}</p>
+                    {item.pitfallWarning && (
+                      <p style={{ fontSize: '0.85rem', color: 'var(--danger)', marginLeft: '1.75rem', marginBottom: 0 }}><strong>⚠️ Pitfall to Avoid:</strong> {item.pitfallWarning}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="result-section">
               <h3 style={{ color: 'var(--text-main)' }}>Situation Summary</h3>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: 0 }}>{analysisData.situation}</p>
             </div>
@@ -479,7 +486,7 @@ export default function App() {
             <span style={{ fontWeight: 700, letterSpacing: '0.05em', fontSize: '0.9rem', color: 'var(--text-main)' }}>VERLO</span>
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-            &copy; {new Date().getFullYear()} Verlo Engine. All rights reserved. Crafted with 🌶️.
+            &copy; {new Date().getFullYear()} Verlo Engine. All rights reserved.
           </div>
         </div>
       </footer>
