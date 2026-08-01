@@ -18,10 +18,10 @@ export default function App() {
   const [chatHistory, setChatHistory] = useState([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
 
-  // Persistent Auth state using localStorage and robust token handling
+  // Persistent Auth state using localStorage
   const [currentUser, setCurrentUser] = useState(() => {
     try {
-      const savedUser = localStorage.getItem('verlo_user');
+      const savedUser = localStorage.getItem('yicte_user');
       return savedUser ? JSON.parse(savedUser) : null;
     } catch (e) {
       return null;
@@ -38,11 +38,11 @@ export default function App() {
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
 
   const processingSteps = [
-    "Deciphering core strategic vectors...",
-    "Screening compliance & regulatory framework...",
-    "Evaluating risk exposure metrics...",
-    "Synthesizing customized enterprise pathway...",
-    "Finalizing commercial execution strategy..."
+    "Deciphering core strategic goals for YICTE...",
+    "Screening through moderation & safety filters...",
+    "Evaluating risk severity & exposure metrics...",
+    "Synthesizing customized action pathway...",
+    "Finalizing YICTE tactical recommendations..."
   ];
 
   const wordCount = description.trim() ? description.trim().split(/\s+/).length : 0;
@@ -50,7 +50,7 @@ export default function App() {
 
   useEffect(() => {
     if (currentUser && currentUser.id) {
-      localStorage.setItem('verlo_user', JSON.stringify(currentUser));
+      localStorage.setItem('yicte_user', JSON.stringify(currentUser));
       fetch(`${API_URL}/api/history/${currentUser.id}`)
         .then(res => res.json())
         .then(data => {
@@ -58,7 +58,7 @@ export default function App() {
         })
         .catch(err => console.error('Failed to load history', err));
     } else {
-      localStorage.removeItem('verlo_user');
+      localStorage.removeItem('yicte_user');
       setUserHistory([]);
     }
   }, [currentUser]);
@@ -100,8 +100,7 @@ export default function App() {
 
   const handleLogout = () => {
     setCurrentUser(null);
-    localStorage.removeItem('verlo_user');
-    setUserHistory([]);
+    localStorage.removeItem('yicte_user');
     setUserHistory([]);
     setStep('landing');
   };
@@ -118,13 +117,13 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           userId: currentUser.id || currentUser.email, 
-          report: { title: title || 'Untitled Enterprise Report', description, result: resultData } 
+          report: { title: title || 'Untitled YICTE Report', description, result: resultData } 
         })
       });
       const data = await res.json();
       if (data.history) {
         setUserHistory(data.history);
-        alert('Pathway saved successfully to your corporate archive.');
+        alert('Pathway saved successfully to your YICTE account history!');
       } else {
         alert('Pathway saved successfully.');
       }
@@ -138,7 +137,7 @@ export default function App() {
     e.preventDefault();
     
     if (wordCount < MIN_WORDS) {
-      setError(`Please provide additional context (at least ${MIN_WORDS} words) to construct a reliable commercial pathway.`);
+      setError(`Please provide a bit more detail (at least ${MIN_WORDS} words) so YICTE can build a reliable pathway.`);
       return;
     }
 
@@ -154,7 +153,7 @@ export default function App() {
         body: JSON.stringify({ title, description, context: userContext }),
       });
     } catch (err) {
-      setError('Could not connect to Verlo enterprise cluster. Verify server availability.');
+      setError('Could not connect to YICTE server. Is the backend running?');
       setStep('input');
       return;
     }
@@ -182,7 +181,7 @@ export default function App() {
 
       if (!res.ok) {
         clearInterval(interval);
-        setError(result.error || 'Engine calculation failed or request restricted.');
+        setError(result.error || 'Content restricted or engine calculation failed.');
         setStep('input');
         return;
       }
@@ -192,7 +191,7 @@ export default function App() {
       setStep('results');
     } catch (err) {
       clearInterval(interval);
-      setError(err.message || 'Could not connect to Verlo engine backend.');
+      setError(err.message || 'Could not connect to YICTE server.');
       setStep('input');
     }
   };
@@ -226,7 +225,7 @@ export default function App() {
         })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to query assistant.');
+      if (!res.ok) throw new Error(data.error || 'Failed to get chat response.');
 
       setChatHistory([...newHistory, { role: 'assistant', content: data.reply }]);
     } catch (err) {
@@ -240,7 +239,7 @@ export default function App() {
     <div className="verlo-app" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', margin: 0 }}>
       
       {/* Top Navigation Bar */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '1rem 2rem', gap: '1rem', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '1rem 2rem', gap: '1rem' }}>
         {currentUser ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <button 
@@ -266,7 +265,7 @@ export default function App() {
             onClick={() => { setAuthMode('login'); setAuthError(null); setShowAuthModal(true); }}
             style={{ background: 'var(--accent)', color: 'var(--bg-primary)', border: 'none', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
           >
-            Client Portal Login
+            Login / Signup
           </button>
         )}
       </div>
@@ -277,76 +276,62 @@ export default function App() {
           <div className="page-transition" key="landing">
             <div className="verlo-header" style={{ marginTop: '2rem', padding: '0 1rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '1rem', width: '100%' }}>
-                <img src="/VVNormal.png" alt="Verlo Logo" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
-                <span className="verlo-brand" style={{ margin: 0, letterSpacing: '0.1em' }}>VERLO ENTERPRISE</span>
+                <img src="/VVNormal.png" alt="YICTE Logo" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
+                <span className="verlo-brand" style={{ margin: 0 }}>YICTE</span>
               </div>
-              <h1 className="verlo-title">Precision Decision Intelligence for Complex Operations</h1>
-              <p className="verlo-subtitle" style={{ marginBottom: '2.5rem', maxWidth: '700px', marginInline: 'auto' }}>
-                Transform complex operational bottlenecks, administrative friction, and high-stakes exposure into data-backed executive action pathways.
+              <h1 className="verlo-title">Stop guessing. Know your exact next step.</h1>
+              <p className="verlo-subtitle" style={{ marginBottom: '2.5rem', maxWidth: '650px', marginInline: 'auto' }}>
+                An ethical decision-intelligence system for YICTE that transforms messy, stressful situations into a fully tailored, risk-scored action pathway.
               </p>
-              <button className="btn-primary" style={{ maxWidth: '320px', margin: '0 auto 3rem' }} onClick={() => setStep('input')}>
-                Initialize Strategic Engine →
+              <button className="btn-primary" style={{ maxWidth: '300px', margin: '0 auto 3rem' }} onClick={() => setStep('input')}>
+                Launch Decision Engine →
               </button>
 
-              <div style={{ textAlign: 'left', maxWidth: '700px', margin: '0 auto 4rem' }}>
+              <div style={{ textAlign: 'left', maxWidth: '650px', margin: '0 auto 4rem' }}>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                  Explore Commercial Benchmark Cases:
+                  Test common YICTE scenarios:
                 </p>
                 <div style={{ display: 'grid', gap: '0.75rem' }}>
                   <div 
                     className="verlo-card" 
                     style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem' }}
                     onClick={() => handleExampleSelect(
-                      'SaaS Enterprise Billing Discrepancy', 
-                      'Our enterprise cloud platform account incurred an unauthorized $12,500 overage charge following a tier migration dispute. Vendor support has failed to issue a credit memo or respond to formal escalation notices over 14 business days.',
-                      'High-growth enterprise scaling operational infrastructure'
+                      'Flight cancelled at gate', 
+                      'My international flight was abruptly cancelled at the boarding gate due to mechanical failure. The airline desk agent says the earliest they can rebook me is in 48 hours, and they are refusing to cover hotel accommodations for the night despite my connecting ticket.',
+                      'Traveling on a strict budget for an important family event'
                     )}
                   >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.5 1.2c-.2.5 0 1.1.5 1.3l5.5 2.5-3.5 3.5L3 16l3 3 1.5-1.5 3.5-3.5 2.5 5.5c.2.5.8.7 1.3.5l1.2-.5c.4-.2.6-.6.5-1.1z"/></svg>
                     <div>
-                      <strong>SaaS Enterprise Billing Discrepancy</strong> &mdash; Unilateral overage charge with unresponsive vendor management.
+                      <strong>Flight cancelled at gate</strong> &mdash; Airline refusing overnight hotel voucher.
                     </div>
                   </div>
                   <div 
                     className="verlo-card" 
                     style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem' }}
                     onClick={() => handleExampleSelect(
-                      'Vendor SLA Breach & Indemnification', 
-                      'A critical logistics vendor suffered system downtime violating our 99.9% uptime SLA clause, causing a supply chain stoppage costing approximately $45,000 in delayed shipments. Vendor is citing force majeure clauses improperly.',
-                      'Logistics corporation managing strict SLAs'
+                      'Unresolved billing charge', 
+                      'I noticed an unexpected $450 charge on my credit card from a software enterprise subscription that I explicitly cancelled three months ago in writing. Support is ignoring my emails and chat tickets.',
+                      'Freelancer relying on tight monthly cash flow'
                     )}
                   >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
                     <div>
-                      <strong>Vendor SLA Breach & Indemnification</strong> &mdash; Disputed downtime penalties and financial clawbacks.
+                      <strong>Unresolved billing dispute</strong> &mdash; Subscription charged post-cancellation.
                     </div>
                   </div>
                   <div 
                     className="verlo-card" 
                     style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem' }}
                     onClick={() => handleExampleSelect(
-                      'Commercial Lease Security Deposit Retention', 
-                      'Commercial property management has withheld our $35,000 security deposit past the statutory 60-day window post-lease expiration, citing broad, unitemized facility restoration fees.',
-                      'Corporate tenant transitioning regional office headquarters'
+                      'Unreturned apartment deposit', 
+                      'My landlord has withheld my full $1,800 security deposit for over 45 days past lease termination without itemized deduction notices or damage reports, and is now ignoring my phone calls.',
+                      'First-time renter moving to a new state'
                     )}
                   >
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
                     <div>
-                      <strong>Commercial Lease Deposit Retention</strong> &mdash; Landlord withholding capital past statutory deadlines.
-                    </div>
-                  </div>
-                  <div 
-                    className="verlo-card" 
-                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem' }}
-                    onClick={() => handleExampleSelect(
-                      'Regulatory Compliance Audit Flag', 
-                      'Our regional operations received a formal compliance notice regarding data retention parameters, threatening operational suspension within 30 days unless technical controls are audited and certified.',
-                      'Fintech enterprise operating in tightly regulated markets'
-                    )}
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                    <div>
-                      <strong>Regulatory Compliance Audit Flag</strong> &mdash; Short-window remediation notice from regional oversight body.
+                      <strong>Unreturned security deposit</strong> &mdash; Landlord withholding funds past legal deadline.
                     </div>
                   </div>
                 </div>
@@ -369,22 +354,22 @@ export default function App() {
 
               <div className="verlo-header" style={{ marginTop: '1rem', marginBottom: '2rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '1rem', width: '100%' }}>
-                  <img src="/VVNormal.png" alt="Verlo Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
-                  <span className="verlo-brand" style={{ margin: 0 }}>VERLO</span>
+                  <img src="/VVNormal.png" alt="YICTE Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
+                  <span className="verlo-brand" style={{ margin: 0 }}>YICTE</span>
                 </div>
-                <h2 className="verlo-title" style={{ fontSize: '2rem', marginBottom: '0.25rem' }}>Define Operational Parameters</h2>
-                <p className="verlo-subtitle" style={{ margin: 0 }}>Provide exact operational variables for comprehensive AI server & client-side modeling.</p>
+                <h2 className="verlo-title" style={{ fontSize: '2rem', marginBottom: '0.25rem' }}>Define Your Situation</h2>
+                <p className="verlo-subtitle" style={{ margin: 0 }}>Provide the details below using the YICTE server & index engine so we can formulate your tailored pathway.</p>
               </div>
 
               {error && <div style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.9rem', background: 'rgba(239, 68, 68, 0.1)', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.3)' }}>{error}</div>}
 
               <form onSubmit={handleSubmit} className="verlo-card">
                 <div className="form-group">
-                  <label className="form-label">Incident / Case Title (Optional)</label>
+                  <label className="form-label">Situation Title (Optional)</label>
                   <input 
                     type="text" 
                     className="form-input" 
-                    placeholder="e.g., Enterprise cloud vendor billing breach" 
+                    placeholder="e.g., Landlord deposit dispute" 
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                   />
@@ -392,14 +377,14 @@ export default function App() {
 
                 <div className="form-group">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                    <label className="form-label" style={{ marginBottom: 0 }}>Detailed Situation Overview *</label>
+                    <label className="form-label" style={{ marginBottom: 0 }}>Describe what happened *</label>
                     <span style={{ fontSize: '0.8rem', color: wordCount < MIN_WORDS ? 'var(--warning)' : 'var(--text-muted)' }}>
                       {wordCount} words {wordCount < MIN_WORDS ? `(Minimum ${MIN_WORDS} required)` : '✓'}
                     </span>
                   </div>
                   <textarea 
                     className="form-textarea" 
-                    placeholder="Provide full context, metrics, timeline, communications history, and desired corporate outcome..."
+                    placeholder="Include key details: dates, amounts, communications, and what outcome you are looking for..."
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     required
@@ -407,18 +392,18 @@ export default function App() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Strategic Constraints & Context (Optional)</label>
+                  <label className="form-label">Any specific personal context or constraints? (Optional)</label>
                   <input 
                     type="text" 
                     className="form-input" 
-                    placeholder="e.g., Strict legal compliance requirements, capital exposure limits" 
+                    placeholder="e.g., I'm a student living on a tight budget" 
                     value={userContext}
                     onChange={(e) => setUserContext(e.target.value)}
                   />
                 </div>
 
                 <button type="submit" className="btn-primary">
-                  Compute Comprehensive Pathway →
+                  Compute Tailored Pathway →
                 </button>
               </form>
             </div>
@@ -428,7 +413,7 @@ export default function App() {
         {step === 'processing' && (
           <div className="page-transition processing-container" key="processing" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3rem 1rem' }}>
             <div className="processing-pulse-ring"></div>
-            <h2 style={{ fontSize: '1.5rem', marginTop: '1.5rem', color: 'var(--text-main)' }}>Synthesizing enterprise logic...</h2>
+            <h2 style={{ fontSize: '1.5rem', marginTop: '1.5rem', color: 'var(--text-main)' }}>Synthesizing personalized logic...</h2>
             
             <div className="processing-steps" style={{ width: '100%', maxWidth: '450px', marginTop: '2rem' }}>
               {processingSteps.map((text, idx) => {
@@ -446,7 +431,7 @@ export default function App() {
         )}
 
         {step === 'results' && analysisData && (
-          <div className="page-transition" key="results" style={{ maxWidth: '850px', margin: '0 auto', padding: '0 1rem 3rem', flex: 1, width: '100%', boxSizing: 'border-box' }}>
+          <div className="page-transition" key="results" style={{ maxWidth: '800px', margin: '0 auto', padding: '0 1rem 3rem', flex: 1, width: '100%', boxSizing: 'border-box' }}>
             
             {/* Top Navigation Bar inside Results */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
@@ -455,7 +440,7 @@ export default function App() {
                   onClick={() => setStep('input')}
                   style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
                 >
-                  ← Edit Parameters
+                  ← Edit Situation
                 </button>
                 <button 
                   onClick={() => handleSaveToAccount(analysisData)}
@@ -473,22 +458,13 @@ export default function App() {
               </button>
             </div>
 
-            {/* ⚠️ Warning Banner (Red Footer/Bottom Alert style as requested) */}
-            <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.5)', padding: '1rem 1.25rem', borderRadius: '8px', marginBottom: '1.5rem', fontSize: '0.85rem', color: '#ef4444', display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" style={{ flexShrink: 0, marginTop: '2px' }}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              <div>
-                <strong style={{ display: 'block', marginBottom: '0.2rem', color: '#ef4444' }}>CRITICAL REGULATORY & LEGAL DISCLAIMER</strong>
-                Verlo is an enterprise intelligence utility designed to automate structural decision workflows. Algorithmic outputs may require legal validation, professional accounting verification, or formal compliance sign-off prior to commercial execution.
-              </div>
-            </div>
-
             {/* Risk Assessment Summary Bar */}
             <div className="result-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', background: 'var(--bg-surface)' }}>
               <div>
                 <span className={`badge ${analysisData.confidence?.toLowerCase()}`} style={{ marginBottom: '0.25rem', display: 'inline-block' }}>
-                  Confidence Vector: {analysisData.confidence}
+                  Confidence: {analysisData.confidence}
                 </span>
-                {userContext && <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Context Parameters: <em>"{userContext}"</em></div>}
+                {userContext && <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Tailored for: <em>"{userContext}"</em></div>}
               </div>
               <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.85rem' }}>
                 <div>
@@ -502,7 +478,7 @@ export default function App() {
                   <strong>{analysisData.riskAssessment?.financialExposure}</strong>
                 </div>
                 <div>
-                  <span style={{ color: 'var(--text-muted)' }}>Urgency Window:</span><br/>
+                  <span style={{ color: 'var(--text-muted)' }}>Urgency:</span><br/>
                   <strong>{analysisData.riskAssessment?.timeSensitivity}</strong>
                 </div>
               </div>
@@ -512,11 +488,11 @@ export default function App() {
             <div className="dominant-action">
               <h3 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
-                Immediate Strategic Priority
+                Immediate Priority Action
               </h3>
-              <h2>{analysisData.nextSteps?.[0]?.step || "Review comprehensive framework options below."}</h2>
+              <h2>{analysisData.nextSteps?.[0]?.step || "Review strategic options below."}</h2>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: 0 }}>
-                <strong>Strategic Rationale:</strong> {analysisData.nextSteps?.[0]?.why || "Establishes institutional control over the negotiation vector."}
+                <strong>Why this first:</strong> {analysisData.nextSteps?.[0]?.why || "Establishes your foundational position."}
               </p>
             </div>
 
@@ -524,7 +500,7 @@ export default function App() {
             <div className="result-section">
               <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-                Comprehensive Execution Pathway
+                Full Step-by-Step Action Pathway
               </h3>
               <div style={{ display: 'grid', gap: '1rem' }}>
                 {analysisData.nextSteps?.map((item, idx) => (
@@ -533,27 +509,27 @@ export default function App() {
                       <span style={{ background: 'var(--accent)', color: 'var(--bg-primary)', width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700, flexShrink: 0 }}>{idx + 1}</span>
                       <strong style={{ fontSize: '0.95rem', color: 'var(--text-main)' }}>{item.step}</strong>
                     </div>
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '2.1rem', marginBottom: '0.3rem' }}><strong>Operational Rationale:</strong> {item.why}</p>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '2.1rem', marginBottom: '0.3rem' }}><strong>Why:</strong> {item.why}</p>
                     {item.pitfallWarning && (
-                      <p style={{ fontSize: '0.85rem', color: 'var(--danger)', marginLeft: '2.1rem', marginBottom: 0 }}><strong>⚠️ Operational Pitfall to Avoid:</strong> {item.pitfallWarning}</p>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--danger)', marginLeft: '2.1rem', marginBottom: 0 }}><strong>⚠️ Pitfall to Avoid:</strong> {item.pitfallWarning}</p>
                     )}
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Strategic Options Matrix */}
+            {/* Strategic Options */}
             {analysisData.options && analysisData.options.length > 0 && (
               <div className="result-section">
                 <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                  Evaluated Strategic Alternatives Matrix
+                  Evaluated Strategic Options
                 </h3>
                 <div style={{ display: 'grid', gap: '0.75rem' }}>
                   {analysisData.options.map((opt, i) => (
                     <div key={i} style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
                       <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)', marginBottom: '0.25rem' }}>{opt.title}</div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}><strong>Recommended Profile:</strong> {opt.bestFor}</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}><strong>Best For:</strong> {opt.bestFor}</div>
                     </div>
                   ))}
                 </div>
@@ -564,7 +540,7 @@ export default function App() {
             <div className="result-section">
               <h3 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-                Enterprise Situation Synthesis
+                Situation Summary
               </h3>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: 0 }}>{analysisData.situation}</p>
             </div>
@@ -574,7 +550,7 @@ export default function App() {
               <div className="result-section" style={{ background: 'var(--bg-surface)' }}>
                 <h3 style={{ color: 'var(--text-main)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                  Mandatory Verification Checklist
+                  Items Recommended for Verification
                 </h3>
                 <ul style={{ margin: 0, paddingLeft: '1.25rem', fontSize: '0.85rem', color: 'var(--text-muted)', display: 'grid', gap: '0.4rem' }}>
                   {analysisData.verificationNeeded.map((item, i) => (
@@ -590,13 +566,13 @@ export default function App() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                   <h3 style={{ color: 'var(--accent)', fontSize: '0.95rem', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                    Automated Executive Correspondence Draft
+                    Automated Resolution Letter
                   </h3>
                   <button 
                     onClick={handleCopyDraft}
                     style={{ background: 'var(--accent)', color: 'var(--bg-primary)', border: 'none', padding: '0.3rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}
                   >
-                    {copied ? 'Copied to Clipboard!' : 'Copy Template'}
+                    {copied ? 'Copied!' : 'Copy Letter Template'}
                   </button>
                 </div>
                 <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', background: 'var(--bg-card)', padding: '1rem', borderRadius: '8px', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
@@ -605,13 +581,13 @@ export default function App() {
               </div>
             )}
 
-            {/* Contextual Follow-up Chat with Verlo Assistant */}
+            {/* Contextual Follow-up Chat with YICTE Assistant */}
             <div className="result-section" style={{ background: 'var(--bg-surface)' }}>
               <h3 style={{ color: 'var(--text-main)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                Verlo Intelligence Assistant
+                Consult YICTE AI Assistant
               </h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>Query the AI system regarding framework implementation, secondary compliance requirements, or negotiation tactics:</p>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>Have questions about this pathway or need to draft a follow-up response? Ask below:</p>
               
               {chatHistory.length > 0 && (
                 <div style={{ display: 'grid', gap: '0.75rem', marginBottom: '1rem', maxHeight: '300px', overflowY: 'auto', paddingRight: '0.5rem' }}>
@@ -629,7 +605,7 @@ export default function App() {
                       }}
                     >
                       <strong style={{ display: 'block', marginBottom: '0.2rem', color: msg.role === 'user' ? 'var(--text-main)' : 'var(--accent)' }}>
-                        {msg.role === 'user' ? 'Enterprise Client' : 'Verlo AI Engine'}
+                        {msg.role === 'user' ? 'You' : 'YICTE AI'}
                       </strong>
                       <div style={{ color: 'var(--text-muted)', whiteSpace: 'pre-wrap' }}>{msg.content}</div>
                     </div>
@@ -641,7 +617,7 @@ export default function App() {
                 <input 
                   type="text" 
                   className="form-input" 
-                  placeholder="e.g., What contingency metrics apply if formal notice goes unanswered?" 
+                  placeholder="e.g., What should I do if they don't reply within 3 days?" 
                   value={chatQuestion}
                   onChange={(e) => setChatQuestion(e.target.value)}
                   disabled={isChatLoading}
@@ -653,9 +629,18 @@ export default function App() {
                   style={{ width: 'auto', padding: '0.5rem 1.25rem', marginTop: 0 }}
                   disabled={isChatLoading}
                 >
-                  {isChatLoading ? 'Processing...' : 'Submit Query'}
+                  {isChatLoading ? 'Thinking...' : 'Send'}
                 </button>
               </form>
+            </div>
+
+            {/* ⚠️ Warning Banner (Red on Bottom as requested) */}
+            <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.5)', padding: '1rem 1.25rem', borderRadius: '8px', marginTop: '1.5rem', fontSize: '0.85rem', color: '#ef4444', display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" style={{ flexShrink: 0, marginTop: '2px' }}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <div>
+                <strong style={{ display: 'block', marginBottom: '0.2rem', color: '#ef4444' }}>Ethical Notice & Information Verification Required</strong>
+                YICTE is an AI decision-intelligence assistant designed to structure administrative pathways. AI models can occasionally misstate rules, statutes, or deadlines. Please independently verify all critical claims, contract terms, legal deadlines, or financial obligations before executing high-stakes actions.
+              </div>
             </div>
 
           </div>
@@ -666,11 +651,11 @@ export default function App() {
       <footer style={{ borderTop: '1px solid var(--border-subtle)', padding: '2rem 1rem', background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', marginTop: 'auto', textAlign: 'center', flexShrink: 0 }}>
         <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <img src="/VVNormal.png" alt="Verlo Logo" style={{ width: '20px', height: '20px', objectFit: 'contain' }} />
-            <span style={{ fontWeight: 700, letterSpacing: '0.05em', fontSize: '0.9rem', color: 'var(--text-main)' }}>VERLO ENTERPRISE</span>
+            <img src="/VVNormal.png" alt="YICTE Logo" style={{ width: '20px', height: '20px', objectFit: 'contain' }} />
+            <span style={{ fontWeight: 700, letterSpacing: '0.05em', fontSize: '0.9rem', color: 'var(--text-main)' }}>YICTE</span>
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-            &copy; {new Date().getFullYear()} Verlo Engine Corporation. All rights reserved. Built with institutional-grade decision intelligence standards.
+            &copy; {new Date().getFullYear()} YICTE Engine. All rights reserved. Built with ethical decision-intelligence standards.
           </div>
         </div>
       </footer>
@@ -679,11 +664,11 @@ export default function App() {
       {showHistoryDrawer && (
         <div style={{ position: 'fixed', top: 0, right: 0, width: '380px', height: '100%', background: 'var(--bg-card)', borderLeft: '1px solid var(--border-subtle)', zIndex: 100, padding: '1.5rem', overflowY: 'auto', boxShadow: '-5px 0 25px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Saved Enterprise Archives</h3>
+            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Your Saved Pathways</h3>
             <button onClick={() => setShowHistoryDrawer(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
           </div>
           {userHistory.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No archived reports found. Use "Save to Account" on any analysis panel.</p>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No saved reports yet. Click "Save to Account" on any result screen!</p>
           ) : (
             <div style={{ display: 'grid', gap: '0.75rem' }}>
               {userHistory.map((item, idx) => (
@@ -712,7 +697,7 @@ export default function App() {
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 200, padding: '1rem', boxSizing: 'border-box' }}>
           <div style={{ background: 'var(--bg-card)', padding: '2rem', borderRadius: '12px', border: '1px solid var(--border-subtle)', width: '100%', maxWidth: '400px', boxSizing: 'border-box' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h3 style={{ margin: 0 }}>{authMode === 'login' ? 'Client Portal Authentication' : 'Create Enterprise Account'}</h3>
+              <h3 style={{ margin: 0 }}>{authMode === 'login' ? 'Log in to YICTE' : 'Create an Account'}</h3>
               <button onClick={() => setShowAuthModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
             </div>
 
@@ -720,7 +705,7 @@ export default function App() {
 
             <form onSubmit={handleAuthSubmit}>
               <div className="form-group">
-                <label className="form-label">Corporate Email</label>
+                <label className="form-label">Email Address</label>
                 <input 
                   type="email" 
                   className="form-input" 
@@ -730,7 +715,7 @@ export default function App() {
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">Security Password</label>
+                <label className="form-label">Password</label>
                 <input 
                   type="password" 
                   className="form-input" 
@@ -741,15 +726,15 @@ export default function App() {
               </div>
 
               <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
-                {authMode === 'login' ? 'Authenticate Session' : 'Register Account'}
+                {authMode === 'login' ? 'Log In' : 'Sign Up'}
               </button>
             </form>
 
             <div style={{ textAlign: 'center', marginTop: '1.25rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
               {authMode === 'login' ? (
-                <span>Need an account? <button onClick={() => setAuthMode('signup')} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}>Sign up</button></span>
+                <span>Don't have an account? <button onClick={() => setAuthMode('signup')} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}>Sign up</button></span>
               ) : (
-                <span>Already registered? <button onClick={() => setAuthMode('login')} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}>Log in</button></span>
+                <span>Already have an account? <button onClick={() => setAuthMode('login')} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}>Log in</button></span>
               )}
             </div>
           </div>
