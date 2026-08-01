@@ -1,3 +1,4 @@
+// --- server.js ---
 import express from 'express';
 import cors from 'cors';
 import fs from 'fs';
@@ -20,13 +21,13 @@ app.use(express.json());
 const groq = new Groq();
 
 // --- PERSISTENT FILE DATABASE SETUP (`db.json`) ---
-const DB_FILE = path.join(__dirname, 'db.json');
+const DB_FILE = path.resolve(__dirname, 'db.json');
 
 function readDB() {
   try {
     if (!fs.existsSync(DB_FILE)) {
       const initialData = { users: [], history: {} };
-      fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2));
+      fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2), 'utf8');
       return initialData;
     }
     const rawData = fs.readFileSync(DB_FILE, 'utf8');
@@ -39,7 +40,7 @@ function readDB() {
 
 function writeDB(data) {
   try {
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
   } catch (err) {
     console.error('❌ Error writing to db.json:', err);
   }
@@ -51,13 +52,10 @@ let restrictedWords = [];
 function loadModerationRules() {
   try {
     const moderationPath = path.resolve(__dirname, 'moderation.json');
-    console.log(`🔍 Checking moderation file path: ${moderationPath}`);
-    
     if (fs.existsSync(moderationPath)) {
       const rawData = fs.readFileSync(moderationPath, 'utf8');
       const parsed = JSON.parse(rawData);
       
-      // Handle array, blacklisted_words, blockedWords, or blockedKeywords structures
       if (Array.isArray(parsed)) {
         restrictedWords = parsed;
       } else if (parsed.blacklisted_words && Array.isArray(parsed.blacklisted_words)) {
@@ -69,7 +67,6 @@ function loadModerationRules() {
       } else {
         restrictedWords = [];
       }
-      
       console.log(`🛡️ Successfully loaded ${restrictedWords.length} restricted terms from moderation.json`);
     } else {
       console.warn(`⚠️ moderation.json not found at expected path: ${moderationPath}`);
@@ -79,10 +76,8 @@ function loadModerationRules() {
   }
 }
 
-// Load rules on startup
 loadModerationRules();
 
-// Helper function to check for vulgar/NSFW terms
 function containsRestrictedContent(text) {
   if (!text || restrictedWords.length === 0) return false;
   const lowerText = text.toLowerCase();
@@ -94,8 +89,7 @@ function containsRestrictedContent(text) {
   });
 }
 
-// --- 1. Authentication Endpoints (Persistent via db.json) ---
-
+// --- 1. Authentication Endpoints ---
 app.post('/api/auth/signup', (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
@@ -107,7 +101,9 @@ app.post('/api/auth/signup', (req, res) => {
 
   const existingUser = db.users.find(u => u.email === cleanEmail);
   if (existingUser) {
-    return res.status(400).json({ error: 'An account with this email already exists.' });
+    return res.status(400).json({ 
+      error: 'An account with this email address already exists. Please log in instead.' 
+    });
   }
 
   const newUser = { id: 'user_' + Date.now(), email: cleanEmail, password };
@@ -116,7 +112,7 @@ app.post('/api/auth/signup', (req, res) => {
   
   writeDB(db);
 
-  res.json({ success: true, user: { id: newUser.id, email: newUser.email } });
+  res.json({ success: true, message: 'Account successfully created!', user: { id: newUser.id, email: newUser.email } });
 });
 
 app.post('/api/auth/login', (req, res) => {
@@ -136,8 +132,7 @@ app.post('/api/auth/login', (req, res) => {
   res.json({ success: true, user: { id: user.id, email: user.email } });
 });
 
-// --- 2. History Endpoints (Persistent via db.json) ---
-
+// --- 2. History Endpoints ---
 app.get('/api/history/:userId', (req, res) => {
   const { userId } = req.params;
   const db = readDB();
@@ -165,10 +160,10 @@ app.post('/api/history/save', (req, res) => {
 
   writeDB(db);
 
-  res.json({ success: true, history: db.history[userId] });
+  res.json({ success: true, message: 'Report successfully saved to your history!', history: db.history[userId] });
 });
 
-// --- 3. UNIVERSAL DIAGNOSE ENDPOINT (Powered by Groq LLM & Protected by moderation.json) ---
+// --- 3. DIAGNOSE ENDPOINT ---
 app.post('/api/diagnose', async (req, res) => {
   try {
     const { title, description, context } = req.body;
@@ -177,7 +172,6 @@ app.post('/api/diagnose', async (req, res) => {
       return res.status(400).json({ error: 'Description is too short.' });
     }
 
-    // Check moderation filter against title and description
     const textToCheck = `${title || ''} ${description} ${context || ''}`;
     if (containsRestrictedContent(textToCheck)) {
       return res.status(400).json({ 
@@ -221,7 +215,6 @@ Context: ${context || 'None provided'}`;
     try {
       normalizedResponse = JSON.parse(rawContent);
     } catch (parseErr) {
-      console.error('Failed to parse model JSON output:', rawContent);
       normalizedResponse = {
         confidence: 'Strong',
         situation: description,
@@ -245,7 +238,7 @@ Context: ${context || 'None provided'}`;
   }
 });
 
-// --- 4. UNIVERSAL CHAT ENDPOINT (Powered by Groq LLM & Protected by moderation.json) ---
+// --- 4. CHAT ENDPOINT ---
 app.post('/api/chat', async (req, res) => {
   try {
     const { question, currentSituation } = req.body;
@@ -254,7 +247,6 @@ app.post('/api/chat', async (req, res) => {
       return res.status(400).json({ error: 'Question is required' });
     }
 
-    // Check moderation filter against chat questions
     if (containsRestrictedContent(question)) {
       return res.status(400).json({ 
         error: 'Verlo Engine Safety Policy: Chat query contains restricted terminology.' 
@@ -274,7 +266,6 @@ app.post('/api/chat', async (req, res) => {
     });
 
     const contextualAnswer = chatCompletion.choices[0]?.message?.content || 'No response generated.';
-
     res.json({ reply: contextualAnswer });
   } catch (error) {
     console.error('Chat API Error:', error);
@@ -282,7 +273,6 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
-// Start Server
 app.listen(PORT, () => {
   console.log(`Verlo decision engine backend running on http://127.0.0.1:${PORT}`);
 });
