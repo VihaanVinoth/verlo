@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './index.css';
 
-// Dynamically check if VITE_API_URL is provided (Netlify production), otherwise fallback to local backend
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5001';
 
 export default function App() {
@@ -14,6 +13,11 @@ export default function App() {
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
 
+  // Chat follow-up state
+  const [chatQuestion, setChatQuestion] = useState('');
+  const [chatHistory, setChatHistory] = useState([]);
+  const [isChatLoading, setIsChatLoading] = useState(false);
+
   // Persistent Auth state using localStorage
   const [currentUser, setCurrentUser] = useState(() => {
     try {
@@ -24,7 +28,7 @@ export default function App() {
     }
   });
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState('login'); // 'login' or 'signup'
+  const [authMode, setAuthMode] = useState('login');
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState(null);
@@ -34,17 +38,16 @@ export default function App() {
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
 
   const processingSteps = [
-    "Deciphering the goal...",
-    "Detecting personal constraints & stakes...",
-    "Calculating risk severity & exposure...",
-    "Evaluating strategic options...",
-    "Synthesizing customized action pathway..."
+    "Deciphering the core strategic goal...",
+    "Screening through moderation & safety filters...",
+    "Evaluating risk severity & exposure metrics...",
+    "Synthesizing customized action pathway...",
+    "Finalizing tactical recommendations..."
   ];
 
   const wordCount = description.trim() ? description.trim().split(/\s+/).length : 0;
   const MIN_WORDS = 5;
 
-  // Sync user session and fetch persistent history from backend
   useEffect(() => {
     if (currentUser && currentUser.id) {
       localStorage.setItem('verlo_user', JSON.stringify(currentUser));
@@ -111,7 +114,10 @@ export default function App() {
       const res = await fetch(`${API_URL}/api/history/save`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: currentUser.id, report: { title: title || 'Unnamed Request', description, result: resultData } })
+        body: JSON.stringify({ 
+          userId: currentUser.id, 
+          report: { title: title || 'Unnamed Request', description, result: resultData } 
+        })
       });
       const data = await res.json();
       if (data.history) {
@@ -149,7 +155,7 @@ export default function App() {
     }
 
     let currentStage = 0;
-    const intervalTime = 900; 
+    const intervalTime = 700; 
 
     const interval = setInterval(() => {
       currentStage += 1;
@@ -177,6 +183,7 @@ export default function App() {
       }
 
       setAnalysisData(result.data);
+      setChatHistory([]); // Reset chat history for new diagnosis
       setStep('results');
     } catch (err) {
       clearInterval(interval);
@@ -193,10 +200,41 @@ export default function App() {
     setTimeout(() => setCopied(false), 3000);
   };
 
+  const handleChatSubmit = async (e) => {
+    e.preventDefault();
+    if (!chatQuestion.trim() || isChatLoading) return;
+
+    const questionText = chatQuestion.trim();
+    setChatQuestion('');
+    setIsChatLoading(true);
+
+    const newHistory = [...chatHistory, { role: 'user', content: questionText }];
+    setChatHistory(newHistory);
+
+    try {
+      const res = await fetch(`${API_URL}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          question: questionText, 
+          currentSituation: description || title 
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to get chat response.');
+
+      setChatHistory([...newHistory, { role: 'assistant', content: data.reply }]);
+    } catch (err) {
+      setChatHistory([...newHistory, { role: 'assistant', content: `⚠️ Error: ${err.message}` }]);
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
   return (
     <div className="verlo-app">
       
-      {/* Top Navigation Bar with Account / Login */}
+      {/* Top Navigation Bar */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '1rem 2rem', gap: '1rem' }}>
         {currentUser ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -204,7 +242,7 @@ export default function App() {
               onClick={() => setShowHistoryDrawer(!showHistoryDrawer)}
               style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer' }}
             >
-              Saved History ({userHistory.length})
+              📁 Saved History ({userHistory.length})
             </button>
             <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>👤 {currentUser.email}</span>
             <button 
@@ -235,7 +273,7 @@ export default function App() {
               </div>
               <h1 className="verlo-title">Stop guessing. Know your exact next step.</h1>
               <p className="verlo-subtitle" style={{ marginBottom: '2.5rem' }}>
-                A decision-intelligence system that transforms messy, stressful situations into a fully tailored, risk-scored action pathway.
+                An ethical decision-intelligence system that transforms messy, stressful situations into a fully tailored, risk-scored action pathway.
               </p>
               <button className="btn-primary" style={{ maxWidth: '300px', margin: '0 auto 3rem' }} onClick={() => setStep('input')}>
                 Launch Decision Engine →
@@ -377,6 +415,8 @@ export default function App() {
 
         {step === 'results' && analysisData && (
           <div className="page-transition" key="results" style={{ maxWidth: '800px', margin: '0 auto', padding: '0 1rem 3rem', flex: 1 }}>
+            
+            {/* Top Navigation Bar inside Results */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
               <div style={{ display: 'flex', gap: '0.75rem' }}>
                 <button 
@@ -400,6 +440,16 @@ export default function App() {
               </button>
             </div>
 
+            {/* ⚠️ Ethical Verification & Fact-Checking Warning Banner */}
+            <div style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.4)', padding: '1rem 1.25rem', borderRadius: '8px', marginBottom: '1.5rem', fontSize: '0.85rem', color: 'var(--warning)', display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+              <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>⚠️</span>
+              <div>
+                <strong style={{ display: 'block', marginBottom: '0.2rem', color: 'var(--text-main)' }}>Ethical Notice & Information Verification Required</strong>
+                Verlo is an AI decision-intelligence assistant designed to structure administrative pathways. AI models can occasionally misstate rules, statutes, or deadlines. Please independently verify all critical claims, contract terms, legal deadlines, or financial obligations before executing high-stakes actions.
+              </div>
+            </div>
+
+            {/* Risk Assessment Summary Bar */}
             <div className="result-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', background: 'var(--bg-surface)' }}>
               <div>
                 <span className={`badge ${analysisData.confidence?.toLowerCase()}`} style={{ marginBottom: '0.25rem' }}>
@@ -425,6 +475,7 @@ export default function App() {
               </div>
             </div>
 
+            {/* Dominant Action Card */}
             <div className="dominant-action">
               <h3 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--accent)', marginBottom: '0.5rem' }}>
                 👉 Immediate Priority Action
@@ -435,6 +486,7 @@ export default function App() {
               </p>
             </div>
 
+            {/* Full Step-by-Step Action Pathway */}
             <div className="result-section">
               <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem' }}>📋 Full Step-by-Step Action Pathway</h3>
               <div style={{ display: 'grid', gap: '1rem' }}>
@@ -453,11 +505,40 @@ export default function App() {
               </div>
             </div>
 
+            {/* Strategic Options & Verification Needs */}
+            {analysisData.options && analysisData.options.length > 0 && (
+              <div className="result-section">
+                <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem' }}>⚖️ Evaluated Strategic Options</h3>
+                <div style={{ display: 'grid', gap: '0.75rem' }}>
+                  {analysisData.options.map((opt, i) => (
+                    <div key={i} style={{ background: 'var(--bg-card)', padding: '0.85rem 1rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                      <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)', marginBottom: '0.2rem' }}>{opt.title}</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}><strong>Best For:</strong> {opt.bestFor}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Situation Summary */}
             <div className="result-section">
               <h3 style={{ color: 'var(--text-main)' }}>Situation Summary</h3>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: 0 }}>{analysisData.situation}</p>
             </div>
 
+            {/* Verification Checklist Section */}
+            {analysisData.verificationNeeded && analysisData.verificationNeeded.length > 0 && (
+              <div className="result-section" style={{ background: 'var(--bg-surface)' }}>
+                <h3 style={{ color: 'var(--text-main)', marginBottom: '0.75rem' }}>🔍 Items Recommended for Verification</h3>
+                <ul style={{ margin: 0, paddingLeft: '1.25rem', fontSize: '0.85rem', color: 'var(--text-muted)', display: 'grid', gap: '0.4rem' }}>
+                  {analysisData.verificationNeeded.map((item, i) => (
+                    <li key={i}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Automated Resolution Letter Template */}
             {analysisData.draftTemplate && (
               <div className="result-section" style={{ background: 'rgba(16, 185, 129, 0.05)', borderColor: 'rgba(16, 185, 129, 0.3)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
@@ -474,6 +555,57 @@ export default function App() {
                 </div>
               </div>
             )}
+
+            {/* Contextual Follow-up Chat with Verlo Assistant */}
+            <div className="result-section" style={{ background: 'var(--bg-surface)' }}>
+              <h3 style={{ color: 'var(--text-main)', marginBottom: '0.5rem' }}>💬 Consult Verlo AI Assistant</h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>Have questions about this pathway or need to draft a follow-up response? Ask below:</p>
+              
+              {chatHistory.length > 0 && (
+                <div style={{ display: 'grid', gap: '0.75rem', marginBottom: '1rem', maxHeight: '300px', overflowY: 'auto', paddingRight: '0.5rem' }}>
+                  {chatHistory.map((msg, index) => (
+                    <div 
+                      key={index} 
+                      style={{ 
+                        background: msg.role === 'user' ? 'var(--bg-card)' : 'rgba(16, 185, 129, 0.08)', 
+                        padding: '0.85rem', 
+                        borderRadius: '8px', 
+                        border: '1px solid var(--border-subtle)',
+                        fontSize: '0.85rem',
+                        marginLeft: msg.role === 'user' ? '2rem' : '0',
+                        marginRight: msg.role === 'user' ? '0' : '2rem'
+                      }}
+                    >
+                      <strong style={{ display: 'block', marginBottom: '0.2rem', color: msg.role === 'user' ? 'var(--text-main)' : 'var(--accent)' }}>
+                        {msg.role === 'user' ? 'You' : 'Verlo AI'}
+                      </strong>
+                      <div style={{ color: 'var(--text-muted)', whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <form onSubmit={handleChatSubmit} style={{ display: 'flex', gap: '0.5rem' }}>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="e.g., What should I do if they don't reply within 3 days?" 
+                  value={chatQuestion}
+                  onChange={(e) => setChatQuestion(e.target.value)}
+                  disabled={isChatLoading}
+                  style={{ marginBottom: 0 }}
+                />
+                <button 
+                  type="submit" 
+                  className="btn-primary" 
+                  style={{ width: 'auto', padding: '0.5rem 1.25rem', marginTop: 0 }}
+                  disabled={isChatLoading}
+                >
+                  {isChatLoading ? 'Thinking...' : 'Send'}
+                </button>
+              </form>
+            </div>
+
           </div>
         )}
       </div>
@@ -486,7 +618,7 @@ export default function App() {
             <span style={{ fontWeight: 700, letterSpacing: '0.05em', fontSize: '0.9rem', color: 'var(--text-main)' }}>VERLO</span>
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-            &copy; {new Date().getFullYear()} Verlo Engine. All rights reserved.
+            &copy; {new Date().getFullYear()} Verlo Engine. All rights reserved. Built with ethical decision-intelligence standards.
           </div>
         </div>
       </footer>

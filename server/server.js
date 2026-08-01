@@ -19,6 +19,32 @@ app.use(express.json());
 // Initialize Groq SDK (picks up GROQ_API_KEY from environment variables automatically)
 const groq = new Groq();
 
+// --- PERSISTENT FILE DATABASE SETUP (`db.json`) ---
+const DB_FILE = path.join(__dirname, 'db.json');
+
+function readDB() {
+  try {
+    if (!fs.existsSync(DB_FILE)) {
+      const initialData = { users: [], history: {} };
+      fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2));
+      return initialData;
+    }
+    const rawData = fs.readFileSync(DB_FILE, 'utf8');
+    return JSON.parse(rawData);
+  } catch (err) {
+    console.error('⚠️ Error reading db.json, returning fallback structure:', err);
+    return { users: [], history: {} };
+  }
+}
+
+function writeDB(data) {
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+  } catch (err) {
+    console.error('❌ Error writing to db.json:', err);
+  }
+}
+
 // Load moderation blacklist from moderation.json safely
 let restrictedWords = [];
 try {
@@ -45,11 +71,7 @@ function containsRestrictedContent(text) {
   });
 }
 
-// In-memory mock database for users and saved history
-const usersDatabase = []; // { id, email, password }
-const historyDatabase = {}; // userId -> array of saved reports
-
-// --- 1. Authentication Endpoints ---
+// --- 1. Authentication Endpoints (Persistent via db.json) ---
 
 app.post('/api/auth/signup', (req, res) => {
   const { email, password } = req.body;
@@ -57,21 +79,32 @@ app.post('/api/auth/signup', (req, res) => {
     return res.status(400).json({ error: 'Email and password are required.' });
   }
 
-  const existingUser = usersDatabase.find(u => u.email === email);
+  const db = readDB();
+  const cleanEmail = email.trim().toLowerCase();
+
+  const existingUser = db.users.find(u => u.email === cleanEmail);
   if (existingUser) {
     return res.status(400).json({ error: 'An account with this email already exists.' });
   }
 
-  const newUser = { id: Date.now().toString(), email, password };
-  usersDatabase.push(newUser);
-  historyDatabase[newUser.id] = [];
+  const newUser = { id: 'user_' + Date.now(), email: cleanEmail, password };
+  db.users.push(newUser);
+  db.history[newUser.id] = [];
+  
+  writeDB(db);
 
   res.json({ success: true, user: { id: newUser.id, email: newUser.email } });
 });
 
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body;
-  const user = usersDatabase.find(u => u.email === email && u.password === password);
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required.' });
+  }
+
+  const db = readDB();
+  const cleanEmail = email.trim().toLowerCase();
+  const user = db.users.find(u => u.email === cleanEmail && u.password === password);
 
   if (!user) {
     return res.status(401).json({ error: 'Invalid email or password.' });
@@ -80,11 +113,12 @@ app.post('/api/auth/login', (req, res) => {
   res.json({ success: true, user: { id: user.id, email: user.email } });
 });
 
-// --- 2. History Endpoints ---
+// --- 2. History Endpoints (Persistent via db.json) ---
 
 app.get('/api/history/:userId', (req, res) => {
   const { userId } = req.params;
-  const userHistory = historyDatabase[userId] || [];
+  const db = readDB();
+  const userHistory = db.history[userId] || [];
   res.json({ history: userHistory });
 });
 
@@ -94,17 +128,21 @@ app.post('/api/history/save', (req, res) => {
     return res.status(400).json({ error: 'Missing userId or report data.' });
   }
 
-  if (!historyDatabase[userId]) {
-    historyDatabase[userId] = [];
+  const db = readDB();
+
+  if (!db.history[userId]) {
+    db.history[userId] = [];
   }
 
-  historyDatabase[userId].unshift({
+  db.history[userId].unshift({
     id: Date.now().toString(),
     timestamp: new Date().toISOString(),
     ...report
   });
 
-  res.json({ success: true, history: historyDatabase[userId] });
+  writeDB(db);
+
+  res.json({ success: true, history: db.history[userId] });
 });
 
 // --- 3. UNIVERSAL DIAGNOSE ENDPOINT (Powered by Groq LLM & Protected by moderation.json) ---
@@ -163,7 +201,6 @@ Context: ${context || 'None provided'}`;
       normalizedResponse = JSON.parse(rawContent);
     } catch (parseErr) {
       console.error('Failed to parse model JSON output:', rawContent);
-      // Fallback fallback structured response if raw text wasn't strictly JSON
       normalizedResponse = {
         confidence: 'Strong',
         situation: description,
