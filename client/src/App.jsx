@@ -38,11 +38,11 @@ export default function App() {
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
 
   const processingSteps = [
-    "Deciphering the core strategic goal...",
-    "Screening through moderation & safety filters...",
-    "Evaluating risk severity & exposure metrics...",
-    "Synthesizing customized action pathway...",
-    "Finalizing tactical recommendations..."
+    "Initializing neural decision matrix...",
+    "Executing safety & protocol compliance audit...",
+    "Calculating vector risk exposure & temporal criticality...",
+    "Synthesizing structured strategic pathway...",
+    "Finalizing enterprise deployment parameters..."
   ];
 
   const wordCount = description.trim() ? description.trim().split(/\s+/).length : 0;
@@ -116,13 +116,13 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           userId: currentUser.id, 
-          report: { title: title || 'Unnamed Request', description, result: resultData } 
+          report: { title: title || 'Untitled Enterprise Audit', description, result: resultData } 
         })
       });
       const data = await res.json();
       if (data.history) {
         setUserHistory(data.history);
-        alert('Pathway saved successfully to your account history!');
+        alert('Pathway successfully archived to account secure storage.');
       }
     } catch (err) {
       console.error('Failed to save history', err);
@@ -133,7 +133,7 @@ export default function App() {
     e.preventDefault();
     
     if (wordCount < MIN_WORDS) {
-      setError(`Please provide a bit more detail (at least ${MIN_WORDS} words) so Verlo can build a reliable pathway.`);
+      setError(`Please provide comprehensive operational details (at least ${MIN_WORDS} words) to generate a high-fidelity pathway.`);
       return;
     }
 
@@ -149,7 +149,7 @@ export default function App() {
         body: JSON.stringify({ title, description, context: userContext }),
       });
     } catch (err) {
-      setError('Could not connect to Verlo server. Is the backend running?');
+      setError('Could not connect to Verlo engine server. Verify backend connectivity.');
       setStep('input');
       return;
     }
@@ -177,17 +177,17 @@ export default function App() {
 
       if (!res.ok) {
         clearInterval(interval);
-        setError(result.error || 'Content restricted or engine calculation failed.');
+        setError(result.error || 'Enterprise safety protocols restricted processing.');
         setStep('input');
         return;
       }
 
       setAnalysisData(result.data);
-      setChatHistory([]); // Reset chat history for new diagnosis
+      setChatHistory([]);
       setStep('results');
     } catch (err) {
       clearInterval(interval);
-      setError(err.message || 'Could not connect to Verlo server.');
+      setError(err.message || 'Could not connect to Verlo backend.');
       setStep('input');
     }
   };
@@ -221,101 +221,146 @@ export default function App() {
         })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to get chat response.');
+      if (!res.ok) throw new Error(data.error || 'Failed to generate advisory response.');
 
       setChatHistory([...newHistory, { role: 'assistant', content: data.reply }]);
     } catch (err) {
-      setChatHistory([...newHistory, { role: 'assistant', content: `⚠️ Error: ${err.message}` }]);
+      setChatHistory([...newHistory, { role: 'assistant', content: `System Error: ${err.message}` }]);
     } finally {
       setIsChatLoading(false);
     }
   };
 
   return (
-    <div className="verlo-app">
+    <div className="verlo-app-shell">
       
-      {/* Top Navigation Bar */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '1rem 2rem', gap: '1rem' }}>
-        {currentUser ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <button 
-              onClick={() => setShowHistoryDrawer(!showHistoryDrawer)}
-              style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer' }}
-            >
-              📁 Saved History ({userHistory.length})
-            </button>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>👤 {currentUser.email}</span>
-            <button 
-              onClick={handleLogout} 
-              style={{ background: 'none', border: '1px solid var(--border-subtle)', color: 'var(--danger)', padding: '0.3rem 0.6rem', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}
-            >
-              Logout
-            </button>
-          </div>
-        ) : (
-          <button 
-            onClick={() => { setAuthMode('login'); setAuthError(null); setShowAuthModal(true); }}
-            style={{ background: 'var(--accent)', color: 'var(--bg-primary)', border: 'none', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
-          >
-            Login / Signup
-          </button>
-        )}
-      </div>
-
-      {/* Main Content Area */}
-      <div style={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
-        {step === 'landing' && (
-          <div className="page-transition" key="landing">
-            <div className="verlo-header" style={{ marginTop: '2rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '1rem', width: '100%' }}>
-                <img src="/VVNormal.png" alt="Verlo Logo" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
-                <span className="verlo-brand" style={{ margin: 0 }}>VERLO</span>
-              </div>
-              <h1 className="verlo-title">Stop guessing. Know your exact next step.</h1>
-              <p className="verlo-subtitle" style={{ marginBottom: '2.5rem' }}>
-                An ethical decision-intelligence system that transforms messy, stressful situations into a fully tailored, risk-scored action pathway.
-              </p>
-              <button className="btn-primary" style={{ maxWidth: '300px', margin: '0 auto 3rem' }} onClick={() => setStep('input')}>
-                Launch Decision Engine →
+      {/* Top Enterprise Navigation Bar */}
+      <header className="verlo-topnav">
+        <div className="verlo-nav-brand" onClick={() => setStep('landing')}>
+          <img src="/VVNormal.png" alt="Verlo Enterprise Logo" className="brand-logo-img" />
+          <span className="brand-text">VERLO<span className="brand-badge-tag">ENTERPRISE</span></span>
+        </div>
+        <div className="verlo-nav-actions">
+          {currentUser ? (
+            <div className="user-session-cluster">
+              <button 
+                onClick={() => setShowHistoryDrawer(!showHistoryDrawer)}
+                className="nav-btn secondary-action"
+              >
+                <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                <span>Archives ({userHistory.length})</span>
               </button>
+              <div className="user-id-badge">
+                <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span>{currentUser.email}</span>
+              </div>
+              <button onClick={handleLogout} className="nav-btn logout-action">
+                <span>Sign Out</span>
+              </button>
+            </div>
+          ) : (
+            <button 
+              onClick={() => { setAuthMode('login'); setAuthError(null); setShowAuthModal(true); }}
+              className="nav-btn primary-action"
+            >
+              <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+              <span>Authentication</span>
+            </button>
+          )}
+        </div>
+      </header>
 
-              <div style={{ textAlign: 'left', maxWidth: '650px', margin: '0 auto 4rem' }}>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                  Test common administrative scenarios:
-                </p>
-                <div style={{ display: 'grid', gap: '0.75rem' }}>
+      {/* Main Container Viewport */}
+      <main className="verlo-main-viewport">
+        {step === 'landing' && (
+          <div className="page-transition landing-view" key="landing">
+            <div className="hero-container">
+              <div className="hero-badge">
+                <span className="pulse-dot"></span>
+                <span>AI-Powered Decision Intelligence Engine</span>
+              </div>
+              <h1 className="hero-title">Eliminate operational ambiguity. Execute with absolute clarity.</h1>
+              <p className="hero-subtitle">
+                Transform complex administrative bottlenecks, disputes, and structural crises into comprehensive, risk-assessed execution pathways instantly.
+              </p>
+              
+              <div className="hero-cta-group">
+                <button className="btn-enterprise-primary" onClick={() => setStep('input')}>
+                  <span>Deploy Intelligence Engine</span>
+                  <svg className="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                </button>
+              </div>
+
+              {/* Comprehensive Examples Grid */}
+              <div className="examples-section">
+                <div className="section-header-title">
+                  <svg className="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+                  <span>Select Pre-Engineered Enterprise Scenario:</span>
+                </div>
+                
+                <div className="examples-grid">
                   <div 
-                    className="verlo-card" 
-                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0 }}
+                    className="example-card"
                     onClick={() => handleExampleSelect(
-                      'Flight cancelled at gate', 
-                      'My international flight was abruptly cancelled at the boarding gate due to mechanical failure. The airline desk agent says the earliest they can rebook me is in 48 hours, and they are refusing to cover hotel accommodations for the night despite my connecting ticket.',
-                      'Traveling on a strict budget for an important family event'
+                      'International Flight Cancellation & Denial of Care', 
+                      'Long-haul international flight abruptly cancelled at the departure terminal due to structural mechanical failure. Carrier desk personnel are refusing rebooking for 72 hours and denying mandatory overnight hotel accommodation vouchers despite connecting itinerary.',
+                      'Corporate executive traveling on critical timeline for merger execution'
                     )}
                   >
-                    ✈️ <strong>Flight cancelled at gate</strong> &mdash; Airline refusing overnight hotel voucher.
+                    <div className="card-top-row">
+                      <svg className="card-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.5 1.2c-.2.4 0 .9.4 1.1l5 2.5-2 2-2.5-.5c-.4-.1-.9.1-1.1.5l-.4 1.1c-.2.4 0 .9.4 1.1l4 2 2 4c.2.4.7.6 1.1.4l1.1-.4c.4-.2.6-.7.5-1.1l-.5-2.5 2-2 2.5 5c.2.4.7.6 1.1.4l1.2-.5c.4-.2.6-.7.5-1.1z"/></svg>
+                      <span className="tag-pill">Transit & Logistics</span>
+                    </div>
+                    <h4>Flight Cancellation Dispute</h4>
+                    <p>Carrier refusing accommodation & immediate rebooking past regulatory threshold.</p>
                   </div>
+
                   <div 
-                    className="verlo-card" 
-                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0 }}
+                    className="example-card"
                     onClick={() => handleExampleSelect(
-                      'Unresolved billing charge', 
-                      'I noticed an unexpected $450 charge on my credit card from a software enterprise subscription that I explicitly cancelled three months ago in writing. Support is ignoring my emails and chat tickets.',
-                      'Freelancer relying on tight monthly cash flow'
+                      'Enterprise SaaS Unauthorized Billing Charge', 
+                      'Detected an unauthorized $2,450 recurring charge on corporate card for an enterprise software suite that was formally terminated in writing 90 days prior. Account management support is failing to respond to escalation tickets.',
+                      'Operations director managing strictly allocated departmental budget'
                     )}
                   >
-                    💳 <strong>Unresolved billing dispute</strong> &mdash; Subscription charged post-cancellation.
+                    <div className="card-top-row">
+                      <svg className="card-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                      <span className="tag-pill">Financial Compliance</span>
+                    </div>
+                    <h4>Unauthorized SaaS Billing</h4>
+                    <p>Subscription charged post-cancellation with zero responsiveness from merchant support.</p>
                   </div>
+
                   <div 
-                    className="verlo-card" 
-                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0 }}
+                    className="example-card"
                     onClick={() => handleExampleSelect(
-                      'Unreturned apartment deposit', 
-                      'My landlord has withheld my full $1,800 security deposit for over 45 days past lease termination without itemized deduction notices or damage reports, and is now ignoring my phone calls.',
-                      'First-time renter moving to a new state'
+                      'Commercial Lease Security Deposit Retention', 
+                      'Commercial landlord has withheld a $15,000 corporate facility security deposit for over 60 days past lease expiration without itemized deductions or formal damage reports, ignoring legal demand notices.',
+                      'Tech startup scaling workspace logistics'
                     )}
                   >
-                    🏠 <strong>Unreturned security deposit</strong> &mdash; Landlord withholding funds past legal deadline.
+                    <div className="card-top-row">
+                      <svg className="card-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                      <span className="tag-pill">Real Estate / Legal</span>
+                    </div>
+                    <h4>Unreturned Security Deposit</h4>
+                    <p>Landlord withholding major capital funds past statutory return deadline.</p>
+                  </div>
+
+                  <div 
+                    className="example-card"
+                    onClick={() => handleExampleSelect(
+                      'Breach of Vendor Service Level Agreement (SLA)', 
+                      'Primary cloud infrastructure vendor experienced critical sustained downtime violating contracted 99.99% uptime SLA, resulting in severe client transaction failures and documented revenue loss.',
+                      'CTO managing enterprise infrastructure dependencies'
+                    )}
+                  >
+                    <div className="card-top-row">
+                      <svg className="card-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                      <span className="tag-pill">Contractual Dispute</span>
+                    </div>
+                    <h4>Vendor SLA Breach</h4>
+                    <p>Sustained operational downtime triggering penalty clause requirements.</p>
                   </div>
                 </div>
               </div>
@@ -324,50 +369,49 @@ export default function App() {
         )}
 
         {step === 'input' && (
-          <div className="page-transition" key="input" style={{ flex: 1 }}>
-            <div style={{ maxWidth: '650px', margin: '0 auto', padding: '0 1rem 3rem' }}>
-              <div style={{ marginBottom: '1.5rem' }}>
-                <button 
-                  onClick={() => setStep('landing')}
-                  style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}
-                >
-                  ← Back to Overview
+          <div className="page-transition input-view" key="input">
+            <div className="input-container-wrapper">
+              <div className="back-nav-row">
+                <button onClick={() => setStep('landing')} className="nav-btn secondary-action">
+                  <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                  <span>Return to Overview</span>
                 </button>
               </div>
 
-              <div className="verlo-header" style={{ marginTop: '1rem', marginBottom: '2rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '1rem', width: '100%' }}>
-                  <img src="/VVNormal.png" alt="Verlo Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
-                  <span className="verlo-brand" style={{ margin: 0 }}>VERLO</span>
-                </div>
-                <h2 className="verlo-title" style={{ fontSize: '2rem', marginBottom: '0.25rem' }}>Define Your Situation</h2>
-                <p className="verlo-subtitle" style={{ margin: 0 }}>Provide the details below so the engine can formulate your tailored pathway.</p>
+              <div className="input-header">
+                <h2>Configure Situation Parameters</h2>
+                <p>Provide comprehensive context to initialize algorithmic decomposition and risk weighting.</p>
               </div>
 
-              {error && <div style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.9rem', background: 'rgba(239, 68, 68, 0.1)', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.3)' }}>{error}</div>}
+              {error && (
+                <div className="error-alert-banner">
+                  <svg className="alert-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  <span>{error}</span>
+                </div>
+              )}
 
-              <form onSubmit={handleSubmit} className="verlo-card">
+              <form onSubmit={handleSubmit} className="verlo-form-card">
                 <div className="form-group">
-                  <label className="form-label">Situation Title (Optional)</label>
+                  <label className="form-label">Situation Identifier / Title (Optional)</label>
                   <input 
                     type="text" 
                     className="form-input" 
-                    placeholder="e.g., Landlord deposit dispute" 
+                    placeholder="e.g., Q3 Vendor SLA Non-Compliance Dispute" 
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                   />
                 </div>
 
                 <div className="form-group">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                    <label className="form-label" style={{ marginBottom: 0 }}>Describe what happened *</label>
-                    <span style={{ fontSize: '0.8rem', color: wordCount < MIN_WORDS ? 'var(--warning)' : 'var(--text-muted)' }}>
-                      {wordCount} words {wordCount < MIN_WORDS ? `(Minimum ${MIN_WORDS} required)` : '✓'}
+                  <div className="label-flex">
+                    <label className="form-label">Detailed Case Description *</label>
+                    <span className={`word-counter-badge ${wordCount < MIN_WORDS ? 'warning' : 'valid'}`}>
+                      {wordCount} words {wordCount < MIN_WORDS ? `(Min ${MIN_WORDS})` : '✓ Ready'}
                     </span>
                   </div>
                   <textarea 
                     className="form-textarea" 
-                    placeholder="Include key details: dates, amounts, communications, and what outcome you are looking for..."
+                    placeholder="Detail chronological events, monetary amounts, communications history, and desired corporate/legal resolution..."
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     required
@@ -375,18 +419,19 @@ export default function App() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Any specific personal context or constraints? (Optional)</label>
+                  <label className="form-label">Operational Constraints & Context (Optional)</label>
                   <input 
                     type="text" 
                     className="form-input" 
-                    placeholder="e.g., I'm a student living on a tight budget" 
+                    placeholder="e.g., Strict litigation budget, operating under tight deadlines" 
                     value={userContext}
                     onChange={(e) => setUserContext(e.target.value)}
                   />
                 </div>
 
-                <button type="submit" className="btn-primary">
-                  Compute Tailored Pathway →
+                <button type="submit" className="btn-enterprise-primary full-width">
+                  <span>Execute Neural Pathway Analysis</span>
+                  <svg className="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                 </button>
               </form>
             </div>
@@ -394,143 +439,141 @@ export default function App() {
         )}
 
         {step === 'processing' && (
-          <div className="page-transition processing-container" key="processing" style={{ flex: 1 }}>
-            <div className="processing-pulse-ring"></div>
-            <h2 style={{ fontSize: '1.5rem', marginTop: '0.5rem' }}>Synthesizing personalized logic...</h2>
-            
-            <div className="processing-steps">
-              {processingSteps.map((text, idx) => {
-                const isDone = idx < processingStage;
-                const isActive = idx === processingStage;
-                return (
-                  <div key={idx} className={`step-item ${isActive ? 'active' : ''} ${isDone ? 'done' : ''}`}>
-                    <span>{text}</span>
-                    <span>{isDone ? '✓' : isActive ? '●' : '○'}</span>
-                  </div>
-                );
-              })}
+          <div className="page-transition processing-viewport" key="processing">
+            <div className="processing-core-cluster">
+              <div className="processing-pulse-beacon"></div>
+              <h2>Executing Neural Engine Pipeline</h2>
+              <p>Analyzing parameters across multimodal vector models...</p>
+              
+              <div className="processing-steps-list">
+                {processingSteps.map((text, idx) => {
+                  const isDone = idx < processingStage;
+                  const isActive = idx === processingStage;
+                  return (
+                    <div key={idx} className={`processing-step-item ${isActive ? 'active' : ''} ${isDone ? 'done' : ''}`}>
+                      <span className="step-text">{text}</span>
+                      <span className="step-status-icon">{isDone ? '✓' : isActive ? '●' : '○'}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
 
         {step === 'results' && analysisData && (
-          <div className="page-transition" key="results" style={{ maxWidth: '800px', margin: '0 auto', padding: '0 1rem 3rem', flex: 1 }}>
+          <div className="page-transition results-viewport" key="results">
             
-            {/* Top Navigation Bar inside Results */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-              <div style={{ display: 'flex', gap: '0.75rem' }}>
-                <button 
-                  onClick={() => setStep('input')}
-                  style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
-                >
-                  ← Edit Situation
+            {/* Results Action Toolbar */}
+            <div className="results-toolbar">
+              <div className="toolbar-cluster-left">
+                <button onClick={() => setStep('input')} className="nav-btn secondary-action">
+                  <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                  <span>Reconfigure Situation</span>
                 </button>
-                <button 
-                  onClick={() => handleSaveToAccount(analysisData)}
-                  style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid var(--accent)', color: 'var(--accent)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
-                >
-                  💾 Save to Account
+                <button onClick={() => handleSaveToAccount(analysisData)} className="nav-btn success-action">
+                  <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                  <span>Archive to Account</span>
                 </button>
               </div>
-              <button 
-                onClick={() => setStep('landing')} 
-                style={{ background: 'none', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer' }}
-              >
-                Start Over
+              <button onClick={() => setStep('landing')} className="nav-btn text-action">
+                <span>Start New Analysis</span>
               </button>
             </div>
 
-            {/* ⚠️ Ethical Verification & Fact-Checking Warning Banner */}
-            <div style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.4)', padding: '1rem 1.25rem', borderRadius: '8px', marginBottom: '1.5rem', fontSize: '0.85rem', color: 'var(--warning)', display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-              <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>⚠️</span>
-              <div>
-                <strong style={{ display: 'block', marginBottom: '0.2rem', color: 'var(--text-main)' }}>Ethical Notice & Information Verification Required</strong>
-                Verlo is an AI decision-intelligence assistant designed to structure administrative pathways. AI models can occasionally misstate rules, statutes, or deadlines. Please independently verify all critical claims, contract terms, legal deadlines, or financial obligations before executing high-stakes actions.
+            {/* Risk Assessment Summary Matrix */}
+            <div className="metric-summary-card">
+              <div className="metric-left-col">
+                <div className={`confidence-pill ${analysisData.confidence?.toLowerCase()}`}>
+                  Confidence Index: {analysisData.confidence}
+                </div>
+                {userContext && <div className="context-subtext">Context applied: <em>"{userContext}"</em></div>}
               </div>
-            </div>
-
-            {/* Risk Assessment Summary Bar */}
-            <div className="result-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', background: 'var(--bg-surface)' }}>
-              <div>
-                <span className={`badge ${analysisData.confidence?.toLowerCase()}`} style={{ marginBottom: '0.25rem' }}>
-                  Confidence: {analysisData.confidence}
-                </span>
-                {userContext && <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Tailored for: <em>"{userContext}"</em></div>}
-              </div>
-              <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.85rem' }}>
-                <div>
-                  <span style={{ color: 'var(--text-muted)' }}>Severity Score:</span><br/>
-                  <strong style={{ color: Number(analysisData.riskAssessment?.severityScore) > 7 ? 'var(--danger)' : 'var(--warning)' }}>
+              <div className="metric-right-grid">
+                <div className="metric-node">
+                  <span className="metric-label">Severity Score</span>
+                  <span className={`metric-val ${Number(analysisData.riskAssessment?.severityScore) > 7 ? 'danger' : 'warning'}`}>
                     {analysisData.riskAssessment?.severityScore}/10
-                  </strong>
+                  </span>
                 </div>
-                <div>
-                  <span style={{ color: 'var(--text-muted)' }}>Financial Exposure:</span><br/>
-                  <strong>{analysisData.riskAssessment?.financialExposure}</strong>
+                <div className="metric-node">
+                  <span className="metric-label">Financial Exposure</span>
+                  <span className="metric-val">{analysisData.riskAssessment?.financialExposure}</span>
                 </div>
-                <div>
-                  <span style={{ color: 'var(--text-muted)' }}>Urgency:</span><br/>
-                  <strong>{analysisData.riskAssessment?.timeSensitivity}</strong>
+                <div className="metric-node">
+                  <span className="metric-label">Time Criticality</span>
+                  <span className="metric-val">{analysisData.riskAssessment?.timeSensitivity}</span>
                 </div>
               </div>
             </div>
 
-            {/* Dominant Action Card */}
-            <div className="dominant-action">
-              <h3 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--accent)', marginBottom: '0.5rem' }}>
-                👉 Immediate Priority Action
-              </h3>
-              <h2>{analysisData.nextSteps?.[0]?.step || "Review strategic options below."}</h2>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: 0 }}>
-                <strong>Why this first:</strong> {analysisData.nextSteps?.[0]?.why || "Establishes your foundational position."}
-              </p>
+            {/* Immediate Dominant Priority Action */}
+            <div className="dominant-priority-card">
+              <div className="priority-header-tag">
+                <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                <span>Immediate Priority Action</span>
+              </div>
+              <h2>{analysisData.nextSteps?.[0]?.step || "Evaluate execution parameters below."}</h2>
+              <p><strong>Strategic Rationale:</strong> {analysisData.nextSteps?.[0]?.why || "Establishes authoritative baseline posture."}</p>
             </div>
 
-            {/* Full Step-by-Step Action Pathway */}
-            <div className="result-section">
-              <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem' }}>📋 Full Step-by-Step Action Pathway</h3>
-              <div style={{ display: 'grid', gap: '1rem' }}>
+            {/* Comprehensive Action Pathway Grid */}
+            <div className="content-section-box">
+              <h3>
+                <svg className="section-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                <span>Comprehensive Sequential Action Pathway</span>
+              </h3>
+              <div className="pathway-steps-stack">
                 {analysisData.nextSteps?.map((item, idx) => (
-                  <div key={idx} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', padding: '1rem', borderRadius: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
-                      <span style={{ background: 'var(--accent)', color: 'var(--bg-primary)', width: '22px', height: '22px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700 }}>{idx + 1}</span>
-                      <strong style={{ fontSize: '0.95rem', color: 'var(--text-main)' }}>{item.step}</strong>
+                  <div key={idx} className="pathway-step-node">
+                    <div className="step-num-circle">{idx + 1}</div>
+                    <div className="step-content-body">
+                      <h4>{item.step}</h4>
+                      <p><strong>Rationale:</strong> {item.why}</p>
+                      {item.pitfallWarning && (
+                        <p className="pitfall-text"><strong>Pitfall Warning:</strong> {item.pitfallWarning}</p>
+                      )}
                     </div>
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '1.75rem', marginBottom: '0.2rem' }}><strong>Why:</strong> {item.why}</p>
-                    {item.pitfallWarning && (
-                      <p style={{ fontSize: '0.85rem', color: 'var(--danger)', marginLeft: '1.75rem', marginBottom: 0 }}><strong>⚠️ Pitfall to Avoid:</strong> {item.pitfallWarning}</p>
-                    )}
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Strategic Options & Verification Needs */}
+            {/* Evaluated Strategic Options Matrix */}
             {analysisData.options && analysisData.options.length > 0 && (
-              <div className="result-section">
-                <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem' }}>⚖️ Evaluated Strategic Options</h3>
-                <div style={{ display: 'grid', gap: '0.75rem' }}>
+              <div className="content-section-box">
+                <h3>
+                  <svg className="section-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                  <span>Evaluated Strategic Alternatives</span>
+                </h3>
+                <div className="options-grid-stack">
                   {analysisData.options.map((opt, i) => (
-                    <div key={i} style={{ background: 'var(--bg-card)', padding: '0.85rem 1rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                      <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)', marginBottom: '0.2rem' }}>{opt.title}</div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}><strong>Best For:</strong> {opt.bestFor}</div>
+                    <div key={i} className="option-card-node">
+                      <div className="option-title">{opt.title}</div>
+                      <div className="option-bestfor"><strong>Optimal Utility:</strong> {opt.bestFor}</div>
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Situation Summary */}
-            <div className="result-section">
-              <h3 style={{ color: 'var(--text-main)' }}>Situation Summary</h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: 0 }}>{analysisData.situation}</p>
+            {/* Situation Summary Overview */}
+            <div className="content-section-box">
+              <h3>
+                <svg className="section-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                <span>Situation Analysis Summary</span>
+              </h3>
+              <p className="summary-desc-text">{analysisData.situation}</p>
             </div>
 
-            {/* Verification Checklist Section */}
+            {/* Verification Checklist */}
             {analysisData.verificationNeeded && analysisData.verificationNeeded.length > 0 && (
-              <div className="result-section" style={{ background: 'var(--bg-surface)' }}>
-                <h3 style={{ color: 'var(--text-main)', marginBottom: '0.75rem' }}>🔍 Items Recommended for Verification</h3>
-                <ul style={{ margin: 0, paddingLeft: '1.25rem', fontSize: '0.85rem', color: 'var(--text-muted)', display: 'grid', gap: '0.4rem' }}>
+              <div className="content-section-box surface-muted">
+                <h3>
+                  <svg className="section-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                  <span>Mandatory Fact-Checking & Verification Items</span>
+                </h3>
+                <ul className="verification-bullet-list">
                   {analysisData.verificationNeeded.map((item, i) => (
                     <li key={i}>{item}</li>
                   ))}
@@ -540,135 +583,130 @@ export default function App() {
 
             {/* Automated Resolution Letter Template */}
             {analysisData.draftTemplate && (
-              <div className="result-section" style={{ background: 'rgba(16, 185, 129, 0.05)', borderColor: 'rgba(16, 185, 129, 0.3)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                  <h3 style={{ color: 'var(--accent)', fontSize: '0.95rem', marginBottom: 0 }}>✉️ Automated Resolution Letter</h3>
-                  <button 
-                    onClick={handleCopyDraft}
-                    style={{ background: 'var(--accent)', color: 'var(--bg-primary)', border: 'none', padding: '0.3rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    {copied ? 'Copied!' : 'Copy Letter Template'}
+              <div className="content-section-box accent-border">
+                <div className="draft-header-row">
+                  <h3>
+                    <svg className="section-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    <span>Automated Enterprise Resolution Document</span>
+                  </h3>
+                  <button onClick={handleCopyDraft} className="nav-btn primary-action">
+                    {copied ? 'Copied to Clipboard' : 'Copy Draft Document'}
                   </button>
                 </div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', background: 'var(--bg-card)', padding: '1rem', borderRadius: '8px', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
+                <div className="code-template-block">
                   {`To: ${analysisData.draftTemplate.recipient}\nSubject: ${analysisData.draftTemplate.subject}\n\n${analysisData.draftTemplate.body}`}
                 </div>
               </div>
             )}
 
-            {/* Contextual Follow-up Chat with Verlo Assistant */}
-            <div className="result-section" style={{ background: 'var(--bg-surface)' }}>
-              <h3 style={{ color: 'var(--text-main)', marginBottom: '0.5rem' }}>💬 Consult Verlo AI Assistant</h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>Have questions about this pathway or need to draft a follow-up response? Ask below:</p>
+            {/* Contextual Advisory Assistant Chat */}
+            <div className="content-section-box">
+              <h3>
+                <svg className="section-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                <span>Consult Verlo Advisory Engine</span>
+              </h3>
+              <p className="chat-subtext">Engage the active AI decision assistant for tactical scenario refinement and follow-up correspondence drafting:</p>
               
               {chatHistory.length > 0 && (
-                <div style={{ display: 'grid', gap: '0.75rem', marginBottom: '1rem', maxHeight: '300px', overflowY: 'auto', paddingRight: '0.5rem' }}>
+                <div className="chat-history-stack">
                   {chatHistory.map((msg, index) => (
-                    <div 
-                      key={index} 
-                      style={{ 
-                        background: msg.role === 'user' ? 'var(--bg-card)' : 'rgba(16, 185, 129, 0.08)', 
-                        padding: '0.85rem', 
-                        borderRadius: '8px', 
-                        border: '1px solid var(--border-subtle)',
-                        fontSize: '0.85rem',
-                        marginLeft: msg.role === 'user' ? '2rem' : '0',
-                        marginRight: msg.role === 'user' ? '0' : '2rem'
-                      }}
-                    >
-                      <strong style={{ display: 'block', marginBottom: '0.2rem', color: msg.role === 'user' ? 'var(--text-main)' : 'var(--accent)' }}>
-                        {msg.role === 'user' ? 'You' : 'Verlo AI'}
-                      </strong>
-                      <div style={{ color: 'var(--text-muted)', whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+                    <div key={index} className={`chat-bubble-node ${msg.role}`}>
+                      <strong>{msg.role === 'user' ? 'Authorized Operator' : 'Verlo Intelligence'}</strong>
+                      <div className="bubble-content">{msg.content}</div>
                     </div>
                   ))}
                 </div>
               )}
 
-              <form onSubmit={handleChatSubmit} style={{ display: 'flex', gap: '0.5rem' }}>
+              <form onSubmit={handleChatSubmit} className="chat-input-cluster">
                 <input 
                   type="text" 
                   className="form-input" 
-                  placeholder="e.g., What should I do if they don't reply within 3 days?" 
+                  placeholder="e.g., What are the enforcement implications if they default on response timeline?" 
                   value={chatQuestion}
                   onChange={(e) => setChatQuestion(e.target.value)}
                   disabled={isChatLoading}
-                  style={{ marginBottom: 0 }}
                 />
-                <button 
-                  type="submit" 
-                  className="btn-primary" 
-                  style={{ width: 'auto', padding: '0.5rem 1.25rem', marginTop: 0 }}
-                  disabled={isChatLoading}
-                >
-                  {isChatLoading ? 'Thinking...' : 'Send'}
+                <button type="submit" className="btn-enterprise-primary chat-submit-btn" disabled={isChatLoading}>
+                  {isChatLoading ? 'Processing...' : 'Transmit Query'}
                 </button>
               </form>
             </div>
 
+            {/* ⚠️ Pure Red Critical Warning Footer Banner */}
+            <div className="critical-red-warning-banner">
+              <svg className="warning-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <div>
+                <strong>CRITICAL COMPLIANCE NOTICE & LEGAL VERIFICATION MANDATE</strong>
+                Verlo is an artificial intelligence decision-intelligence tool designed exclusively for structured operational guidance. Automated recommendations, risk metrics, and contract templates must be independently verified by licensed legal, financial, or technical counsel before executing high-exposure commitments or binding agreements.
+              </div>
+            </div>
+
           </div>
         )}
-      </div>
+      </main>
 
-      {/* Footer Component */}
-      <footer style={{ borderTop: '1px solid var(--border-subtle)', padding: '2rem 1rem', background: 'var(--bg-surface)', marginTop: 'auto', textAlign: 'center', flexShrink: 0 }}>
-        <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <img src="/VVNormal.png" alt="Verlo Logo" style={{ width: '20px', height: '20px', objectFit: 'contain' }} />
-            <span style={{ fontWeight: 700, letterSpacing: '0.05em', fontSize: '0.9rem', color: 'var(--text-main)' }}>VERLO</span>
+      {/* Full-Width Pinned Ground Footer */}
+      <footer className="verlo-ground-footer">
+        <div className="footer-content-inner">
+          <div className="footer-brand-cluster">
+            <img src="/VVNormal.png" alt="Verlo Logo" className="footer-logo" />
+            <span className="footer-brand-title">VERLO ENTERPRISE INTELLIGENCE</span>
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-            &copy; {new Date().getFullYear()} Verlo Engine. All rights reserved. Built with ethical decision-intelligence standards.
+          <div className="footer-copyright-text">
+            &copy; {new Date().getFullYear()} Verlo Systems Inc. All enterprise rights reserved. Secure cryptographic decision architecture.
           </div>
         </div>
       </footer>
 
-      {/* Saved History Drawer Modal */}
+      {/* Archives History Drawer */}
       {showHistoryDrawer && (
-        <div style={{ position: 'fixed', top: 0, right: 0, width: '380px', height: '100%', background: 'var(--bg-card)', borderLeft: '1px solid var(--border-subtle)', zIndex: 100, padding: '1.5rem', overflowY: 'auto', boxShadow: '-5px 0 25px rgba(0,0,0,0.5)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Your Saved Pathways</h3>
-            <button onClick={() => setShowHistoryDrawer(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
-          </div>
-          {userHistory.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No saved reports yet. Click "Save to Account" on any result screen!</p>
-          ) : (
-            <div style={{ display: 'grid', gap: '0.75rem' }}>
-              {userHistory.map((item, idx) => (
-                <div 
-                  key={idx} 
-                  onClick={() => {
-                    setTitle(item.title);
-                    setDescription(item.description);
-                    setAnalysisData(item.result);
-                    setStep('results');
-                    setShowHistoryDrawer(false);
-                  }}
-                  style={{ background: 'var(--bg-surface)', padding: '0.85rem', borderRadius: '8px', border: '1px solid var(--border-subtle)', cursor: 'pointer' }}
-                >
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.2rem' }}>{item.title}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{new Date(item.timestamp).toLocaleDateString()}</div>
-                </div>
-              ))}
+        <div className="history-drawer-overlay">
+          <div className="history-drawer-panel">
+            <div className="drawer-header">
+              <h3>Archived Pathways</h3>
+              <button onClick={() => setShowHistoryDrawer(false)} className="drawer-close-btn">✕</button>
             </div>
-          )}
+            {userHistory.length === 0 ? (
+              <p className="drawer-empty-text">No archived reports found. Use "Archive to Account" on any analysis outcome screen.</p>
+            ) : (
+              <div className="drawer-list-stack">
+                {userHistory.map((item, idx) => (
+                  <div 
+                    key={idx} 
+                    onClick={() => {
+                      setTitle(item.title);
+                      setDescription(item.description);
+                      setAnalysisData(item.result);
+                      setStep('results');
+                      setShowHistoryDrawer(false);
+                    }}
+                    className="drawer-item-node"
+                  >
+                    <div className="drawer-item-title">{item.title}</div>
+                    <div className="drawer-item-date">{new Date(item.timestamp).toLocaleDateString()}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Auth Modal */}
+      {/* Authentication Modal */}
       {showAuthModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 200 }}>
-          <div style={{ background: 'var(--bg-card)', padding: '2rem', borderRadius: '12px', border: '1px solid var(--border-subtle)', width: '100%', maxWidth: '400px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h3 style={{ margin: 0 }}>{authMode === 'login' ? 'Log in to Verlo' : 'Create an Account'}</h3>
-              <button onClick={() => setShowAuthModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+        <div className="auth-modal-overlay">
+          <div className="auth-modal-card">
+            <div className="auth-modal-header">
+              <h3>{authMode === 'login' ? 'Enterprise Operator Login' : 'Register Operator Account'}</h3>
+              <button onClick={() => setShowAuthModal(false)} className="drawer-close-btn">✕</button>
             </div>
 
-            {authError && <div style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.85rem', background: 'rgba(239, 68, 68, 0.1)', padding: '0.5rem', borderRadius: '6px' }}>{authError}</div>}
+            {authError && <div className="error-alert-banner">{authError}</div>}
 
             <form onSubmit={handleAuthSubmit}>
               <div className="form-group">
-                <label className="form-label">Email Address</label>
+                <label className="form-label">Corporate Email Address</label>
                 <input 
                   type="email" 
                   className="form-input" 
@@ -678,7 +716,7 @@ export default function App() {
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">Password</label>
+                <label className="form-label">Secure Access Password</label>
                 <input 
                   type="password" 
                   className="form-input" 
@@ -688,16 +726,16 @@ export default function App() {
                 />
               </div>
 
-              <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
-                {authMode === 'login' ? 'Log In' : 'Sign Up'}
+              <button type="submit" className="btn-enterprise-primary full-width" style={{ marginTop: '1rem' }}>
+                <span>{authMode === 'login' ? 'Authenticate Session' : 'Initialize Account'}</span>
               </button>
             </form>
 
-            <div style={{ textAlign: 'center', marginTop: '1.25rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            <div className="auth-switch-row">
               {authMode === 'login' ? (
-                <span>Don't have an account? <button onClick={() => setAuthMode('signup')} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}>Sign up</button></span>
+                <span>Need an operator profile? <button onClick={() => setAuthMode('signup')} className="text-link-btn">Register</button></span>
               ) : (
-                <span>Already have an account? <button onClick={() => setAuthMode('login')} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}>Log in</button></span>
+                <span>Already registered? <button onClick={() => setAuthMode('login')} className="text-link-btn">Log In</button></span>
               )}
             </div>
           </div>
