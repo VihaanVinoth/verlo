@@ -16,7 +16,7 @@ const PORT = process.env.PORT || 5001;
 app.use(cors());
 app.use(express.json());
 
-// Initialize Groq SDK (picks up GROQ_API_KEY from environment variables automatically)
+// Initialize Groq SDK
 const groq = new Groq();
 
 // --- PERSISTENT FILE DATABASE SETUP (`db.json`) ---
@@ -45,29 +45,52 @@ function writeDB(data) {
   }
 }
 
-// Load moderation blacklist from moderation.json safely
+// --- SECURE MODERATION LOADER (`moderation.json`) ---
 let restrictedWords = [];
-try {
-  const moderationPath = path.join(__dirname, 'moderation.json');
-  if (fs.existsSync(moderationPath)) {
-    const rawData = fs.readFileSync(moderationPath, 'utf8');
-    const parsed = JSON.parse(rawData);
-    restrictedWords = Array.isArray(parsed) ? parsed : (parsed.blockedWords || []);
-    console.log(`🛡️ Loaded ${restrictedWords.length} restricted terms from moderation.json`);
-  } else {
-    console.warn('⚠️ moderation.json not found. Proceeding without keyword blacklist.');
+
+function loadModerationRules() {
+  try {
+    const moderationPath = path.resolve(__dirname, 'moderation.json');
+    console.log(`🔍 Checking moderation file path: ${moderationPath}`);
+    
+    if (fs.existsSync(moderationPath)) {
+      const rawData = fs.readFileSync(moderationPath, 'utf8');
+      const parsed = JSON.parse(rawData);
+      
+      // Handle array, blacklisted_words, blockedWords, or blockedKeywords structures
+      if (Array.isArray(parsed)) {
+        restrictedWords = parsed;
+      } else if (parsed.blacklisted_words && Array.isArray(parsed.blacklisted_words)) {
+        restrictedWords = parsed.blacklisted_words;
+      } else if (parsed.blockedWords && Array.isArray(parsed.blockedWords)) {
+        restrictedWords = parsed.blockedWords;
+      } else if (parsed.blockedKeywords && Array.isArray(parsed.blockedKeywords)) {
+        restrictedWords = parsed.blockedKeywords;
+      } else {
+        restrictedWords = [];
+      }
+      
+      console.log(`🛡️ Successfully loaded ${restrictedWords.length} restricted terms from moderation.json`);
+    } else {
+      console.warn(`⚠️ moderation.json not found at expected path: ${moderationPath}`);
+    }
+  } catch (err) {
+    console.error('❌ Failed to load or parse moderation.json:', err);
   }
-} catch (err) {
-  console.error('Failed to load moderation.json:', err);
 }
+
+// Load rules on startup
+loadModerationRules();
 
 // Helper function to check for vulgar/NSFW terms
 function containsRestrictedContent(text) {
   if (!text || restrictedWords.length === 0) return false;
   const lowerText = text.toLowerCase();
   return restrictedWords.some(word => {
-    const regex = new RegExp(`\\b${word.toLowerCase()}\\b`, 'i');
-    return regex.test(lowerText) || lowerText.includes(word.toLowerCase());
+    if (!word) return false;
+    const cleanWord = word.trim().toLowerCase();
+    const regex = new RegExp(`\\b${cleanWord}\\b`, 'i');
+    return regex.test(lowerText) || lowerText.includes(cleanWord);
   });
 }
 
@@ -162,7 +185,6 @@ app.post('/api/diagnose', async (req, res) => {
       });
     }
 
-    // Construct system instructions to prompt Groq to return clean analytical breakdowns
     const systemPrompt = `You are Verlo, an advanced decision intelligence AI engine. 
 Analyze the user's dilemma/request and output a strict JSON object with the following keys:
 - confidence (string, e.g., "Strong" or "Moderate")
@@ -183,7 +205,6 @@ Return ONLY valid JSON. Do not include markdown code ticks or conversational tex
 Description: ${description}
 Context: ${context || 'None provided'}`;
 
-    // Call Groq LLM Inference via official SDK
     const chatCompletion = await groq.chat.completions.create({
       messages: [
         { role: 'system', content: systemPrompt },
@@ -240,7 +261,6 @@ app.post('/api/chat', async (req, res) => {
       });
     }
 
-    // Call Groq LLM for contextual follow-up chat
     const chatCompletion = await groq.chat.completions.create({
       messages: [
         { 
