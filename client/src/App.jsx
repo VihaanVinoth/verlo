@@ -244,18 +244,18 @@ export default function App() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
             <button 
               onClick={() => setShowHistoryDrawer(!showHistoryDrawer)}
-              style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+              style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', textShadow: 'none' }}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
               Saved History ({userHistory.length})
             </button>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.4rem', textShadow: 'none' }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
               {currentUser.email || currentUser.id}
             </span>
             <button 
               onClick={handleLogout} 
-              style={{ background: 'none', border: '1px solid var(--border-subtle)', color: 'var(--danger)', padding: '0.3rem 0.6rem', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}
+              style={{ background: 'none', border: '1px solid var(--border-subtle)', color: 'var(--danger)', padding: '0.3rem 0.6rem', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer', textShadow: 'none' }}
             >
               Logout
             </button>
@@ -263,7 +263,7 @@ export default function App() {
         ) : (
           <button 
             onClick={() => { setAuthMode('login'); setAuthError(null); setShowAuthModal(true); }}
-            style={{ background: 'var(--accent)', color: 'var(--bg-primary)', border: 'none', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
+            style={{ background: 'var(--accent)', color: 'var(--bg-primary)', border: 'none', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', textShadow: 'none', boxShadow: 'none' }}
           >
             Login / Signup
           </button>
@@ -277,21 +277,21 @@ export default function App() {
             <div className="verlo-header" style={{ marginTop: '1rem', textAlign: 'center', width: '100%' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '1rem', width: '100%' }}>
                 <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
-                <span className="verlo-brand" style={{ margin: 0 }}>VERLO</span>
+                <span className="verlo-brand" style={{ margin: 0, textShadow: 'none' }}>VERLO</span>
               </div>
-              <h1 className="verlo-title">Stop guessing. Know your exact next step.</h1>
-              <p className="verlo-subtitle" style={{ marginBottom: '2.5rem', maxWidth: '650px', marginInline: 'auto' }}>
+              <h1 className="verlo-title" style={{ textShadow: 'none' }}>Stop guessing. Know your exact next step.</h1>
+              <p className="verlo-subtitle" style={{ marginBottom: '2.5rem', maxWidth: '650px', marginInline: 'auto', textShadow: 'none' }}>
                 An ethical decision-intelligence system for VERLO that transforms messy, stressful situations into a fully tailored, risk-scored action pathway.
               </p>
-              <button className="btn-primary" style={{ maxWidth: '300px', margin: '0 auto 3rem' }} onClick={() => setStep('input')}>
+              <button className="btn-primary" style={{ maxWidth: '300px', margin: '0 auto 3rem', textShadow: 'none', boxShadow: 'none' }} onClick={() => setStep('input')}>
                 Launch Decision Engine →
               </button>
 
-              <div style={{ textAlign: 'left', width: '100%', maxWidth: '650px', margin: '0 auto 4rem' }}>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'center' }}>
+              <div style={{ textAlign: 'center', width: '100%', maxWidth: '650px', margin: '0 auto 4rem' }}>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'center', textShadow: 'none' }}>
                   Test common VERLO scenarios:
                 </p>
-                <div style={{ display: 'grid', gap: '0.75rem', width: '100%' }}>
+                <div style={{ display: 'grid', gap: '0.75rem', width: '100%', textAlign: 'left' }}>
                   <div 
                     className="verlo-card" 
                     style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', boxSizing: 'border-box' }}
@@ -374,7 +374,7 @@ export default function App() {
               <div style={{ marginBottom: '1.5rem', textAlign: 'left', width: '100%' }}>
                 <button 
                   onClick={() => setStep('landing')}
-                  style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}
+                  style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', textShadow: 'none' }}
                 >
                   ← Back to Overview
                 </button>
@@ -383,17 +383,17 @@ export default function App() {
               <div className="verlo-header" style={{ marginTop: '1rem', marginBottom: '2rem', textAlign: 'center', width: '100%' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '1rem', width: '100%' }}>
                   <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
-                  <span className="verlo-brand" style={{ margin: 0 }}>VERLO</span>
+                  <span className="verlo-brand" style={{ margin: 0, textShadow: 'none' }}>VERLO</span>
                 </div>
-                <h2 className="verlo-title" style={{ fontSize: '2rem', marginBottom: '0.25rem' }}>Define Your Situation</h2>
-                <p className="verlo-subtitle" style={{ margin: 0 }}>Provide the details below using the VERLO server & index engine so we can formulate your tailored pathway.</p>
+                <h2 className="verlo-title" style={{ fontSize: '2rem', marginBottom: '0.25rem', textShadow: 'none' }}>Define Your Situation</h2>
+                <p className="verlo-subtitle" style={{ margin: 0, textAlign: 'center', textShadow: 'none' }}>Provide the details below using the VERLO server & index engine so we can formulate your tailored pathway.</p>
               </div>
 
-              {error && <div style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.9rem', background: 'rgba(239, 68, 68, 0.1)', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.3)', width: '100%', boxSizing: 'border-box' }}>{error}</div>}
+              {error && <div style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.9rem', background: 'rgba(239, 68, 68, 0.1)', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.3)', width: '100%', boxSizing: 'border-box', textAlign: 'center' }}>{error}</div>}
 
-              <form onSubmit={handleSubmit} className="verlo-card" style={{ width: '100%', boxSizing: 'border-box' }}>
+              <form onSubmit={handleSubmit} className="verlo-card" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
                 <div className="form-group" style={{ textAlign: 'left' }}>
-                  <label className="form-label">Situation Title (Optional)</label>
+                  <label className="form-label" style={{ textShadow: 'none' }}>Situation Title (Optional)</label>
                   <input 
                     type="text" 
                     className="form-input" 
@@ -405,7 +405,7 @@ export default function App() {
 
                 <div className="form-group" style={{ textAlign: 'left' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                    <label className="form-label" style={{ marginBottom: 0 }}>Describe what happened *</label>
+                    <label className="form-label" style={{ marginBottom: 0, textShadow: 'none' }}>Describe what happened *</label>
                     <span style={{ fontSize: '0.8rem', color: wordCount < MIN_WORDS ? 'var(--warning)' : 'var(--text-muted)' }}>
                       {wordCount} words {wordCount < MIN_WORDS ? `(Minimum ${MIN_WORDS} required)` : '✓'}
                     </span>
@@ -420,7 +420,7 @@ export default function App() {
                 </div>
 
                 <div className="form-group" style={{ textAlign: 'left' }}>
-                  <label className="form-label">Any specific personal context or constraints? (Optional)</label>
+                  <label className="form-label" style={{ textShadow: 'none' }}>Any specific personal context or constraints? (Optional)</label>
                   <input 
                     type="text" 
                     className="form-input" 
@@ -430,7 +430,7 @@ export default function App() {
                   />
                 </div>
 
-                <button type="submit" className="btn-primary" style={{ width: '100%' }}>
+                <button type="submit" className="btn-primary" style={{ width: '100%', textShadow: 'none', boxShadow: 'none' }}>
                   Compute Tailored Pathway →
                 </button>
               </form>
@@ -441,7 +441,7 @@ export default function App() {
         {step === 'processing' && (
           <div className="page-transition processing-container" key="processing" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3rem 0' }}>
             <div className="processing-pulse-ring"></div>
-            <h2 style={{ fontSize: '1.5rem', marginTop: '1.5rem', color: 'var(--text-main)', textAlign: 'center' }}>Synthesising personalised logic...</h2>
+            <h2 style={{ fontSize: '1.5rem', marginTop: '1.5rem', color: 'var(--text-main)', textAlign: 'center', textShadow: 'none' }}>Synthesising personalised logic...</h2>
             
             <div className="processing-steps" style={{ width: '100%', maxWidth: '450px', marginTop: '2rem' }}>
               {processingSteps.map((text, idx) => {
@@ -459,7 +459,7 @@ export default function App() {
         )}
 
         {step === 'results' && analysisData && (
-          <div className="page-transition" key="results" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div className="page-transition animate-fade-slide-up" key="results" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div style={{ width: '100%', maxWidth: '750px' }}>
               
               {/* Top Navigation Bar inside Results */}
@@ -467,13 +467,13 @@ export default function App() {
                 <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                   <button 
                     onClick={() => setStep('input')}
-                    style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
+                    style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', textShadow: 'none' }}
                   >
                     ← Edit Situation
                   </button>
                   <button 
                     onClick={() => handleSaveToAccount(analysisData)}
-                    style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid var(--accent)', color: 'var(--accent)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                    style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid var(--accent)', color: 'var(--accent)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', textShadow: 'none' }}
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
                     Save to Account
@@ -481,14 +481,14 @@ export default function App() {
                 </div>
                 <button 
                   onClick={() => setStep('landing')} 
-                  style={{ background: 'none', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer' }}
+                  style={{ background: 'none', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer', textShadow: 'none' }}
                 >
                   Start Over
                 </button>
               </div>
 
               {/* Risk Assessment Summary Bar */}
-              <div className="result-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box' }}>
+              <div className="result-section animate-fade-slide-up" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box' }}>
                 <div>
                   <span className={`badge ${analysisData.confidence?.toLowerCase()}`} style={{ marginBottom: '0.25rem', display: 'inline-block' }}>
                     Confidence: {analysisData.confidence}
@@ -514,19 +514,19 @@ export default function App() {
               </div>
 
               {/* Dominant Action Card */}
-              <div className="dominant-action" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
-                <h3 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <div className="dominant-action animate-fade-slide-up" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
+                <h3 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem', textShadow: 'none' }}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
                   Immediate Priority Action
                 </h3>
-                <h2>{analysisData.nextSteps?.[0]?.step || "Review strategic options below."}</h2>
+                <h2 style={{ textShadow: 'none' }}>{analysisData.nextSteps?.[0]?.step || "Review strategic options below."}</h2>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: 0 }}>
                   <strong>Why this first:</strong> {analysisData.nextSteps?.[0]?.why || "Establishes your foundational position."}
                 </p>
               </div>
 
               {/* Full Comprehensive Step-by-Step Action Pathway */}
-              <div className="result-section" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
+              <div className="result-section animate-fade-slide-up" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
                 <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
                   Full Step-by-Step Action Pathway
@@ -549,7 +549,7 @@ export default function App() {
 
               {/* Strategic Options */}
               {analysisData.options && analysisData.options.length > 0 && (
-                <div className="result-section" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
+                <div className="result-section animate-fade-slide-up" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
                   <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                     Evaluated Strategic Options
@@ -566,7 +566,7 @@ export default function App() {
               )}
 
               {/* Situation Summary */}
-              <div className="result-section" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
+              <div className="result-section animate-fade-slide-up" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
                 <h3 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
                   Situation Summary
@@ -576,7 +576,7 @@ export default function App() {
 
               {/* Verification Checklist Section */}
               {analysisData.verificationNeeded && analysisData.verificationNeeded.length > 0 && (
-                <div className="result-section" style={{ background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
+                <div className="result-section animate-fade-slide-up" style={{ background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
                   <h3 style={{ color: 'var(--text-main)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                     Items Recommended for Verification
@@ -591,7 +591,7 @@ export default function App() {
 
               {/* Automated Resolution Letter Template */}
               {analysisData.draftTemplate && (
-                <div className="result-section" style={{ background: 'rgba(16, 185, 129, 0.05)', borderColor: 'rgba(16, 185, 129, 0.3)', width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
+                <div className="result-section animate-fade-slide-up" style={{ background: 'rgba(16, 185, 129, 0.05)', borderColor: 'rgba(16, 185, 129, 0.3)', width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                     <h3 style={{ color: 'var(--accent)', fontSize: '0.95rem', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
@@ -599,7 +599,7 @@ export default function App() {
                     </h3>
                     <button 
                       onClick={handleCopyDraft}
-                      style={{ background: 'var(--accent)', color: 'var(--bg-primary)', border: 'none', padding: '0.3rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}
+                      style={{ background: 'var(--accent)', color: 'var(--bg-primary)', border: 'none', padding: '0.3rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', textShadow: 'none', boxShadow: 'none' }}
                     >
                       {copied ? 'Copied!' : 'Copy Letter Template'}
                     </button>
@@ -611,7 +611,7 @@ export default function App() {
               )}
 
               {/* Contextual Follow-up Chat with VERLO Assistant */}
-              <div className="result-section" style={{ background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
+              <div className="result-section animate-fade-slide-up" style={{ background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
                 <h3 style={{ color: 'var(--text-main)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                   Consult VERLO AI Assistant
@@ -657,7 +657,7 @@ export default function App() {
                   <button 
                     type="submit" 
                     className="btn-primary" 
-                    style={{ width: 'auto', padding: '0.5rem 1.25rem', marginTop: 0 }}
+                    style={{ width: 'auto', padding: '0.5rem 1.25rem', marginTop: 0, textShadow: 'none', boxShadow: 'none' }}
                     disabled={isChatLoading}
                   >
                     {isChatLoading ? 'Thinking...' : 'Send'}
@@ -684,7 +684,7 @@ export default function App() {
         <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '20px', height: '20px', objectFit: 'contain' }} />
-            <span style={{ fontWeight: 700, letterSpacing: '0.05em', fontSize: '0.9rem', color: 'var(--text-main)' }}>VERLO</span>
+            <span style={{ fontWeight: 700, letterSpacing: '0.05em', fontSize: '0.9rem', color: 'var(--text-main)', textShadow: 'none' }}>VERLO</span>
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
             &copy; {new Date().getFullYear()} VERLO Engine. All rights reserved. Built with ethical decision-intelligence standards.
@@ -692,11 +692,11 @@ export default function App() {
         </div>
       </footer>
 
-      {/* Saved History Drawer Modal */}
+      {/* Saved History Drawer Modal with slide-in animation */}
       {showHistoryDrawer && (
-        <div style={{ position: 'fixed', top: 0, right: 0, width: '100%', maxWidth: '380px', height: '100%', background: 'var(--bg-card)', borderLeft: '1px solid var(--border-subtle)', zIndex: 100, padding: '1.5rem', overflowY: 'auto', boxShadow: '-5px 0 25px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>
+        <div className="animate-slide-in-right" style={{ position: 'fixed', top: 0, right: 0, width: '100%', maxWidth: '380px', height: '100%', background: 'var(--bg-card)', borderLeft: '1px solid var(--border-subtle)', zIndex: 100, padding: '1.5rem', overflowY: 'auto', boxShadow: '-5px 0 25px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Your Saved Pathways</h3>
+            <h3 style={{ margin: 0, fontSize: '1.1rem', textShadow: 'none' }}>Your Saved Pathways</h3>
             <button onClick={() => setShowHistoryDrawer(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
           </div>
           {userHistory.length === 0 ? (
@@ -729,7 +729,7 @@ export default function App() {
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 200, padding: '1rem', boxSizing: 'border-box' }}>
           <div style={{ background: 'var(--bg-card)', padding: '2rem', borderRadius: '12px', border: '1px solid var(--border-subtle)', width: '100%', maxWidth: '400px', boxSizing: 'border-box', textAlign: 'left' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h3 style={{ margin: 0 }}>{authMode === 'login' ? 'Log in to VERLO' : 'Create an Account'}</h3>
+              <h3 style={{ margin: 0, textShadow: 'none' }}>{authMode === 'login' ? 'Log in to VERLO' : 'Create an Account'}</h3>
               <button onClick={() => setShowAuthModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
             </div>
 
@@ -737,7 +737,7 @@ export default function App() {
 
             <form onSubmit={handleAuthSubmit}>
               <div className="form-group">
-                <label className="form-label">Email Address</label>
+                <label className="form-label" style={{ textShadow: 'none' }}>Email Address</label>
                 <input 
                   type="email" 
                   className="form-input" 
@@ -747,7 +747,7 @@ export default function App() {
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">Password</label>
+                <label className="form-label" style={{ textShadow: 'none' }}>Password</label>
                 <input 
                   type="password" 
                   className="form-input" 
@@ -757,7 +757,7 @@ export default function App() {
                 />
               </div>
 
-              <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
+              <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '1rem', textShadow: 'none', boxShadow: 'none' }}>
                 {authMode === 'login' ? 'Log In' : 'Sign Up'}
               </button>
             </form>
