@@ -30,7 +30,7 @@ body {
   overflow-x: hidden;
 }
 
-/* App Container & Shell */
+/* App Container */
 .verlo-app {
   max-width: 800px;
   margin: 0 auto;
@@ -114,9 +114,7 @@ body {
 }
 
 .form-label {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  display: block;
   font-size: 0.9rem;
   font-weight: 600;
   margin-bottom: 0.5rem;
@@ -146,7 +144,6 @@ body {
   resize: vertical;
 }
 
-/* Buttons & SVGs */
 button {
   font-family: inherit;
   cursor: pointer;
@@ -166,10 +163,6 @@ button:active {
   padding: 0.9rem 1.5rem;
   font-size: 1rem;
   font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -178,29 +171,6 @@ button:active {
   background: var(--accent-hover);
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(16, 185, 129, 0.35);
-}
-
-.btn-secondary {
-  background: var(--bg-card);
-  color: var(--text-main);
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  padding: 0.6rem 1rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.btn-secondary:hover {
-  border-color: var(--accent);
-  background: var(--bg-surface);
-}
-
-/* SVG icon sizing helpers */
-svg {
-  flex-shrink: 0;
 }
 
 /* Processing View */
@@ -269,15 +239,6 @@ svg {
   transition: border-color 0.2s ease;
 }
 
-.result-section h3 {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1.05rem;
-  margin-bottom: 1rem;
-  color: var(--text-main);
-}
-
 .dominant-action {
   background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(14, 20, 18, 0.95) 100%);
   border: 1px solid var(--accent);
@@ -313,7 +274,7 @@ svg {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
 }
 
 .badge.strong { background: rgba(16, 185, 129, 0.15); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.3); }
@@ -341,73 +302,4 @@ ul {
 li {
   margin-bottom: 0.4rem;
   font-size: 0.95rem;
-}
-
-/* Chat component classes */
-.chat-container {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.chat-history {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  max-height: 300px;
-  overflow-y: auto;
-  padding-right: 0.5rem;
-}
-
-.chat-bubble {
-  padding: 0.85rem 1rem;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  border: 1px solid var(--border-subtle);
-}
-
-.chat-bubble.user {
-  background: var(--bg-card);
-  margin-left: 1.5rem;
-}
-
-.chat-bubble.assistant {
-  background: rgba(16, 185, 129, 0.05);
-  margin-right: 1.5rem;
-  border-color: rgba(16, 185, 129, 0.2);
-}
-
-.chat-input-row {
-  display: flex;
-  gap: 0.5rem;
-}
-
-/* Alerts / Warnings */
-.error-banner {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: var(--danger);
-  padding: 0.85rem 1rem;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
-}
-
-.word-counter {
-  font-size: 0.75rem;
-  padding: 0.15rem 0.5rem;
-  border-radius: 4px;
-}
-
-.word-counter.warning {
-  background: rgba(245, 158, 11, 0.15);
-  color: var(--warning);
-}
-
-.word-counter.valid {
-  background: rgba(16, 185, 129, 0.15);
-  color: var(--success);
 }
