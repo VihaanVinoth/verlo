@@ -21,7 +21,7 @@ export default function App() {
   // Persistent Auth state using localStorage
   const [currentUser, setCurrentUser] = useState(() => {
     try {
-      const savedUser = localStorage.getItem('yicte_user');
+      const savedUser = localStorage.getItem('verlo_user');
       return savedUser ? JSON.parse(savedUser) : null;
     } catch (e) {
       return null;
@@ -38,11 +38,11 @@ export default function App() {
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
 
   const processingSteps = [
-    "Deciphering core strategic goals for YICTE...",
+    "Deciphering core strategic goals for VERLO...",
     "Screening through moderation & safety filters...",
     "Evaluating risk severity & exposure metrics...",
     "Synthesizing customized action pathway...",
-    "Finalizing YICTE tactical recommendations..."
+    "Finalizing VERLO tactical recommendations..."
   ];
 
   const wordCount = description.trim() ? description.trim().split(/\s+/).length : 0;
@@ -50,7 +50,7 @@ export default function App() {
 
   useEffect(() => {
     if (currentUser && currentUser.id) {
-      localStorage.setItem('yicte_user', JSON.stringify(currentUser));
+      localStorage.setItem('verlo_user', JSON.stringify(currentUser));
       fetch(`${API_URL}/api/history/${currentUser.id}`)
         .then(res => res.json())
         .then(data => {
@@ -58,7 +58,7 @@ export default function App() {
         })
         .catch(err => console.error('Failed to load history', err));
     } else {
-      localStorage.removeItem('yicte_user');
+      localStorage.removeItem('verlo_user');
       setUserHistory([]);
     }
   }, [currentUser]);
@@ -100,7 +100,7 @@ export default function App() {
 
   const handleLogout = () => {
     setCurrentUser(null);
-    localStorage.removeItem('yicte_user');
+    localStorage.removeItem('verlo_user');
     setUserHistory([]);
     setStep('landing');
   };
@@ -117,13 +117,13 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           userId: currentUser.id || currentUser.email, 
-          report: { title: title || 'Untitled YICTE Report', description, result: resultData } 
+          report: { title: title || 'Untitled VERLO Report', description, result: resultData } 
         })
       });
       const data = await res.json();
       if (data.history) {
         setUserHistory(data.history);
-        alert('Pathway saved successfully to your YICTE account history!');
+        alert('Pathway saved successfully to your VERLO account history!');
       } else {
         alert('Pathway saved successfully.');
       }
@@ -137,7 +137,7 @@ export default function App() {
     e.preventDefault();
     
     if (wordCount < MIN_WORDS) {
-      setError(`Please provide a bit more detail (at least ${MIN_WORDS} words) so YICTE can build a reliable pathway.`);
+      setError(`Please provide a bit more detail (at least ${MIN_WORDS} words) so VERLO can build a reliable pathway.`);
       return;
     }
 
@@ -153,7 +153,7 @@ export default function App() {
         body: JSON.stringify({ title, description, context: userContext }),
       });
     } catch (err) {
-      setError('Could not connect to YICTE server. Is the backend running?');
+      setError('Could not connect to VERLO server. Is the backend running?');
       setStep('input');
       return;
     }
@@ -191,7 +191,7 @@ export default function App() {
       setStep('results');
     } catch (err) {
       clearInterval(interval);
-      setError(err.message || 'Could not connect to YICTE server.');
+      setError(err.message || 'Could not connect to VERLO server.');
       setStep('input');
     }
   };
@@ -236,12 +236,12 @@ export default function App() {
   };
 
   return (
-    <div className="verlo-app" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', margin: 0 }}>
+    <div className="verlo-app">
       
       {/* Top Navigation Bar */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '1rem 2rem', gap: '1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '1rem 0', gap: '1rem', width: '100%' }}>
         {currentUser ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
             <button 
               onClick={() => setShowHistoryDrawer(!showHistoryDrawer)}
               style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
@@ -274,24 +274,24 @@ export default function App() {
       <div style={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column', width: '100%', boxSizing: 'border-box' }}>
         {step === 'landing' && (
           <div className="page-transition" key="landing">
-            <div className="verlo-header" style={{ marginTop: '2rem', padding: '0 1rem' }}>
+            <div className="verlo-header" style={{ marginTop: '2rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '1rem', width: '100%' }}>
-                <img src="/VVNormal.png" alt="YICTE Logo" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
-                <span className="verlo-brand" style={{ margin: 0 }}>YICTE</span>
+                <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
+                <span className="verlo-brand" style={{ margin: 0 }}>VERLO</span>
               </div>
               <h1 className="verlo-title">Stop guessing. Know your exact next step.</h1>
               <p className="verlo-subtitle" style={{ marginBottom: '2.5rem', maxWidth: '650px', marginInline: 'auto' }}>
-                An ethical decision-intelligence system for YICTE that transforms messy, stressful situations into a fully tailored, risk-scored action pathway.
+                An ethical decision-intelligence system for VERLO that transforms messy, stressful situations into a fully tailored, risk-scored action pathway.
               </p>
               <button className="btn-primary" style={{ maxWidth: '300px', margin: '0 auto 3rem' }} onClick={() => setStep('input')}>
                 Launch Decision Engine →
               </button>
 
-              <div style={{ textAlign: 'left', maxWidth: '650px', margin: '0 auto 4rem' }}>
+              <div style={{ textAlign: 'left', maxWidth: '650px', margin: '0 auto 4rem', width: '100%' }}>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                  Test common YICTE scenarios:
+                  Test common VERLO scenarios:
                 </p>
-                <div style={{ display: 'grid', gap: '0.75rem' }}>
+                <div style={{ display: 'grid', gap: '0.75rem', width: '100%' }}>
                   <div 
                     className="verlo-card" 
                     style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem' }}
@@ -341,8 +341,8 @@ export default function App() {
         )}
 
         {step === 'input' && (
-          <div className="page-transition" key="input" style={{ flex: 1 }}>
-            <div style={{ maxWidth: '650px', margin: '0 auto', padding: '0 1rem 3rem', width: '100%', boxSizing: 'border-box' }}>
+          <div className="page-transition" key="input" style={{ flex: 1, width: '100%' }}>
+            <div style={{ width: '100%', margin: '0 auto' }}>
               <div style={{ marginBottom: '1.5rem' }}>
                 <button 
                   onClick={() => setStep('landing')}
@@ -354,11 +354,11 @@ export default function App() {
 
               <div className="verlo-header" style={{ marginTop: '1rem', marginBottom: '2rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '1rem', width: '100%' }}>
-                  <img src="/VVNormal.png" alt="YICTE Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
-                  <span className="verlo-brand" style={{ margin: 0 }}>YICTE</span>
+                  <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
+                  <span className="verlo-brand" style={{ margin: 0 }}>VERLO</span>
                 </div>
                 <h2 className="verlo-title" style={{ fontSize: '2rem', marginBottom: '0.25rem' }}>Define Your Situation</h2>
-                <p className="verlo-subtitle" style={{ margin: 0 }}>Provide the details below using the YICTE server & index engine so we can formulate your tailored pathway.</p>
+                <p className="verlo-subtitle" style={{ margin: 0 }}>Provide the details below using the VERLO server & index engine so we can formulate your tailored pathway.</p>
               </div>
 
               {error && <div style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.9rem', background: 'rgba(239, 68, 68, 0.1)', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.3)' }}>{error}</div>}
@@ -411,9 +411,9 @@ export default function App() {
         )}
 
         {step === 'processing' && (
-          <div className="page-transition processing-container" key="processing" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3rem 1rem' }}>
+          <div className="page-transition processing-container" key="processing" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3rem 0', width: '100%' }}>
             <div className="processing-pulse-ring"></div>
-            <h2 style={{ fontSize: '1.5rem', marginTop: '1.5rem', color: 'var(--text-main)' }}>Synthesizing personalized logic...</h2>
+            <h2 style={{ fontSize: '1.5rem', marginTop: '1.5rem', color: 'var(--text-main)', textAlign: 'center' }}>Synthesizing personalized logic...</h2>
             
             <div className="processing-steps" style={{ width: '100%', maxWidth: '450px', marginTop: '2rem' }}>
               {processingSteps.map((text, idx) => {
@@ -431,11 +431,11 @@ export default function App() {
         )}
 
         {step === 'results' && analysisData && (
-          <div className="page-transition" key="results" style={{ maxWidth: '800px', margin: '0 auto', padding: '0 1rem 3rem', flex: 1, width: '100%', boxSizing: 'border-box' }}>
+          <div className="page-transition" key="results" style={{ width: '100%', flex: 1 }}>
             
             {/* Top Navigation Bar inside Results */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-              <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem', width: '100%' }}>
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                 <button 
                   onClick={() => setStep('input')}
                   style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
@@ -466,7 +466,7 @@ export default function App() {
                 </span>
                 {userContext && <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Tailored for: <em>"{userContext}"</em></div>}
               </div>
-              <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.85rem' }}>
+              <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.85rem', flexWrap: 'wrap' }}>
                 <div>
                   <span style={{ color: 'var(--text-muted)' }}>Severity Score:</span><br/>
                   <strong style={{ color: Number(analysisData.riskAssessment?.severityScore) > 7 ? 'var(--danger)' : 'var(--warning)' }}>
@@ -563,7 +563,7 @@ export default function App() {
             {/* Automated Resolution Letter Template */}
             {analysisData.draftTemplate && (
               <div className="result-section" style={{ background: 'rgba(16, 185, 129, 0.05)', borderColor: 'rgba(16, 185, 129, 0.3)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                   <h3 style={{ color: 'var(--accent)', fontSize: '0.95rem', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
                     Automated Resolution Letter
@@ -575,17 +575,17 @@ export default function App() {
                     {copied ? 'Copied!' : 'Copy Letter Template'}
                   </button>
                 </div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', background: 'var(--bg-card)', padding: '1rem', borderRadius: '8px', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', background: 'var(--bg-card)', padding: '1rem', borderRadius: '8px', fontFamily: 'monospace', whiteSpace: 'pre-wrap', overflowX: 'auto' }}>
                   {`To: ${analysisData.draftTemplate.recipient}\nSubject: ${analysisData.draftTemplate.subject}\n\n${analysisData.draftTemplate.body}`}
                 </div>
               </div>
             )}
 
-            {/* Contextual Follow-up Chat with YICTE Assistant */}
+            {/* Contextual Follow-up Chat with VERLO Assistant */}
             <div className="result-section" style={{ background: 'var(--bg-surface)' }}>
               <h3 style={{ color: 'var(--text-main)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                Consult YICTE AI Assistant
+                Consult VERLO AI Assistant
               </h3>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>Have questions about this pathway or need to draft a follow-up response? Ask below:</p>
               
@@ -600,12 +600,12 @@ export default function App() {
                         borderRadius: '8px', 
                         border: '1px solid var(--border-subtle)',
                         fontSize: '0.85rem',
-                        marginLeft: msg.role === 'user' ? '2rem' : '0',
-                        marginRight: msg.role === 'user' ? '0' : '2rem'
+                        marginLeft: msg.role === 'user' ? '1rem' : '0',
+                        marginRight: msg.role === 'user' ? '0' : '1rem'
                       }}
                     >
                       <strong style={{ display: 'block', marginBottom: '0.2rem', color: msg.role === 'user' ? 'var(--text-main)' : 'var(--accent)' }}>
-                        {msg.role === 'user' ? 'You' : 'YICTE AI'}
+                        {msg.role === 'user' ? 'You' : 'VERLO AI'}
                       </strong>
                       <div style={{ color: 'var(--text-muted)', whiteSpace: 'pre-wrap' }}>{msg.content}</div>
                     </div>
@@ -613,7 +613,7 @@ export default function App() {
                 </div>
               )}
 
-              <form onSubmit={handleChatSubmit} style={{ display: 'flex', gap: '0.5rem' }}>
+              <form onSubmit={handleChatSubmit} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <input 
                   type="text" 
                   className="form-input" 
@@ -621,7 +621,7 @@ export default function App() {
                   value={chatQuestion}
                   onChange={(e) => setChatQuestion(e.target.value)}
                   disabled={isChatLoading}
-                  style={{ marginBottom: 0 }}
+                  style={{ marginBottom: 0, flex: '1 1 250px' }}
                 />
                 <button 
                   type="submit" 
@@ -634,12 +634,12 @@ export default function App() {
               </form>
             </div>
 
-            {/* ⚠️ Warning Banner (Red on Bottom as requested) */}
+            {/* ⚠️ Warning Banner */}
             <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.5)', padding: '1rem 1.25rem', borderRadius: '8px', marginTop: '1.5rem', fontSize: '0.85rem', color: '#ef4444', display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" style={{ flexShrink: 0, marginTop: '2px' }}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
               <div>
                 <strong style={{ display: 'block', marginBottom: '0.2rem', color: '#ef4444' }}>Ethical Notice & Information Verification Required</strong>
-                YICTE is an AI decision-intelligence assistant designed to structure administrative pathways. AI models can occasionally misstate rules, statutes, or deadlines. Please independently verify all critical claims, contract terms, legal deadlines, or financial obligations before executing high-stakes actions.
+                VERLO is an AI decision-intelligence assistant designed to structure administrative pathways. AI models can occasionally misstate rules, statutes, or deadlines. Please independently verify all critical claims, contract terms, legal deadlines, or financial obligations before executing high-stakes actions.
               </div>
             </div>
 
@@ -647,22 +647,22 @@ export default function App() {
         )}
       </div>
 
-      {/* Footer Component - Full Width, Fixed to Ground */}
+      {/* Footer Component */}
       <footer style={{ borderTop: '1px solid var(--border-subtle)', padding: '2rem 1rem', background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', marginTop: 'auto', textAlign: 'center', flexShrink: 0 }}>
         <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <img src="/VVNormal.png" alt="YICTE Logo" style={{ width: '20px', height: '20px', objectFit: 'contain' }} />
-            <span style={{ fontWeight: 700, letterSpacing: '0.05em', fontSize: '0.9rem', color: 'var(--text-main)' }}>YICTE</span>
+            <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '20px', height: '20px', objectFit: 'contain' }} />
+            <span style={{ fontWeight: 700, letterSpacing: '0.05em', fontSize: '0.9rem', color: 'var(--text-main)' }}>VERLO</span>
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-            &copy; {new Date().getFullYear()} YICTE Engine. All rights reserved. Built with ethical decision-intelligence standards.
+            &copy; {new Date().getFullYear()} VERLO Engine. All rights reserved. Built with ethical decision-intelligence standards.
           </div>
         </div>
       </footer>
 
       {/* Saved History Drawer Modal */}
       {showHistoryDrawer && (
-        <div style={{ position: 'fixed', top: 0, right: 0, width: '380px', height: '100%', background: 'var(--bg-card)', borderLeft: '1px solid var(--border-subtle)', zIndex: 100, padding: '1.5rem', overflowY: 'auto', boxShadow: '-5px 0 25px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>
+        <div style={{ position: 'fixed', top: 0, right: 0, width: '100%', maxWidth: '380px', height: '100%', background: 'var(--bg-card)', borderLeft: '1px solid var(--border-subtle)', zIndex: 100, padding: '1.5rem', overflowY: 'auto', boxShadow: '-5px 0 25px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
             <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Your Saved Pathways</h3>
             <button onClick={() => setShowHistoryDrawer(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
@@ -697,7 +697,7 @@ export default function App() {
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 200, padding: '1rem', boxSizing: 'border-box' }}>
           <div style={{ background: 'var(--bg-card)', padding: '2rem', borderRadius: '12px', border: '1px solid var(--border-subtle)', width: '100%', maxWidth: '400px', boxSizing: 'border-box' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h3 style={{ margin: 0 }}>{authMode === 'login' ? 'Log in to YICTE' : 'Create an Account'}</h3>
+              <h3 style={{ margin: 0 }}>{authMode === 'login' ? 'Log in to VERLO' : 'Create an Account'}</h3>
               <button onClick={() => setShowAuthModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
             </div>
 
