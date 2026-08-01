@@ -30,19 +30,6 @@ body {
   overflow-x: hidden;
 }
 
-/* App Container */
-.verlo-app {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 3rem 1.5rem;
-}
-
-@media (max-width: 640px) {
-  .verlo-app {
-    padding: 1.5rem 1rem;
-  }
-}
-
 /* Smooth Page Transitions & Breathing Effects */
 .page-transition {
   animation: SmoothEnter 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -56,6 +43,38 @@ body {
   100% {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+/* Sidebar Animation */
+.animate-slide-in-right {
+  animation: SlideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes SlideInRight {
+  0% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Main Report & Cards Staggered Animation */
+.animate-fade-slide-up {
+  animation: FadeSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes FadeSlideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -85,14 +104,16 @@ body {
   line-height: 1.2;
 }
 
+/* Centered Subtitle/Paragraph Alignment Fix */
 .verlo-subtitle {
   color: var(--text-muted);
   font-size: 1.1rem;
   max-width: 520px;
   margin: 0 auto;
+  text-align: center;
 }
 
-/* Cards & Inputs */
+/* Cards & Inputs (Glow effects removed from hover state) */
 .verlo-card {
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
@@ -106,7 +127,7 @@ body {
 .verlo-card:hover {
   border-color: rgba(16, 185, 129, 0.4);
   transform: translateY(-2px);
-  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.5), 0 0 15px rgba(16, 185, 129, 0.08);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.5);
 }
 
 .form-group {
@@ -222,14 +243,13 @@ button:active {
 .step-item.active {
   color: var(--text-main);
   font-weight: 600;
-  text-shadow: 0 0 12px rgba(16, 185, 129, 0.3);
 }
 
 .step-item.done {
   color: var(--success);
 }
 
-/* Results & Layout Grids */
+/* Results & Layout Grids (Glow effects removed from dominant action box) */
 .result-section {
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
@@ -245,7 +265,7 @@ button:active {
   border-radius: var(--radius);
   padding: 1.75rem;
   margin-bottom: 1.5rem;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 20px rgba(16, 185, 129, 0.1);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
   position: relative;
   overflow: hidden;
 }
