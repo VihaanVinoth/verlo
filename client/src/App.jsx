@@ -41,8 +41,8 @@ export default function App() {
     "Deciphering core strategic goals for VERLO...",
     "Screening through moderation & safety filters...",
     "Evaluating risk severity & exposure metrics...",
-    "Synthesizing customized action pathway...",
-    "Finalizing VERLO tactical recommendations..."
+    "Synthesising customised action pathway...",
+    "Finalising VERLO tactical recommendations..."
   ];
 
   const wordCount = description.trim() ? description.trim().split(/\s+/).length : 0;
@@ -236,10 +236,10 @@ export default function App() {
   };
 
   return (
-    <div className="verlo-app">
+    <div className="verlo-app" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
       
       {/* Top Navigation Bar */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '1rem 0', gap: '1rem', width: '100%' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '1rem 1.5rem', gap: '1rem', width: '100%', boxSizing: 'border-box' }}>
         {currentUser ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
             <button 
@@ -270,11 +270,11 @@ export default function App() {
         )}
       </div>
 
-      {/* Main Content Area */}
-      <div style={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column', width: '100%', boxSizing: 'border-box' }}>
+      {/* Main Content Area Container with Centered Layout and constrained max widths */}
+      <div style={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '800px', margin: '0 auto', padding: '0 1.5rem 3rem 1.5rem', boxSizing: 'border-box', alignItems: 'center' }}>
         {step === 'landing' && (
-          <div className="page-transition" key="landing">
-            <div className="verlo-header" style={{ marginTop: '2rem' }}>
+          <div className="page-transition" key="landing" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div className="verlo-header" style={{ marginTop: '1rem', textAlign: 'center', width: '100%' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '1rem', width: '100%' }}>
                 <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
                 <span className="verlo-brand" style={{ margin: 0 }}>VERLO</span>
@@ -287,18 +287,18 @@ export default function App() {
                 Launch Decision Engine →
               </button>
 
-              <div style={{ textAlign: 'left', maxWidth: '650px', margin: '0 auto 4rem', width: '100%' }}>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              <div style={{ textAlign: 'left', width: '100%', maxWidth: '650px', margin: '0 auto 4rem' }}>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'center' }}>
                   Test common VERLO scenarios:
                 </p>
                 <div style={{ display: 'grid', gap: '0.75rem', width: '100%' }}>
                   <div 
                     className="verlo-card" 
-                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem' }}
+                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', boxSizing: 'border-box' }}
                     onClick={() => handleExampleSelect(
                       'Flight cancelled at gate', 
                       'My international flight was abruptly cancelled at the boarding gate due to mechanical failure. The airline desk agent says the earliest they can rebook me is in 48 hours, and they are refusing to cover hotel accommodations for the night despite my connecting ticket.',
-                      'Traveling on a strict budget for an important family event'
+                      'Travelling on a strict budget for an important family event'
                     )}
                   >
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.5 1.2c-.2.5 0 1.1.5 1.3l5.5 2.5-3.5 3.5L3 16l3 3 1.5-1.5 3.5-3.5 2.5 5.5c.2.5.8.7 1.3.5l1.2-.5c.4-.2.6-.6.5-1.1z"/></svg>
@@ -308,7 +308,7 @@ export default function App() {
                   </div>
                   <div 
                     className="verlo-card" 
-                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem' }}
+                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', boxSizing: 'border-box' }}
                     onClick={() => handleExampleSelect(
                       'Unresolved billing charge', 
                       'I noticed an unexpected $450 charge on my credit card from a software enterprise subscription that I explicitly cancelled three months ago in writing. Support is ignoring my emails and chat tickets.',
@@ -322,16 +322,44 @@ export default function App() {
                   </div>
                   <div 
                     className="verlo-card" 
-                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem' }}
+                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', boxSizing: 'border-box' }}
                     onClick={() => handleExampleSelect(
                       'Unreturned apartment deposit', 
-                      'My landlord has withheld my full $1,800 security deposit for over 45 days past lease termination without itemized deduction notices or damage reports, and is now ignoring my phone calls.',
+                      'My landlord has withheld my full $1,800 security deposit for over 45 days past lease termination without itemised deduction notices or damage reports, and is now ignoring my phone calls.',
                       'First-time renter moving to a new state'
                     )}
                   >
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
                     <div>
                       <strong>Unreturned security deposit</strong> &mdash; Landlord withholding funds past legal deadline.
+                    </div>
+                  </div>
+                  <div 
+                    className="verlo-card" 
+                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', boxSizing: 'border-box' }}
+                    onClick={() => handleExampleSelect(
+                      'Damaged courier delivery', 
+                      'An expensive electronics item I ordered arrived completely smashed due to poor handling by the courier service. The seller is claiming it is the courier’s fault, and the courier claims I need to file through the merchant.',
+                      'Purchased using debit card with standard consumer guarantees'
+                    )}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                    <div>
+                      <strong>Damaged courier delivery</strong> &mdash; Merchant and courier shifting blame for broken item.
+                    </div>
+                  </div>
+                  <div 
+                    className="verlo-card" 
+                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', boxSizing: 'border-box' }}
+                    onClick={() => handleExampleSelect(
+                      'Unauthorised gym membership debit', 
+                      'My local fitness club continued debiting my account for two months after I submitted my written contract cancellation form in person. They are claiming they never received the paperwork.',
+                      'Strict monthly budget constraints'
+                    )}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <div>
+                      <strong>Unauthorised gym direct debit</strong> &mdash; Fees charged after contract cancellation.
                     </div>
                   </div>
                 </div>
@@ -341,9 +369,9 @@ export default function App() {
         )}
 
         {step === 'input' && (
-          <div className="page-transition" key="input" style={{ flex: 1, width: '100%' }}>
-            <div style={{ width: '100%', margin: '0 auto' }}>
-              <div style={{ marginBottom: '1.5rem' }}>
+          <div className="page-transition" key="input" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ width: '100%', maxWidth: '650px' }}>
+              <div style={{ marginBottom: '1.5rem', textAlign: 'left', width: '100%' }}>
                 <button 
                   onClick={() => setStep('landing')}
                   style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}
@@ -352,7 +380,7 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="verlo-header" style={{ marginTop: '1rem', marginBottom: '2rem' }}>
+              <div className="verlo-header" style={{ marginTop: '1rem', marginBottom: '2rem', textAlign: 'center', width: '100%' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '1rem', width: '100%' }}>
                   <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
                   <span className="verlo-brand" style={{ margin: 0 }}>VERLO</span>
@@ -361,10 +389,10 @@ export default function App() {
                 <p className="verlo-subtitle" style={{ margin: 0 }}>Provide the details below using the VERLO server & index engine so we can formulate your tailored pathway.</p>
               </div>
 
-              {error && <div style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.9rem', background: 'rgba(239, 68, 68, 0.1)', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.3)' }}>{error}</div>}
+              {error && <div style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.9rem', background: 'rgba(239, 68, 68, 0.1)', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.3)', width: '100%', boxSizing: 'border-box' }}>{error}</div>}
 
-              <form onSubmit={handleSubmit} className="verlo-card">
-                <div className="form-group">
+              <form onSubmit={handleSubmit} className="verlo-card" style={{ width: '100%', boxSizing: 'border-box' }}>
+                <div className="form-group" style={{ textAlign: 'left' }}>
                   <label className="form-label">Situation Title (Optional)</label>
                   <input 
                     type="text" 
@@ -375,7 +403,7 @@ export default function App() {
                   />
                 </div>
 
-                <div className="form-group">
+                <div className="form-group" style={{ textAlign: 'left' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                     <label className="form-label" style={{ marginBottom: 0 }}>Describe what happened *</label>
                     <span style={{ fontSize: '0.8rem', color: wordCount < MIN_WORDS ? 'var(--warning)' : 'var(--text-muted)' }}>
@@ -391,7 +419,7 @@ export default function App() {
                   />
                 </div>
 
-                <div className="form-group">
+                <div className="form-group" style={{ textAlign: 'left' }}>
                   <label className="form-label">Any specific personal context or constraints? (Optional)</label>
                   <input 
                     type="text" 
@@ -402,7 +430,7 @@ export default function App() {
                   />
                 </div>
 
-                <button type="submit" className="btn-primary">
+                <button type="submit" className="btn-primary" style={{ width: '100%' }}>
                   Compute Tailored Pathway →
                 </button>
               </form>
@@ -411,16 +439,16 @@ export default function App() {
         )}
 
         {step === 'processing' && (
-          <div className="page-transition processing-container" key="processing" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3rem 0', width: '100%' }}>
+          <div className="page-transition processing-container" key="processing" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3rem 0' }}>
             <div className="processing-pulse-ring"></div>
-            <h2 style={{ fontSize: '1.5rem', marginTop: '1.5rem', color: 'var(--text-main)', textAlign: 'center' }}>Synthesizing personalized logic...</h2>
+            <h2 style={{ fontSize: '1.5rem', marginTop: '1.5rem', color: 'var(--text-main)', textAlign: 'center' }}>Synthesising personalised logic...</h2>
             
             <div className="processing-steps" style={{ width: '100%', maxWidth: '450px', marginTop: '2rem' }}>
               {processingSteps.map((text, idx) => {
                 const isDone = idx < processingStage;
                 const isActive = idx === processingStage;
                 return (
-                  <div key={idx} className={`step-item ${isActive ? 'active' : ''} ${isDone ? 'done' : ''}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'var(--bg-card)', marginBottom: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-subtle)' }}>
+                  <div key={idx} className={`step-item ${isActive ? 'active' : ''} ${isDone ? 'done' : ''}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'var(--bg-card)', marginBottom: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-subtle)', width: '100%', boxSizing: 'border-box' }}>
                     <span style={{ color: isActive ? 'var(--accent)' : 'var(--text-muted)', fontSize: '0.9rem' }}>{text}</span>
                     <span>{isDone ? '✓' : isActive ? '●' : '○'}</span>
                   </div>
@@ -431,223 +459,227 @@ export default function App() {
         )}
 
         {step === 'results' && analysisData && (
-          <div className="page-transition" key="results" style={{ width: '100%', flex: 1 }}>
-            
-            {/* Top Navigation Bar inside Results */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem', width: '100%' }}>
-              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                <button 
-                  onClick={() => setStep('input')}
-                  style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
-                >
-                  ← Edit Situation
-                </button>
-                <button 
-                  onClick={() => handleSaveToAccount(analysisData)}
-                  style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid var(--accent)', color: 'var(--accent)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                  Save to Account
-                </button>
-              </div>
-              <button 
-                onClick={() => setStep('landing')} 
-                style={{ background: 'none', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer' }}
-              >
-                Start Over
-              </button>
-            </div>
-
-            {/* Risk Assessment Summary Bar */}
-            <div className="result-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', background: 'var(--bg-surface)' }}>
-              <div>
-                <span className={`badge ${analysisData.confidence?.toLowerCase()}`} style={{ marginBottom: '0.25rem', display: 'inline-block' }}>
-                  Confidence: {analysisData.confidence}
-                </span>
-                {userContext && <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Tailored for: <em>"{userContext}"</em></div>}
-              </div>
-              <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.85rem', flexWrap: 'wrap' }}>
-                <div>
-                  <span style={{ color: 'var(--text-muted)' }}>Severity Score:</span><br/>
-                  <strong style={{ color: Number(analysisData.riskAssessment?.severityScore) > 7 ? 'var(--danger)' : 'var(--warning)' }}>
-                    {analysisData.riskAssessment?.severityScore}/10
-                  </strong>
-                </div>
-                <div>
-                  <span style={{ color: 'var(--text-muted)' }}>Financial Exposure:</span><br/>
-                  <strong>{analysisData.riskAssessment?.financialExposure}</strong>
-                </div>
-                <div>
-                  <span style={{ color: 'var(--text-muted)' }}>Urgency:</span><br/>
-                  <strong>{analysisData.riskAssessment?.timeSensitivity}</strong>
-                </div>
-              </div>
-            </div>
-
-            {/* Dominant Action Card */}
-            <div className="dominant-action">
-              <h3 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
-                Immediate Priority Action
-              </h3>
-              <h2>{analysisData.nextSteps?.[0]?.step || "Review strategic options below."}</h2>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: 0 }}>
-                <strong>Why this first:</strong> {analysisData.nextSteps?.[0]?.why || "Establishes your foundational position."}
-              </p>
-            </div>
-
-            {/* Full Comprehensive Step-by-Step Action Pathway */}
-            <div className="result-section">
-              <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-                Full Step-by-Step Action Pathway
-              </h3>
-              <div style={{ display: 'grid', gap: '1rem' }}>
-                {analysisData.nextSteps?.map((item, idx) => (
-                  <div key={idx} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', padding: '1.2rem', borderRadius: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.4rem' }}>
-                      <span style={{ background: 'var(--accent)', color: 'var(--bg-primary)', width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700, flexShrink: 0 }}>{idx + 1}</span>
-                      <strong style={{ fontSize: '0.95rem', color: 'var(--text-main)' }}>{item.step}</strong>
-                    </div>
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '2.1rem', marginBottom: '0.3rem' }}><strong>Why:</strong> {item.why}</p>
-                    {item.pitfallWarning && (
-                      <p style={{ fontSize: '0.85rem', color: 'var(--danger)', marginLeft: '2.1rem', marginBottom: 0 }}><strong>⚠️ Pitfall to Avoid:</strong> {item.pitfallWarning}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Strategic Options */}
-            {analysisData.options && analysisData.options.length > 0 && (
-              <div className="result-section">
-                <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                  Evaluated Strategic Options
-                </h3>
-                <div style={{ display: 'grid', gap: '0.75rem' }}>
-                  {analysisData.options.map((opt, i) => (
-                    <div key={i} style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                      <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)', marginBottom: '0.25rem' }}>{opt.title}</div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}><strong>Best For:</strong> {opt.bestFor}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Situation Summary */}
-            <div className="result-section">
-              <h3 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-                Situation Summary
-              </h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: 0 }}>{analysisData.situation}</p>
-            </div>
-
-            {/* Verification Checklist Section */}
-            {analysisData.verificationNeeded && analysisData.verificationNeeded.length > 0 && (
-              <div className="result-section" style={{ background: 'var(--bg-surface)' }}>
-                <h3 style={{ color: 'var(--text-main)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                  Items Recommended for Verification
-                </h3>
-                <ul style={{ margin: 0, paddingLeft: '1.25rem', fontSize: '0.85rem', color: 'var(--text-muted)', display: 'grid', gap: '0.4rem' }}>
-                  {analysisData.verificationNeeded.map((item, i) => (
-                    <li key={i}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Automated Resolution Letter Template */}
-            {analysisData.draftTemplate && (
-              <div className="result-section" style={{ background: 'rgba(16, 185, 129, 0.05)', borderColor: 'rgba(16, 185, 129, 0.3)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  <h3 style={{ color: 'var(--accent)', fontSize: '0.95rem', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                    Automated Resolution Letter
-                  </h3>
+          <div className="page-transition" key="results" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ width: '100%', maxWidth: '750px' }}>
+              
+              {/* Top Navigation Bar inside Results */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem', width: '100%' }}>
+                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                   <button 
-                    onClick={handleCopyDraft}
-                    style={{ background: 'var(--accent)', color: 'var(--bg-primary)', border: 'none', padding: '0.3rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}
+                    onClick={() => setStep('input')}
+                    style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
                   >
-                    {copied ? 'Copied!' : 'Copy Letter Template'}
+                    ← Edit Situation
+                  </button>
+                  <button 
+                    onClick={() => handleSaveToAccount(analysisData)}
+                    style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid var(--accent)', color: 'var(--accent)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    Save to Account
                   </button>
                 </div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', background: 'var(--bg-card)', padding: '1rem', borderRadius: '8px', fontFamily: 'monospace', whiteSpace: 'pre-wrap', overflowX: 'auto' }}>
-                  {`To: ${analysisData.draftTemplate.recipient}\nSubject: ${analysisData.draftTemplate.subject}\n\n${analysisData.draftTemplate.body}`}
+                <button 
+                  onClick={() => setStep('landing')} 
+                  style={{ background: 'none', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer' }}
+                >
+                  Start Over
+                </button>
+              </div>
+
+              {/* Risk Assessment Summary Bar */}
+              <div className="result-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box' }}>
+                <div>
+                  <span className={`badge ${analysisData.confidence?.toLowerCase()}`} style={{ marginBottom: '0.25rem', display: 'inline-block' }}>
+                    Confidence: {analysisData.confidence}
+                  </span>
+                  {userContext && <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Tailored for: <em>"{userContext}"</em></div>}
+                </div>
+                <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.85rem', flexWrap: 'wrap' }}>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Severity Score:</span><br/>
+                    <strong style={{ color: Number(analysisData.riskAssessment?.severityScore) > 7 ? 'var(--danger)' : 'var(--warning)' }}>
+                      {analysisData.riskAssessment?.severityScore}/10
+                    </strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Financial Exposure:</span><br/>
+                    <strong>{analysisData.riskAssessment?.financialExposure}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Urgency:</span><br/>
+                    <strong>{analysisData.riskAssessment?.timeSensitivity}</strong>
+                  </div>
                 </div>
               </div>
-            )}
 
-            {/* Contextual Follow-up Chat with VERLO Assistant */}
-            <div className="result-section" style={{ background: 'var(--bg-surface)' }}>
-              <h3 style={{ color: 'var(--text-main)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                Consult VERLO AI Assistant
-              </h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>Have questions about this pathway or need to draft a follow-up response? Ask below:</p>
-              
-              {chatHistory.length > 0 && (
-                <div style={{ display: 'grid', gap: '0.75rem', marginBottom: '1rem', maxHeight: '300px', overflowY: 'auto', paddingRight: '0.5rem' }}>
-                  {chatHistory.map((msg, index) => (
-                    <div 
-                      key={index} 
-                      style={{ 
-                        background: msg.role === 'user' ? 'var(--bg-card)' : 'rgba(16, 185, 129, 0.08)', 
-                        padding: '0.85rem', 
-                        borderRadius: '8px', 
-                        border: '1px solid var(--border-subtle)',
-                        fontSize: '0.85rem',
-                        marginLeft: msg.role === 'user' ? '1rem' : '0',
-                        marginRight: msg.role === 'user' ? '0' : '1rem'
-                      }}
-                    >
-                      <strong style={{ display: 'block', marginBottom: '0.2rem', color: msg.role === 'user' ? 'var(--text-main)' : 'var(--accent)' }}>
-                        {msg.role === 'user' ? 'You' : 'VERLO AI'}
-                      </strong>
-                      <div style={{ color: 'var(--text-muted)', whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+              {/* Dominant Action Card */}
+              <div className="dominant-action" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
+                <h3 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                  Immediate Priority Action
+                </h3>
+                <h2>{analysisData.nextSteps?.[0]?.step || "Review strategic options below."}</h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: 0 }}>
+                  <strong>Why this first:</strong> {analysisData.nextSteps?.[0]?.why || "Establishes your foundational position."}
+                </p>
+              </div>
+
+              {/* Full Comprehensive Step-by-Step Action Pathway */}
+              <div className="result-section" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
+                <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                  Full Step-by-Step Action Pathway
+                </h3>
+                <div style={{ display: 'grid', gap: '1rem', width: '100%' }}>
+                  {analysisData.nextSteps?.map((item, idx) => (
+                    <div key={idx} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', padding: '1.2rem', borderRadius: '8px', width: '100%', boxSizing: 'border-box' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.4rem' }}>
+                        <span style={{ background: 'var(--accent)', color: 'var(--bg-primary)', width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700, flexShrink: 0 }}>{idx + 1}</span>
+                        <strong style={{ fontSize: '0.95rem', color: 'var(--text-main)' }}>{item.step}</strong>
+                      </div>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '2.1rem', marginBottom: '0.3rem' }}><strong>Why:</strong> {item.why}</p>
+                      {item.pitfallWarning && (
+                        <p style={{ fontSize: '0.85rem', color: 'var(--danger)', marginLeft: '2.1rem', marginBottom: 0 }}><strong>⚠️ Pitfall to Avoid:</strong> {item.pitfallWarning}</p>
+                      )}
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* Strategic Options */}
+              {analysisData.options && analysisData.options.length > 0 && (
+                <div className="result-section" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
+                  <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    Evaluated Strategic Options
+                  </h3>
+                  <div style={{ display: 'grid', gap: '0.75rem', width: '100%' }}>
+                    {analysisData.options.map((opt, i) => (
+                      <div key={i} style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-subtle)', width: '100%', boxSizing: 'border-box' }}>
+                        <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)', marginBottom: '0.25rem' }}>{opt.title}</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}><strong>Best For:</strong> {opt.bestFor}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
-              <form onSubmit={handleChatSubmit} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="e.g., What should I do if they don't reply within 3 days?" 
-                  value={chatQuestion}
-                  onChange={(e) => setChatQuestion(e.target.value)}
-                  disabled={isChatLoading}
-                  style={{ marginBottom: 0, flex: '1 1 250px' }}
-                />
-                <button 
-                  type="submit" 
-                  className="btn-primary" 
-                  style={{ width: 'auto', padding: '0.5rem 1.25rem', marginTop: 0 }}
-                  disabled={isChatLoading}
-                >
-                  {isChatLoading ? 'Thinking...' : 'Send'}
-                </button>
-              </form>
-            </div>
-
-            {/* ⚠️ Warning Banner */}
-            <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.5)', padding: '1rem 1.25rem', borderRadius: '8px', marginTop: '1.5rem', fontSize: '0.85rem', color: '#ef4444', display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" style={{ flexShrink: 0, marginTop: '2px' }}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              <div>
-                <strong style={{ display: 'block', marginBottom: '0.2rem', color: '#ef4444' }}>Ethical Notice & Information Verification Required</strong>
-                VERLO is an AI decision-intelligence assistant designed to structure administrative pathways. AI models can occasionally misstate rules, statutes, or deadlines. Please independently verify all critical claims, contract terms, legal deadlines, or financial obligations before executing high-stakes actions.
+              {/* Situation Summary */}
+              <div className="result-section" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
+                <h3 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                  Situation Summary
+                </h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: 0 }}>{analysisData.situation}</p>
               </div>
-            </div>
 
+              {/* Verification Checklist Section */}
+              {analysisData.verificationNeeded && analysisData.verificationNeeded.length > 0 && (
+                <div className="result-section" style={{ background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
+                  <h3 style={{ color: 'var(--text-main)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    Items Recommended for Verification
+                  </h3>
+                  <ul style={{ margin: 0, paddingLeft: '1.25rem', fontSize: '0.85rem', color: 'var(--text-muted)', display: 'grid', gap: '0.4rem' }}>
+                    {analysisData.verificationNeeded.map((item, i) => (
+                      <li key={i}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Automated Resolution Letter Template */}
+              {analysisData.draftTemplate && (
+                <div className="result-section" style={{ background: 'rgba(16, 185, 129, 0.05)', borderColor: 'rgba(16, 185, 129, 0.3)', width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <h3 style={{ color: 'var(--accent)', fontSize: '0.95rem', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                      Automated Resolution Letter
+                    </h3>
+                    <button 
+                      onClick={handleCopyDraft}
+                      style={{ background: 'var(--accent)', color: 'var(--bg-primary)', border: 'none', padding: '0.3rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      {copied ? 'Copied!' : 'Copy Letter Template'}
+                    </button>
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', background: 'var(--bg-card)', padding: '1rem', borderRadius: '8px', fontFamily: 'monospace', whiteSpace: 'pre-wrap', overflowX: 'auto', width: '100%', boxSizing: 'border-box' }}>
+                    {`To: ${analysisData.draftTemplate.recipient}\nSubject: ${analysisData.draftTemplate.subject}\n\n${analysisData.draftTemplate.body}`}
+                  </div>
+                </div>
+              )}
+
+              {/* Contextual Follow-up Chat with VERLO Assistant */}
+              <div className="result-section" style={{ background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
+                <h3 style={{ color: 'var(--text-main)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  Consult VERLO AI Assistant
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>Have questions about this pathway or need to draft a follow-up response? Ask below:</p>
+                
+                {chatHistory.length > 0 && (
+                  <div style={{ display: 'grid', gap: '0.75rem', marginBottom: '1rem', maxHeight: '300px', overflowY: 'auto', paddingRight: '0.5rem', width: '100%', boxSizing: 'border-box' }}>
+                    {chatHistory.map((msg, index) => (
+                      <div 
+                        key={index} 
+                        style={{ 
+                          background: msg.role === 'user' ? 'var(--bg-card)' : 'rgba(16, 185, 129, 0.08)', 
+                          padding: '0.85rem', 
+                          borderRadius: '8px', 
+                          border: '1px solid var(--border-subtle)',
+                          fontSize: '0.85rem',
+                          marginLeft: msg.role === 'user' ? '1rem' : '0',
+                          marginRight: msg.role === 'user' ? '0' : '1rem',
+                          width: 'calc(100% - 1rem)',
+                          boxSizing: 'border-box'
+                        }}
+                      >
+                        <strong style={{ display: 'block', marginBottom: '0.2rem', color: msg.role === 'user' ? 'var(--text-main)' : 'var(--accent)' }}>
+                          {msg.role === 'user' ? 'You' : 'VERLO AI'}
+                        </strong>
+                        <div style={{ color: 'var(--text-muted)', whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <form onSubmit={handleChatSubmit} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', width: '100%', boxSizing: 'border-box' }}>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="e.g., What should I do if they don't reply within 3 days?" 
+                    value={chatQuestion}
+                    onChange={(e) => setChatQuestion(e.target.value)}
+                    disabled={isChatLoading}
+                    style={{ marginBottom: 0, flex: '1 1 250px' }}
+                  />
+                  <button 
+                    type="submit" 
+                    className="btn-primary" 
+                    style={{ width: 'auto', padding: '0.5rem 1.25rem', marginTop: 0 }}
+                    disabled={isChatLoading}
+                  >
+                    {isChatLoading ? 'Thinking...' : 'Send'}
+                  </button>
+                </form>
+              </div>
+
+              {/* ⚠️ Warning Banner */}
+              <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.5)', padding: '1rem 1.25rem', borderRadius: '8px', marginTop: '1.5rem', fontSize: '0.85rem', color: '#ef4444', display: 'flex', gap: '0.75rem', alignItems: 'flex-start', width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" style={{ flexShrink: 0, marginTop: '2px' }}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <div>
+                  <strong style={{ display: 'block', marginBottom: '0.2rem', color: '#ef4444' }}>Ethical Notice & Information Verification Required</strong>
+                  VERLO is an AI decision-intelligence assistant designed to structure administrative pathways. AI models can occasionally misstate rules, statutes, or deadlines. Please independently verify all critical claims, contract terms, legal deadlines, or financial obligations before executing high-stakes actions.
+                </div>
+              </div>
+
+            </div>
           </div>
         )}
       </div>
 
-      {/* Footer Component */}
+      {/* Footer Component - Clamped to absolute bottom & full width */}
       <footer style={{ borderTop: '1px solid var(--border-subtle)', padding: '2rem 1rem', background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', marginTop: 'auto', textAlign: 'center', flexShrink: 0 }}>
         <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -681,7 +713,7 @@ export default function App() {
                     setStep('results');
                     setShowHistoryDrawer(false);
                   }}
-                  style={{ background: 'var(--bg-surface)', padding: '0.85rem', borderRadius: '8px', border: '1px solid var(--border-subtle)', cursor: 'pointer' }}
+                  style={{ background: 'var(--bg-surface)', padding: '0.85rem', borderRadius: '8px', border: '1px solid var(--border-subtle)', cursor: 'pointer', textAlign: 'left' }}
                 >
                   <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.2rem' }}>{item.title}</div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{new Date(item.timestamp).toLocaleDateString()}</div>
@@ -695,7 +727,7 @@ export default function App() {
       {/* Auth Modal */}
       {showAuthModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 200, padding: '1rem', boxSizing: 'border-box' }}>
-          <div style={{ background: 'var(--bg-card)', padding: '2rem', borderRadius: '12px', border: '1px solid var(--border-subtle)', width: '100%', maxWidth: '400px', boxSizing: 'border-box' }}>
+          <div style={{ background: 'var(--bg-card)', padding: '2rem', borderRadius: '12px', border: '1px solid var(--border-subtle)', width: '100%', maxWidth: '400px', boxSizing: 'border-box', textAlign: 'left' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
               <h3 style={{ margin: 0 }}>{authMode === 'login' ? 'Log in to VERLO' : 'Create an Account'}</h3>
               <button onClick={() => setShowAuthModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
