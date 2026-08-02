@@ -58,11 +58,11 @@ export default function App() {
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
 
   const processingSteps = [
-    "Deciphering core strategic goals for VERLO...",
+    "Deciphering core strategic goals..",
     "Screening through moderation & safety filters...",
     "Evaluating risk severity & exposure metrics...",
     "Synthesising customised action pathway...",
-    "Finalising VERLO tactical recommendations..."
+    "Finalising recommendations..."
   ];
 
   const wordCount = description.trim() ? description.trim().split(/\s+/).length : 0;
