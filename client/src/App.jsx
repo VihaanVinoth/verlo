@@ -74,6 +74,45 @@ export default function App() {
     }
   }, [currentUser]);
 
+  // Simple lightweight parser to convert basic Markdown (bold, lists, code blocks, paragraphs) into safe HTML
+  const renderMarkdownToHTML = (content) => {
+    if (!content) return '';
+    let html = content
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    // Code blocks
+    html = html.replace(/```([\s\S]*?)```/g, '<pre style="background:var(--bg-card); padding:0.75rem; border-radius:6px; overflow-x:auto; font-family:monospace; margin:0.5rem 0;"><code>$1</code></pre>');
+    
+    // Bold
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    // Bullet points / lists
+    const lines = html.split('\n');
+    let inList = false;
+    let processedLines = lines.map(line => {
+      if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
+        const item = line.trim().substring(2);
+        const wrapped = `<li>${item}</li>`;
+        if (!inList) {
+          inList = true;
+          return `<ul style="margin: 0.5rem 0; padding-left: 1.25rem;">${wrapped}`;
+        }
+        return wrapped;
+      } else {
+        if (inList) {
+          inList = false;
+          return `</ul><p style="margin: 0.5rem 0;">${line}</p>`;
+        }
+        return line.trim() ? `<p style="margin: 0.5rem 0;">${line}</p>` : '';
+      }
+    });
+    if (inList) processedLines.push('</ul>');
+
+    return processedLines.join('');
+  };
+
   const handleExampleSelect = (exTitle, exDesc, exContext) => {
     setTitle(exTitle);
     setDescription(exDesc);
@@ -96,7 +135,6 @@ export default function App() {
       const data = await res.json();
 
       if (!res.ok) {
-        // Handle case where email is already registered during signup
         if (authMode === 'signup' && (res.status === 400 || res.status === 409 || (data.error && data.error.toLowerCase().includes('exist')))) {
           throw new Error('This email address is already registered. Please log in instead.');
         }
@@ -636,7 +674,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* Contextual Follow-up Chat with VERLO Assistant */}
+              {/* Contextual Follow-up Chat with VERLO Assistant (with Markdown-to-HTML parser) */}
               <div className="result-section animate-fade-slide-up" style={{ background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
                 <h3 style={{ color: 'var(--text-main)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -664,7 +702,14 @@ export default function App() {
                         <strong style={{ display: 'block', marginBottom: '0.2rem', color: msg.role === 'user' ? 'var(--text-main)' : 'var(--accent)' }}>
                           {msg.role === 'user' ? 'You' : 'VERLO AI'}
                         </strong>
-                        <div style={{ color: 'var(--text-muted)', whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+                        {msg.role === 'user' ? (
+                          <div style={{ color: 'var(--text-muted)', whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+                        ) : (
+                          <div 
+                            style={{ color: 'var(--text-muted)' }} 
+                            dangerouslySetInnerHTML={{ __html: renderMarkdownToHTML(msg.content) }} 
+                          />
+                        )}
                       </div>
                     ))}
                   </div>
@@ -755,7 +800,7 @@ export default function App() {
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 200, padding: '1rem', boxSizing: 'border-box' }}>
           <div style={{ background: 'var(--bg-card)', padding: '2rem', borderRadius: '12px', border: '1px solid var(--border-subtle)', width: '100%', maxWidth: '400px', boxSizing: 'border-box', textAlign: 'left' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h3 style={{ margin: 0, textShadow: 'none' }}>{authMode === 'login' ? 'Log in to VERLO' : 'Create an Account'}</h3>
+              <h3 style={{ margin: '0', textShadow: 'none' }}>{authMode === 'login' ? 'Log in to VERLO' : 'Create an Account'}</h3>
               <button onClick={() => setShowAuthModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
             </div>
 
