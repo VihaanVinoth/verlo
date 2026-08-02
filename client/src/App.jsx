@@ -13,12 +13,22 @@ export default function App() {
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
 
+  // Custom inline alert state (replaces chrome alert)
+  const [customAlert, setCustomAlert] = useState(null);
+
+  const triggerCustomAlert = (message, type = 'success') => {
+    setCustomAlert({ message, type });
+    setTimeout(() => {
+      setCustomAlert(null);
+    }, 4000);
+  };
+
   // Chat follow-up state
   const [chatQuestion, setChatQuestion] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
 
-  // Persistent Auth state using localStorage
+  // Persistent Auth state using localStorage AND backend session recovery via userId/email
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const savedUser = localStorage.getItem('verlo_user');
@@ -49,9 +59,10 @@ export default function App() {
   const MIN_WORDS = 5;
 
   useEffect(() => {
-    if (currentUser && currentUser.id) {
+    if (currentUser && (currentUser.id || currentUser.email)) {
       localStorage.setItem('verlo_user', JSON.stringify(currentUser));
-      fetch(`${API_URL}/api/history/${currentUser.id}`)
+      const identifier = currentUser.id || currentUser.email;
+      fetch(`${API_URL}/api/history/${identifier}`)
         .then(res => res.json())
         .then(data => {
           if (data.history) setUserHistory(data.history);
@@ -85,6 +96,10 @@ export default function App() {
       const data = await res.json();
 
       if (!res.ok) {
+        // Handle case where email is already registered during signup
+        if (authMode === 'signup' && (res.status === 400 || res.status === 409 || (data.error && data.error.toLowerCase().includes('exist')))) {
+          throw new Error('This email address is already registered. Please log in instead.');
+        }
         throw new Error(data.error || 'Authentication failed');
       }
 
@@ -93,6 +108,7 @@ export default function App() {
       setShowAuthModal(false);
       setAuthEmail('');
       setAuthPassword('');
+      triggerCustomAlert(authMode === 'signup' ? 'Account created successfully!' : 'Logged in successfully!', 'success');
     } catch (err) {
       setAuthError(err.message);
     }
@@ -103,6 +119,7 @@ export default function App() {
     localStorage.removeItem('verlo_user');
     setUserHistory([]);
     setStep('landing');
+    triggerCustomAlert('Logged out successfully.', 'success');
   };
 
   const handleSaveToAccount = async (resultData) => {
@@ -123,13 +140,13 @@ export default function App() {
       const data = await res.json();
       if (data.history) {
         setUserHistory(data.history);
-        alert('Pathway saved successfully to your VERLO account history!');
+        triggerCustomAlert('Pathway saved successfully to your VERLO account history!', 'success');
       } else {
-        alert('Pathway saved successfully.');
+        triggerCustomAlert('Pathway saved successfully.', 'success');
       }
     } catch (err) {
       console.error('Failed to save history', err);
-      alert('Error saving pathway to account history.');
+      triggerCustomAlert('Error saving pathway to account history.', 'error');
     }
   };
 
@@ -201,6 +218,7 @@ export default function App() {
     const textToCopy = `To: ${analysisData.draftTemplate.recipient}\nSubject: ${analysisData.draftTemplate.subject}\n\n${analysisData.draftTemplate.body}`;
     navigator.clipboard.writeText(textToCopy);
     setCopied(true);
+    triggerCustomAlert('Letter template copied to clipboard!', 'success');
     setTimeout(() => setCopied(false), 3000);
   };
 
@@ -236,8 +254,16 @@ export default function App() {
   };
 
   return (
-    <div className="verlo-app" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
+    <div className="verlo-app" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', position: 'relative' }}>
       
+      {/* Custom Non-Chrome Alert Banner Popup */}
+      {customAlert && (
+        <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: customAlert.type === 'error' ? '#ef4444' : '#10b981', color: '#fff', padding: '0.75rem 1.5rem', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', fontSize: '0.9rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', animation: 'fadeIn 0.2s ease-out' }}>
+          <span>{customAlert.type === 'error' ? '⚠️' : '✓'}</span>
+          <span>{customAlert.message}</span>
+        </div>
+      )}
+
       {/* Top Navigation Bar */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '1rem 1.5rem', gap: '1rem', width: '100%', boxSizing: 'border-box' }}>
         {currentUser ? (
