@@ -12,8 +12,9 @@ export default function App() {
   const [processingStage, setProcessingStage] = useState(0);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [copyCount, setCopyCount] = useState(0);
 
-  // Custom inline alert state with animation flags
+  // Inline alert state with animation flags
   const [customAlert, setCustomAlert] = useState(null);
   const [alertExiting, setAlertExiting] = useState(false);
 
@@ -37,7 +38,7 @@ export default function App() {
   const [chatHistory, setChatHistory] = useState([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
 
-  // Persistent Auth state using localStorage AND backend session recovery via userId/email
+  // Auth state using LocalStorage AND backend session recovery via userId/email
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const savedUser = localStorage.getItem('verlo_user');
@@ -52,7 +53,7 @@ export default function App() {
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState(null);
   
-  // History state
+  // History State
   const [userHistory, setUserHistory] = useState([]);
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
 
@@ -83,7 +84,7 @@ export default function App() {
     }
   }, [currentUser]);
 
-  // Simple lightweight parser to convert basic Markdown (bold, lists, code blocks, paragraphs) into safe HTML
+  // Parser to convert basic Markdown (bold, lists, code blocks, paragraphs) into safe HTML
   const renderMarkdownToHTML = (content) => {
     if (!content) return '';
     let html = content
@@ -181,13 +182,13 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           userId: currentUser.id || currentUser.email, 
-          report: { title: title || 'Untitled VERLO Report', description, result: resultData } 
+          report: { title: title || 'Untitled Report', description, result: resultData } 
         })
       });
       const data = await res.json();
       if (data.history) {
         setUserHistory(data.history);
-        triggerCustomAlert('Pathway saved successfully to your VERLO account history!', 'success');
+        triggerCustomAlert('Pathway saved successfully to your account history!', 'success');
       } else {
         triggerCustomAlert('Pathway saved successfully.', 'success');
       }
@@ -217,7 +218,7 @@ export default function App() {
         body: JSON.stringify({ title, description, context: userContext }),
       });
     } catch (err) {
-      setError('Could not connect to VERLO server. Is the backend running?');
+      setError('Could not connect to server. Is the backend running?');
       setStep('input');
       return;
     }
@@ -255,7 +256,7 @@ export default function App() {
       setStep('results');
     } catch (err) {
       clearInterval(interval);
-      setError(err.message || 'Could not connect to VERLO server.');
+      setError(err.message || 'Could not connect to the server.');
       setStep('input');
     }
   };
@@ -265,7 +266,23 @@ export default function App() {
     const textToCopy = `To: ${analysisData.draftTemplate.recipient}\nSubject: ${analysisData.draftTemplate.subject}\n\n${analysisData.draftTemplate.body}`;
     navigator.clipboard.writeText(textToCopy);
     setCopied(true);
-    triggerCustomAlert('Letter template copied to clipboard!', 'success');
+
+    // ????????
+    const nextCount = copyCount + 1;
+    setCopyCount(nextCount);
+
+    if (nextCount === 1) {
+      triggerCustomAlert('Letter template copied to clipboard!', 'success');
+    } else if (nextCount === 3) {
+      triggerCustomAlert('Calm down, are you sending this to the entire Fortune 500?', 'success');
+    } else if (nextCount === 5) {
+      triggerCustomAlert('Maximum spam velocity achieved. The recipient never stood a chance.', 'success');
+    } else if (nextCount >= 8) {
+      triggerCustomAlert('Error 418: I am a teapot. Please stop aggressively cloning this letter!', 'error');
+    } else {
+      triggerCustomAlert(`Letter copied (${nextCount}x multi-strike!)! 🎯`, 'success');
+    }
+
     setTimeout(() => setCopied(false), 3000);
   };
 
@@ -704,7 +721,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* Contextual Follow-up Chat with VERLO Assistant (with Markdown-to-HTML parser) */}
+              {/* Chat with VERLO Assistant (with Markdown-to-HTML parser) */}
               <div className="result-section animate-fade-slide-up" style={{ background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
                 <h3 style={{ color: 'var(--text-main)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -766,7 +783,7 @@ export default function App() {
                 </form>
               </div>
 
-              {/* ⚠️ Properly designed warning banner SVG */}
+              {/* Warning Banner SVG */}
               <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.5)', padding: '1rem 1.25rem', borderRadius: '8px', marginTop: '1.5rem', fontSize: '0.85rem', color: '#ef4444', display: 'flex', gap: '0.75rem', alignItems: 'flex-start', width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: '2px' }}>
                   <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
@@ -784,7 +801,7 @@ export default function App() {
         )}
       </div>
 
-      {/* Footer Component - Clamped to absolute bottom & full width */}
+      {/* Footer */}
       <footer style={{ borderTop: '1px solid var(--border-subtle)', padding: '2rem 1rem', background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', marginTop: 'auto', textAlign: 'center', flexShrink: 0 }}>
         <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -792,12 +809,12 @@ export default function App() {
             <span style={{ fontWeight: 700, letterSpacing: '0.05em', fontSize: '0.9rem', color: 'var(--text-main)', textShadow: 'none' }}>VERLO</span>
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-            &copy; {new Date().getFullYear()} VERLO Engine. All rights reserved. Built with ethical decision-intelligence standards.
+            &copy; {new Date().getFullYear()} VERLO Engine. All rights reserved. Crafted with 🌶️. 
           </div>
         </div>
       </footer>
 
-      {/* Saved History Drawer Modal with slide-in animation */}
+      {/* Saved History Drawer Modal */}
       {showHistoryDrawer && (
         <div className="animate-slide-in-right" style={{ position: 'fixed', top: 0, right: 0, width: '100%', maxWidth: '380px', height: '100%', background: 'var(--bg-card)', borderLeft: '1px solid var(--border-subtle)', zIndex: 100, padding: '1.5rem', overflowY: 'auto', boxShadow: '-5px 0 25px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
@@ -881,8 +898,5 @@ export default function App() {
     </div>
   );
 }
-
-
-
 
 // $$$$$$$$ Lucky number 888 $$$$$$$$
