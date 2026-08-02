@@ -388,7 +388,7 @@ export default function App() {
               </div>
               <h1 className="verlo-title" style={{ textShadow: 'none' }}>Stop guessing. Know your exact next step.</h1>
               <p className="verlo-subtitle" style={{ marginBottom: '2.5rem', maxWidth: '650px', marginInline: 'auto', textShadow: 'none' }}>
-                An ethical decision-intelligence system for VERLO that transforms messy, stressful situations into a fully tailored, risk-scored action pathway.
+                Verlo is an ethical decision-intelligence system that transforms messy, stressful situations into a fully tailored, risk-scored action pathway.
               </p>
               <button className="btn-primary" style={{ maxWidth: '300px', margin: '0 auto 3rem', textShadow: 'none', boxShadow: 'none' }} onClick={() => setStep('input')}>
                 Launch Decision Engine →
