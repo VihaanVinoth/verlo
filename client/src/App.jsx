@@ -13,14 +13,23 @@ export default function App() {
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
 
-  // Custom inline alert state (replaces chrome alert)
+  // Custom inline alert state with animation flags
   const [customAlert, setCustomAlert] = useState(null);
+  const [alertExiting, setAlertExiting] = useState(false);
 
   const triggerCustomAlert = (message, type = 'success') => {
     setCustomAlert({ message, type });
+    setAlertExiting(false);
+    
+    // Start exit transition after 3.3 seconds
     setTimeout(() => {
-      setCustomAlert(null);
-    }, 4000);
+      setAlertExiting(true);
+      // Remove from DOM after transition completes (0.3s)
+      setTimeout(() => {
+        setCustomAlert(null);
+        setAlertExiting(false);
+      }, 300);
+    }, 3300);
   };
 
   // Chat follow-up state
@@ -294,9 +303,27 @@ export default function App() {
   return (
     <div className="verlo-app" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', position: 'relative' }}>
       
-      {/* Custom Non-Chrome Alert Banner Popup */}
+      {/* Custom Alert Banner Popup with smooth slide & fade animation */}
       {customAlert && (
-        <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: customAlert.type === 'error' ? '#ef4444' : '#10b981', color: '#fff', padding: '0.75rem 1.5rem', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', fontSize: '0.9rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', animation: 'fadeIn 0.2s ease-out' }}>
+        <div style={{ 
+          position: 'fixed', 
+          top: '20px', 
+          left: '50%', 
+          transform: alertExiting ? 'translateX(-50%) translateY(-20px)' : 'translateX(-50%) translateY(0)', 
+          opacity: alertExiting ? 0 : 1,
+          transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+          zIndex: 9999, 
+          background: customAlert.type === 'error' ? '#ef4444' : '#10b981', 
+          color: '#fff', 
+          padding: '0.75rem 1.5rem', 
+          borderRadius: '8px', 
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)', 
+          fontSize: '0.9rem', 
+          fontWeight: 600, 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '0.5rem' 
+        }}>
           <span>{customAlert.type === 'error' ? '⚠️' : '✓'}</span>
           <span>{customAlert.message}</span>
         </div>
@@ -365,7 +392,10 @@ export default function App() {
                       'Travelling on a strict budget for an important family event'
                     )}
                   >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.5 1.2c-.2.5 0 1.1.5 1.3l5.5 2.5-3.5 3.5L3 16l3 3 1.5-1.5 3.5-3.5 2.5 5.5c.2.5.8.7 1.3.5l1.2-.5c.4-.2.6-.6.5-1.1z"/></svg>
+                    {/* Professionally designed aircraft SVG */}
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent)', flexShrink: 0 }}>
+                      <path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.5 1.2c-.2.5 0 1.1.5 1.3l5.5 2.5-3.5 3.5L3 16l3 3 1.5-1.5 3.5-3.5 2.5 5.5c.2.5.8.7 1.3.5l1.2-.5c.4-.2.6-.6.5-1.1z"/>
+                    </svg>
                     <div>
                       <strong>Flight cancelled at gate</strong> &mdash; Airline refusing overnight hotel voucher.
                     </div>
@@ -736,9 +766,13 @@ export default function App() {
                 </form>
               </div>
 
-              {/* ⚠️ Warning Banner */}
+              {/* ⚠️ Properly designed warning banner SVG */}
               <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.5)', padding: '1rem 1.25rem', borderRadius: '8px', marginTop: '1.5rem', fontSize: '0.85rem', color: '#ef4444', display: 'flex', gap: '0.75rem', alignItems: 'flex-start', width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" style={{ flexShrink: 0, marginTop: '2px' }}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: '2px' }}>
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/>
+                  <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
                 <div>
                   <strong style={{ display: 'block', marginBottom: '0.2rem', color: '#ef4444' }}>Ethical Notice & Information Verification Required</strong>
                   VERLO is an AI decision-intelligence assistant designed to structure administrative pathways. AI models can occasionally misstate rules, statutes, or deadlines. Please independently verify all critical claims, contract terms, legal deadlines, or financial obligations before executing high-stakes actions.
@@ -847,3 +881,8 @@ export default function App() {
     </div>
   );
 }
+
+
+
+
+// $$$$$$$$ Lucky number 888 $$$$$$$$
