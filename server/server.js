@@ -1,4 +1,3 @@
-// --- server.js ---
 import express from 'express';
 import cors from 'cors';
 import fs from 'fs';
@@ -20,7 +19,7 @@ app.use(express.json());
 // Initialize Groq SDK
 const groq = new Groq();
 
-// --- PERSISTENT FILE DATABASE SETUP (`db.json`) ---
+// --- PERSISTENT FILE DATABASE SETUP ---
 const DB_FILE = path.resolve(__dirname, 'db.json');
 
 function readDB() {
@@ -46,7 +45,7 @@ function writeDB(data) {
   }
 }
 
-// --- SECURE MODERATION LOADER (`moderation.json`) ---
+// --- SECURE MODERATION LOADER ---
 let restrictedWords = [];
 
 function loadModerationRules() {
@@ -274,5 +273,5 @@ app.post('/api/chat', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Verlo decision engine backend running on http://127.0.0.1:${PORT}`);
+  console.log(`VERLO running on http://127.0.0.1:${PORT}`);
 });
