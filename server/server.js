@@ -29,7 +29,7 @@ function readDB() {
     const rawData = fs.readFileSync(DB_FILE, 'utf8');
     return JSON.parse(rawData);
   } catch (err) {
-    console.error('Error reading db.json, returning fallback structure:', err);
+    console.error('⚠️ Error reading db.json, returning fallback structure:', err);
     return { users: [], history: {} };
   }
 }
@@ -38,7 +38,7 @@ function writeDB(data) {
   try {
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
   } catch (err) {
-    console.error('Error writing to db.json:', err);
+    console.error('❌ Error writing to db.json:', err);
   }
 }
 
@@ -62,12 +62,12 @@ function loadModerationRules() {
       } else {
         restrictedWords = [];
       }
-      console.log(`Successfully loaded ${restrictedWords.length} restricted terms from moderation.json`);
+      console.log(`🛡️ Successfully loaded ${restrictedWords.length} restricted terms from moderation.json`);
     } else {
-      console.warn(`moderation.json not found at expected path: ${moderationPath}`);
+      console.warn(`⚠️ moderation.json not found at expected path: ${moderationPath}`);
     }
   } catch (err) {
-    console.error('Failed to load or parse moderation.json:', err);
+    console.error('❌ Failed to load or parse moderation.json:', err);
   }
 }
 
@@ -80,10 +80,11 @@ function containsRestrictedContent(text) {
     if (!word) return false;
     const cleanWord = word.trim().toLowerCase();
     const regex = new RegExp(`\\b${cleanWord}\\b`, 'i');
-    return regex.test(lowerText);
+    return regex.test(lowerText) || lowerText.includes(cleanWord);
   });
 }
 
+// --- 1. Authentication Endpoints ---
 app.post('/api/auth/signup', (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {

@@ -1,10 +1,6 @@
-const API_BASE_URL = import.meta.env.PROD 
-  ? 'https://verlo-30xs.onrender.com' 
-  : 'http://127.0.0.1:5001';
-
 export async function submitProblem(formData) {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/diagnose`, {
+    const response = await fetch('http://127.0.0.1:5001/api/diagnose', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
