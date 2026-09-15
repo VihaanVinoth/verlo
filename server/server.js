@@ -226,7 +226,7 @@ Context: ${context || 'None provided'}`;
     res.json({ data: normalizedResponse });
   } catch (error) {
     console.error('Diagnose API Error:', error);
-    res.status(500).json({ error: `Groq API Error: ${error.message || 'Internal engine processing error.'}` });
+    res.status(500).json({ error: 'Internal engine processing error with Groq AI.' });
   }
 });
 
@@ -260,7 +260,7 @@ app.post('/api/chat', async (req, res) => {
     res.json({ reply: contextualAnswer });
   } catch (error) {
     console.error('Chat API Error:', error);
-    res.status(500).json({ error: `Groq Chat Error: ${error.message || 'Failed to process chat follow-up.'}` });
+    res.status(500).json({ error: 'Failed to process chat follow-up with Groq AI.' });
   }
 });
 
