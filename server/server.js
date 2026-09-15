@@ -197,7 +197,7 @@ Context: ${context || 'None provided'}`;
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      model: 'llama-3.3-70b-versatile',
+      model: 'meta-llama/llama-3.3-70b-instruct',
       temperature: 0.3,
       response_format: { type: 'json_object' }
     });
@@ -253,7 +253,7 @@ app.post('/api/chat', async (req, res) => {
         },
         { role: 'user', content: question }
       ],
-      model: 'llama-3.3-70b-versatile',
+      model: 'meta-llama/llama-3.3-70b-instruct',
       temperature: 0.5,
     });
 
