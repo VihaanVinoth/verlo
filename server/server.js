@@ -15,7 +15,6 @@ const PORT = process.env.PORT || 5001;
 app.use(cors());
 app.use(express.json());
 
-// Initialize OpenAI client pointing directly to Hack Club's AI gateway
 const ai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
   baseURL: 'https://ai.hackclub.com/proxy/v1',
@@ -88,7 +87,6 @@ function containsRestrictedContent(text) {
   });
 }
 
-// --- 1. Authentication Endpoints ---
 app.post('/api/auth/signup', (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
