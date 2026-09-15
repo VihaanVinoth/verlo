@@ -196,7 +196,7 @@ Context: ${context || 'None provided'}`;
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      model: 'llama-3.1-70b-versatile'
+      model: 'llama-3.1-70b-versatile', 
       temperature: 0.3,
       response_format: { type: 'json_object' }
     });
