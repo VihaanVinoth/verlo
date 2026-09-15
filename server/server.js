@@ -3,7 +3,7 @@ import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import Groq from 'groq-sdk';
+import OpenAI from 'openai';
 import 'dotenv/config';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -15,7 +15,11 @@ const PORT = process.env.PORT || 5001;
 app.use(cors());
 app.use(express.json());
 
-const groq = new Groq();
+// Initialize OpenAI client pointing directly to Hack Club's AI gateway
+const ai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: 'https://ai.hackclub.com/proxy/v1',
+});
 
 const DB_FILE = path.resolve(__dirname, 'db.json');
 
@@ -192,7 +196,7 @@ Return ONLY valid JSON. Do not include markdown code ticks or conversational tex
 Description: ${description}
 Context: ${context || 'None provided'}`;
 
-    const chatCompletion = await groq.chat.completions.create({
+    const chatCompletion = await ai.chat.completions.create({
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
@@ -227,7 +231,7 @@ Context: ${context || 'None provided'}`;
     res.json({ data: normalizedResponse });
   } catch (error) {
     console.error('Diagnose API Error:', error);
-    res.status(500).json({ error: 'Internal engine processing error with Groq AI.' });
+    res.status(500).json({ error: `Hack Club AI Processing Error: ${error.message}` });
   }
 });
 
@@ -245,7 +249,7 @@ app.post('/api/chat', async (req, res) => {
       });
     }
 
-    const chatCompletion = await groq.chat.completions.create({
+    const chatCompletion = await ai.chat.completions.create({
       messages: [
         { 
           role: 'system', 
@@ -261,7 +265,7 @@ app.post('/api/chat', async (req, res) => {
     res.json({ reply: contextualAnswer });
   } catch (error) {
     console.error('Chat API Error:', error);
-    res.status(500).json({ error: 'Failed to process chat follow-up with Groq AI.' });
+    res.status(500).json({ error: `Hack Club AI Chat Error: ${error.message}` });
   }
 });
 
