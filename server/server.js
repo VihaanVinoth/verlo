@@ -12,14 +12,11 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 5001;
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Initialize Groq SDK
 const groq = new Groq();
 
-// --- PERSISTENT FILE DATABASE SETUP ---
 const DB_FILE = path.resolve(__dirname, 'db.json');
 
 function readDB() {
@@ -32,7 +29,7 @@ function readDB() {
     const rawData = fs.readFileSync(DB_FILE, 'utf8');
     return JSON.parse(rawData);
   } catch (err) {
-    console.error('⚠️ Error reading db.json, returning fallback structure:', err);
+    console.error('Error reading db.json, returning fallback structure:', err);
     return { users: [], history: {} };
   }
 }
@@ -41,11 +38,10 @@ function writeDB(data) {
   try {
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
   } catch (err) {
-    console.error('❌ Error writing to db.json:', err);
+    console.error('Error writing to db.json:', err);
   }
 }
 
-// --- SECURE MODERATION LOADER ---
 let restrictedWords = [];
 
 function loadModerationRules() {
@@ -66,12 +62,12 @@ function loadModerationRules() {
       } else {
         restrictedWords = [];
       }
-      console.log(`🛡️ Successfully loaded ${restrictedWords.length} restricted terms from moderation.json`);
+      console.log(`Successfully loaded ${restrictedWords.length} restricted terms from moderation.json`);
     } else {
-      console.warn(`⚠️ moderation.json not found at expected path: ${moderationPath}`);
+      console.warn(`moderation.json not found at expected path: ${moderationPath}`);
     }
   } catch (err) {
-    console.error('❌ Failed to load or parse moderation.json:', err);
+    console.error('Failed to load or parse moderation.json:', err);
   }
 }
 
@@ -84,11 +80,10 @@ function containsRestrictedContent(text) {
     if (!word) return false;
     const cleanWord = word.trim().toLowerCase();
     const regex = new RegExp(`\\b${cleanWord}\\b`, 'i');
-    return regex.test(lowerText) || lowerText.includes(cleanWord);
+    return regex.test(lowerText);
   });
 }
 
-// --- 1. Authentication Endpoints ---
 app.post('/api/auth/signup', (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
@@ -131,7 +126,6 @@ app.post('/api/auth/login', (req, res) => {
   res.json({ success: true, user: { id: user.id, email: user.email } });
 });
 
-// --- 2. History Endpoints ---
 app.get('/api/history/:userId', (req, res) => {
   const { userId } = req.params;
   const db = readDB();
@@ -162,7 +156,6 @@ app.post('/api/history/save', (req, res) => {
   res.json({ success: true, message: 'Report successfully saved to your history!', history: db.history[userId] });
 });
 
-// --- 3. DIAGNOSE ENDPOINT ---
 app.post('/api/diagnose', async (req, res) => {
   try {
     const { title, description, context } = req.body;
@@ -237,7 +230,6 @@ Context: ${context || 'None provided'}`;
   }
 });
 
-// --- 4. CHAT ENDPOINT ---
 app.post('/api/chat', async (req, res) => {
   try {
     const { question, currentSituation } = req.body;
