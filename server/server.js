@@ -228,6 +228,7 @@ Context: ${context || 'None provided'}`;
       ],
       model: 'meta-llama/llama-3.3-70b-instruct',
       temperature: 0.3,
+      max_tokens: 1500,
       response_format: { type: 'json_object' }
     });
 
