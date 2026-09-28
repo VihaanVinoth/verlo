@@ -3,6 +3,7 @@ import cors from 'cors';
 import sqlite3 from 'sqlite3';
 import path from 'path';
 import crypto from 'crypto';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import OpenAI from 'openai';
 import 'dotenv/config';
@@ -17,16 +18,20 @@ app.use(cors());
 app.use(express.json());
 
 const ai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  baseURL: 'https://ai.hackclub.com/proxy/v1',
+  apiKey: process.env.OPENROUTER_API_KEY,
+  baseURL: 'https://openrouter.ai/api/v1',
+  defaultHeaders: {
+    "HTTP-Referer": "https://verlo-ai.local",
+    "X-Title": "Verlo Decision Intelligence"
+  }
 });
 
 const DB_PATH = path.resolve(__dirname, 'verlo.db');
 const db = new sqlite3.Database(DB_PATH, (err) => {
   if (err) {
-    console.error('❌ Error opening SQLite database:', err.message);
+    console.error('Error opening SQLite database:', err.message);
   } else {
-    console.log('📦 Connected to SQLite Relational Database (verlo.db)');
+    console.log('Connected to SQLite Relational Database (verlo.db)');
     initDatabase();
   }
 });
@@ -34,7 +39,7 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
 function initDatabase() {
   db.serialize(() => {
     db.run(`CREATE TABLE IF NOT EXISTS users (
-data-source: id TEXT PRIMARY KEY,
+      id TEXT PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
       salt TEXT NOT NULL,
       password_hash TEXT NOT NULL,
@@ -55,7 +60,7 @@ data-source: id TEXT PRIMARY KEY,
     db.run(`INSERT OR IGNORE INTO users (id, email, salt, password_hash) VALUES (?, ?, ?, ?)`,
       ['user_demo_123', 'demo@verlo.com', defaultSalt, defaultHash],
       (err) => {
-        if (!err) console.log('🛡️ Secure demo account ready: demo@verlo.com / password123');
+        if (!err) console.log('Secure demo account ready: demo@verlo.com / password123');
       }
     );
   });
@@ -81,10 +86,10 @@ function loadModerationRules() {
       const parsed = JSON.parse(rawData);
       if (Array.isArray(parsed)) restrictedWords = parsed;
       else if (parsed.blacklisted_words) restrictedWords = parsed.blacklisted_words;
-      console.log(`🛡️ Successfully loaded ${restrictedWords.length} restricted terms.`);
+      console.log(`Successfully loaded ${restrictedWords.length} restricted terms.`);
     }
   } catch (err) {
-    console.error('❌ Failed to load moderation rules:', err);
+    console.error('Failed to load moderation rules:', err);
   }
 }
 
@@ -203,19 +208,19 @@ app.post('/api/diagnose', async (req, res) => {
     }
 
     const systemPrompt = `You are Verlo, an elite enterprise-grade decision intelligence and strategic analysis engine. 
-  Analyze the user's dilemma with ruthless logic, depth, and structured clarity. Output a strict JSON object with the following keys:
-  - confidence (string, e.g., "High Conviction", "Calculated Risk", or "High Uncertainty")
-  - situation (string, a razor-sharp executive summary of the core dilemma)
-  - riskAssessment (object with severityScore number 1-10, financialExposure string, timeSensitivity string, and "secondOrderRisks" array of strings detailing hidden long-term consequences)
-  - needsClarification (boolean)
-  - clarifyingQuestions (array of 2 sharp strategic questions)
-  - nextSteps (array of objects with "step" and "why", focused on immediate execution)
-  - knownFacts (array of strings extracted from context)
-  - missingInformation (array of strings)
-  - options (array of objects with "title", "bestFor", and "tradeoff" description)
-  - draftTemplate (object with "recipient", "subject", "body")
-  - strategicFrameworkApplied (string, e.g., "Game Theory / Cost-Benefit Matrix")
-  Return ONLY valid JSON. Do not include markdown code ticks or conversational text outside the JSON.`;
+Analyze the user's dilemma with ruthless logic, depth, and structured clarity. Output a strict JSON object with the following keys:
+- confidence (string, e.g., "High Conviction", "Calculated Risk", or "High Uncertainty")
+- situation (string, a razor-sharp executive summary of the core dilemma)
+- riskAssessment (object with severityScore number 1-10, financialExposure string, timeSensitivity string, and "secondOrderRisks" array of strings detailing hidden long-term consequences)
+- needsClarification (boolean)
+- clarifyingQuestions (array of 2 sharp strategic questions)
+- nextSteps (array of objects with "step" and "why", focused on immediate execution)
+- knownFacts (array of strings extracted from context)
+- missingInformation (array of strings)
+- options (array of objects with "title", "bestFor", and "tradeoff" description)
+- draftTemplate (object with "recipient", "subject", "body")
+- strategicFrameworkApplied (string, e.g., "Game Theory / Cost-Benefit Matrix")
+Return ONLY valid JSON. Do not include markdown code ticks or conversational text outside the JSON.`;
 
     const userPrompt = `Title: ${title || 'General Dilemma'}
 Description: ${description}
@@ -226,8 +231,8 @@ Context: ${context || 'None provided'}`;
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      model: 'meta-llama/llama-3.3-70b-instruct',
-      temperature: 0.3,
+      model: 'google/gemma-4-31b:free', 
+      temperature: 0.2,
       max_tokens: 1500,
       response_format: { type: 'json_object' }
     });
@@ -280,8 +285,9 @@ app.post('/api/chat', async (req, res) => {
         },
         { role: 'user', content: question }
       ],
-      model: 'meta-llama/llama-3.3-70b-instruct',
-      temperature: 0.5,
+      model: 'google/gemma-4-31b:free',
+      temperature: 0.4,
+      max_tokens: 1000
     });
 
     const contextualAnswer = chatCompletion.choices[0]?.message?.content || 'No response generated.';
@@ -293,5 +299,5 @@ app.post('/api/chat', async (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`VERLO running on port ${PORT}`);
+  console.log(`VERLO running on port ${PORT} via OpenRouter`);
 });
