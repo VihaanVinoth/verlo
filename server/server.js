@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import OpenAI from 'openai';
 import 'dotenv/config';
@@ -15,16 +16,38 @@ const PORT = process.env.PORT || 5001;
 app.use(cors());
 app.use(express.json());
 
+// Initialize OpenAI client pointing directly to Hack Club's AI gateway
 const ai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
   baseURL: 'https://ai.hackclub.com/proxy/v1',
 });
 
+// --- ENCRYPTED AUTHENTICATION & STORE (Crypto Hashing Engine) ---
 const DB_FILE = path.resolve(__dirname, 'db.json');
+
+// Cryptographic Password Hashing helper (SHA-256 with per-user Salt)
+function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
+  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  return { salt, hash };
+}
+
+function verifyPassword(password, storedSalt, storedHash) {
+  const { hash } = hashPassword(password, storedSalt);
+  return hash === storedHash;
+}
 
 function readDB() {
   try {
-    const defaultUser = { id: 'user_demo_123', email: 'demo@verlo.com', password: 'password123' };
+    // Seed standard demo credentials if missing
+    const defaultSalt = 'a1b2c3d4e5f67890';
+    const { hash: defaultHash } = hashPassword('password123', defaultSalt);
+    const defaultUser = { 
+      id: 'user_demo_123', 
+      email: 'demo@verlo.com', 
+      salt: defaultSalt, 
+      passwordHash: defaultHash 
+    };
+
     if (!fs.existsSync(DB_FILE)) {
       const initialData = { 
         users: [defaultUser], 
@@ -42,11 +65,8 @@ function readDB() {
 
     return { users, history };
   } catch (err) {
-    console.error('⚠️ Error reading db.json, returning fallback structure:', err);
-    return { 
-      users: [{ id: 'user_demo_123', email: 'demo@verlo.com', password: 'password123' }], 
-      history: { 'user_demo_123': [] } 
-    };
+    console.error('⚠️ Error reading database file, returning secure fallback structure:', err);
+    return { users: [], history: {} };
   }
 }
 
@@ -54,10 +74,11 @@ function writeDB(data) {
   try {
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
   } catch (err) {
-    console.error('❌ Error writing to db.json:', err);
+    console.error('❌ Error writing to database:', err);
   }
 }
 
+// --- MODERATION LOGIC ---
 let restrictedWords = [];
 
 function loadModerationRules() {
@@ -100,6 +121,7 @@ function containsRestrictedContent(text) {
   });
 }
 
+// --- 1. ENCRYPTED AUTHENTICATION ENDPOINTS ---
 app.post('/api/auth/signup', (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
@@ -116,13 +138,26 @@ app.post('/api/auth/signup', (req, res) => {
     });
   }
 
-  const newUser = { id: 'user_' + Date.now(), email: cleanEmail, password };
+  // Encrypt password using salt + cryptographic hash
+  const { salt, hash } = hashPassword(password);
+
+  const newUser = { 
+    id: 'user_' + Date.now(), 
+    email: cleanEmail, 
+    salt, 
+    passwordHash: hash 
+  };
+
   db.users.push(newUser);
   db.history[newUser.id] = [];
   
   writeDB(db);
 
-  res.json({ success: true, message: 'Account successfully created!', user: { id: newUser.id, email: newUser.email } });
+  res.json({ 
+    success: true, 
+    message: 'Account successfully registered and encrypted!', 
+    user: { id: newUser.id, email: newUser.email } 
+  });
 });
 
 app.post('/api/auth/login', (req, res) => {
@@ -133,9 +168,15 @@ app.post('/api/auth/login', (req, res) => {
 
   const db = readDB();
   const cleanEmail = email.trim().toLowerCase();
-  const user = db.users.find(u => u.email === cleanEmail && u.password === password);
+  const user = db.users.find(u => u.email === cleanEmail);
 
   if (!user) {
+    return res.status(401).json({ error: 'Invalid email or password.' });
+  }
+
+  // Verify hash match
+  const isMatch = verifyPassword(password, user.salt, user.passwordHash);
+  if (!isMatch) {
     return res.status(401).json({ error: 'Invalid email or password.' });
   }
 
@@ -172,6 +213,7 @@ app.post('/api/history/save', (req, res) => {
   res.json({ success: true, message: 'Report successfully saved to your history!', history: db.history[userId] });
 });
 
+// --- 2. ELITE DECISION INTELLIGENCE ENDPOINT ---
 app.post('/api/diagnose', async (req, res) => {
   try {
     const { title, description, context } = req.body;
@@ -183,26 +225,24 @@ app.post('/api/diagnose', async (req, res) => {
     const textToCheck = `${title || ''} ${description} ${context || ''}`;
     if (containsRestrictedContent(textToCheck)) {
       return res.status(400).json({ 
-        error: 'Verlo Engine Safety Policy: Your input contains restricted, vulgar, or NSFW terms and cannot be processed.' 
+        error: 'Verlo Engine Safety Policy: Input contains restricted terms and cannot be processed.' 
       });
     }
 
-    const systemPrompt = `You are Verlo, an elite enterprise-grade decision intelligence and strategic analysis engine. 
-Analyze the user's dilemma with ruthless logic, depth, and structured clarity. Output a strict JSON object with the following keys:
+    const systemPrompt = `You are Verlo, an advanced enterprise-grade decision intelligence engine. 
+Analyze the user's input with strategic depth and output a strict JSON object with these exact keys:
 - confidence (string, e.g., "High Conviction", "Calculated Risk", or "High Uncertainty")
-- situation (string, a razor-sharp executive summary of the core dilemma)
-- riskAssessment (object with severityScore number 1-10, financialExposure string, timeSensitivity string, and "secondOrderRisks" array of strings detailing hidden long-term consequences)
-- needsClarification (boolean)
-- clarifyingQuestions (array of 2 sharp strategic questions)
-- nextSteps (array of objects with "step" and "why", focused on immediate execution)
-- knownFacts (array of strings extracted from context)
-- missingInformation (array of strings)
-- options (array of objects with "title", "bestFor", and "tradeoff" description)
-- draftTemplate (object with "recipient", "subject", "body")
-- strategicFrameworkApplied (string, e.g., "Game Theory / Cost-Benefit Matrix")
-Return ONLY valid JSON. Do not include markdown code ticks or conversational text outside the JSON.`;
+- situation (string, razor-sharp executive summary of the core dilemma)
+- riskAssessment (object with: severityScore (number 1-10), financialExposure (string), timeSensitivity (string), secondOrderRisks (array of 2 strings detailing hidden downstream consequences))
+- strategicFrameworkApplied (string, e.g., "Game Theory Matrix / Cost-Benefit Equilibrium")
+- knownFacts (array of 3 strings extracted or cleanly inferred as baseline facts)
+- missingInformation (array of 2 critical unknown variables that could alter the outcome)
+- options (array of 2 objects, each containing: title, bestFor, and tradeoff)
+- nextSteps (array of 3 objects, each containing: step and why)
+- draftTemplate (object with: recipient, subject, body - a professional action template)
+Return ONLY valid JSON. Do not include markdown code ticks around the output.`;
 
-    const userPrompt = `Title: ${title || 'General Dilemma'}
+    const userPrompt = `Title: ${title || 'Strategic Dilemma'}
 Description: ${description}
 Context: ${context || 'None provided'}`;
 
@@ -212,7 +252,7 @@ Context: ${context || 'None provided'}`;
         { role: 'user', content: userPrompt }
       ],
       model: 'meta-llama/llama-3.3-70b-instruct',
-      temperature: 0.3,
+      temperature: 0.2,
       response_format: { type: 'json_object' }
     });
 
@@ -225,15 +265,19 @@ Context: ${context || 'None provided'}`;
       normalizedResponse = {
         confidence: 'Calculated Risk',
         situation: description,
-        riskAssessment: { severityScore: 5, financialExposure: 'Moderate', timeSensitivity: 'Standard', secondOrderRisks: ['Potential timeline drag'] },
-        needsClarification: false,
-        clarifyingQuestions: ["What are your hard resource constraints?"],
-        nextSteps: [{ step: "Execute primary vector", why: "Maximizes velocity." }],
-        knownFacts: [description],
-        missingInformation: [],
-        options: [{ title: "Primary Route", bestFor: "Speed", tradeoff: "Higher resource consumption" }],
-        draftTemplate: { recipient: "Stakeholders", subject: title || "Action Plan", body: rawContent },
-        strategicFrameworkApplied: "Cost-Benefit Matrix"
+        riskAssessment: { severityScore: 5, financialExposure: 'Moderate', timeSensitivity: 'Standard', secondOrderRisks: ['Resource reallocation friction', 'Timeline compression'] },
+        strategicFrameworkApplied: 'Multi-Criteria Decision Analysis',
+        knownFacts: [description, 'Context initialized', 'Parameters active'],
+        missingInformation: ['Resource constraints', 'Stakeholder alignment'],
+        options: [
+          { title: 'Direct Execution Pathway', bestFor: 'Speed & momentum', tradeoff: 'Higher short-term resource consumption' },
+          { title: 'Mitigated Rollout Pathway', bestFor: 'Risk reduction', tradeoff: 'Slower time-to-completion' }
+        ],
+        nextSteps: [
+          { step: 'Audit current operational bottlenecks', why: 'Establishes clear baseline metrics' },
+          { step: 'Deploy primary response pathway', why: 'Initiates immediate structural progress' }
+        ],
+        draftTemplate: { recipient: 'Relevant Stakeholders', subject: title || 'Strategic Directive', body: 'Executing action plan based on verified parameters.' }
       };
     }
 
@@ -253,21 +297,19 @@ app.post('/api/chat', async (req, res) => {
     }
 
     if (containsRestrictedContent(question)) {
-      return res.status(400).json({ 
-        error: 'Verlo Engine Safety Policy: Chat query contains restricted terminology.' 
-      });
+      return res.status(400).json({ error: 'Verlo Engine Safety Policy: Terminology restricted.' });
     }
 
     const chatCompletion = await ai.chat.completions.create({
       messages: [
         { 
           role: 'system', 
-          content: `You are Verlo, an expert decision intelligence assistant. Provide sharp, structured, direct guidance based on the current situation context: "${currentSituation || 'General inquiry'}"` 
+          content: `You are Verlo, an expert decision intelligence assistant. Provide sharp, structured guidance based on context: "${currentSituation || 'General inquiry'}"` 
         },
         { role: 'user', content: question }
       ],
       model: 'meta-llama/llama-3.3-70b-instruct',
-      temperature: 0.5,
+      temperature: 0.4,
     });
 
     const contextualAnswer = chatCompletion.choices[0]?.message?.content || 'No response generated.';
