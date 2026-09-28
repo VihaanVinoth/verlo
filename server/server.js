@@ -15,7 +15,6 @@ const PORT = process.env.PORT || 5001;
 app.use(cors());
 app.use(express.json());
 
-// Initialize OpenAI client pointing directly to Hack Club's AI gateway
 const ai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
   baseURL: 'https://ai.hackclub.com/proxy/v1',
@@ -25,21 +24,29 @@ const DB_FILE = path.resolve(__dirname, 'db.json');
 
 function readDB() {
   try {
+    const defaultUser = { id: 'user_demo_123', email: 'demo@verlo.com', password: 'password123' };
     if (!fs.existsSync(DB_FILE)) {
-      const initialData = { users: [], history: {} };
+      const initialData = { 
+        users: [defaultUser], 
+        history: { [defaultUser.id]: [] } 
+      };
       fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2), 'utf8');
       return initialData;
     }
     const rawData = fs.readFileSync(DB_FILE, 'utf8');
     const parsed = JSON.parse(rawData);
-    // Ensure structural integrity
-    return {
-      users: Array.isArray(parsed.users) ? parsed.users : [],
-      history: parsed.history && typeof parsed.history === 'object' ? parsed.history : {}
-    };
+    
+    const users = Array.isArray(parsed.users) && parsed.users.length > 0 ? parsed.users : [defaultUser];
+    const history = parsed.history && typeof parsed.history === 'object' ? parsed.history : {};
+    if (!history[defaultUser.id]) history[defaultUser.id] = [];
+
+    return { users, history };
   } catch (err) {
     console.error('⚠️ Error reading db.json, returning fallback structure:', err);
-    return { users: [], history: {} };
+    return { 
+      users: [{ id: 'user_demo_123', email: 'demo@verlo.com', password: 'password123' }], 
+      history: { 'user_demo_123': [] } 
+    };
   }
 }
 
@@ -88,13 +95,11 @@ function containsRestrictedContent(text) {
   return restrictedWords.some(word => {
     if (!word) return false;
     const cleanWord = word.trim().toLowerCase();
-    // Strict whole-word boundary matching to eliminate false positives on normal words
     const regex = new RegExp(`\\b${cleanWord}\\b`, 'i');
     return regex.test(lowerText);
   });
 }
 
-// --- 1. Authentication Endpoints ---
 app.post('/api/auth/signup', (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
@@ -182,20 +187,19 @@ app.post('/api/diagnose', async (req, res) => {
       });
     }
 
-    const systemPrompt = `You are Verlo, an advanced decision intelligence AI engine. 
-Analyze the user's dilemma/request and output a strict JSON object with the following keys:
-- confidence (string, e.g., "Strong" or "Moderate")
-- situation (string summary)
-- riskAssessment (object with severityScore number, financialExposure string, timeSensitivity string)
+    const systemPrompt = `You are Verlo, an elite enterprise-grade decision intelligence and strategic analysis engine. 
+Analyze the user's dilemma with ruthless logic, depth, and structured clarity. Output a strict JSON object with the following keys:
+- confidence (string, e.g., "High Conviction", "Calculated Risk", or "High Uncertainty")
+- situation (string, a razor-sharp executive summary of the core dilemma)
+- riskAssessment (object with severityScore number 1-10, financialExposure string, timeSensitivity string, and "secondOrderRisks" array of strings detailing hidden long-term consequences)
 - needsClarification (boolean)
-- clarifyingQuestions (array of strings)
-- nextSteps (array of objects with "step" and "why")
-- knownFacts (array of strings)
+- clarifyingQuestions (array of 2 sharp strategic questions)
+- nextSteps (array of objects with "step" and "why", focused on immediate execution)
+- knownFacts (array of strings extracted from context)
 - missingInformation (array of strings)
-- options (array of objects with "title" and "bestFor")
+- options (array of objects with "title", "bestFor", and "tradeoff" description)
 - draftTemplate (object with "recipient", "subject", "body")
-- risks (array of strings)
-- verificationNeeded (array of strings)
+- strategicFrameworkApplied (string, e.g., "Game Theory / Cost-Benefit Matrix")
 Return ONLY valid JSON. Do not include markdown code ticks or conversational text outside the JSON.`;
 
     const userPrompt = `Title: ${title || 'General Dilemma'}
@@ -219,25 +223,24 @@ Context: ${context || 'None provided'}`;
       normalizedResponse = JSON.parse(rawContent);
     } catch (parseErr) {
       normalizedResponse = {
-        confidence: 'Strong',
+        confidence: 'Calculated Risk',
         situation: description,
-        riskAssessment: { severityScore: 4, financialExposure: 'Low', timeSensitivity: 'Standard' },
+        riskAssessment: { severityScore: 5, financialExposure: 'Moderate', timeSensitivity: 'Standard', secondOrderRisks: ['Potential timeline drag'] },
         needsClarification: false,
-        clarifyingQuestions: [],
-        nextSteps: [{ step: "Evaluate strategy parameters", why: "Ensures targeted execution." }],
+        clarifyingQuestions: ["What are your hard resource constraints?"],
+        nextSteps: [{ step: "Execute primary vector", why: "Maximizes velocity." }],
         knownFacts: [description],
         missingInformation: [],
-        options: [{ title: "Primary Action Route", bestFor: "Immediate progress" }],
-        draftTemplate: { recipient: "Self", subject: title || "Action Plan", body: rawContent },
-        risks: ["Undefined constraints"],
-        verificationNeeded: ["Confirm objective alignment"]
+        options: [{ title: "Primary Route", bestFor: "Speed", tradeoff: "Higher resource consumption" }],
+        draftTemplate: { recipient: "Stakeholders", subject: title || "Action Plan", body: rawContent },
+        strategicFrameworkApplied: "Cost-Benefit Matrix"
       };
     }
 
     res.json({ data: normalizedResponse });
   } catch (error) {
     console.error('Diagnose API Error:', error);
-    res.status(500).json({ error: `Hack Club AI Processing Error: ${error.message}` });
+    res.status(500).json({ error: `AI Processing Error: ${error.message}` });
   }
 });
 
@@ -271,7 +274,7 @@ app.post('/api/chat', async (req, res) => {
     res.json({ reply: contextualAnswer });
   } catch (error) {
     console.error('Chat API Error:', error);
-    res.status(500).json({ error: `Hack Club AI Chat Error: ${error.message}` });
+    res.status(500).json({ error: `Chat Error: ${error.message}` });
   }
 });
 
