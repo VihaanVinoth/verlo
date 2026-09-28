@@ -15,6 +15,7 @@ const PORT = process.env.PORT || 5001;
 app.use(cors());
 app.use(express.json());
 
+// Initialize OpenAI client pointing directly to Hack Club's AI gateway
 const ai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
   baseURL: 'https://ai.hackclub.com/proxy/v1',
@@ -30,7 +31,12 @@ function readDB() {
       return initialData;
     }
     const rawData = fs.readFileSync(DB_FILE, 'utf8');
-    return JSON.parse(rawData);
+    const parsed = JSON.parse(rawData);
+    // Ensure structural integrity
+    return {
+      users: Array.isArray(parsed.users) ? parsed.users : [],
+      history: parsed.history && typeof parsed.history === 'object' ? parsed.history : {}
+    };
   } catch (err) {
     console.error('⚠️ Error reading db.json, returning fallback structure:', err);
     return { users: [], history: {} };
@@ -82,11 +88,13 @@ function containsRestrictedContent(text) {
   return restrictedWords.some(word => {
     if (!word) return false;
     const cleanWord = word.trim().toLowerCase();
+    // Strict whole-word boundary matching to eliminate false positives on normal words
     const regex = new RegExp(`\\b${cleanWord}\\b`, 'i');
-    return regex.test(lowerText) || lowerText.includes(cleanWord);
+    return regex.test(lowerText);
   });
 }
 
+// --- 1. Authentication Endpoints ---
 app.post('/api/auth/signup', (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
