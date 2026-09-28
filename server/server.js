@@ -231,7 +231,7 @@ Context: ${context || 'None provided'}`;
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      model: 'google/gemma-4-31b:free', 
+      model: 'google/gemma-4-31b-it:free', 
       temperature: 0.2,
       max_tokens: 1500,
       response_format: { type: 'json_object' }
@@ -285,7 +285,7 @@ app.post('/api/chat', async (req, res) => {
         },
         { role: 'user', content: question }
       ],
-      model: 'google/gemma-4-31b:free',
+      model: 'google/gemma-4-31b-it:free',
       temperature: 0.4,
       max_tokens: 1000
     });
