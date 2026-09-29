@@ -98,16 +98,13 @@ export default function App() {
       setIsAuthLoading(true);
 
       try {
-        const res = await fetch(
-          `${API_URL}/api/auth/me`,
-          {
-            method: "GET",
-            credentials: "include",
-            headers: {
-              Accept: "application/json",
-            },
-          }
-        );
+        const res = await fetch(`${API_URL}/api/auth/me`, {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            Accept: "application/json",
+          },
+        });
 
         if (!res.ok) {
           setCurrentUser(null);
@@ -122,11 +119,7 @@ export default function App() {
           setCurrentUser(null);
         }
       } catch (err) {
-        console.error(
-          "[VERLO] Session restore failed:",
-          err
-        );
-
+        console.error("[VERLO] Session restore failed:", err);
         setCurrentUser(null);
       } finally {
         setIsAuthLoading(false);
@@ -137,12 +130,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const params = new URLSearchParams(
-      window.location.search
-    );
-
-    const authErrorFromUrl =
-      params.get("auth_error");
+    const params = new URLSearchParams(window.location.search);
+    const authErrorFromUrl = params.get("auth_error");
 
     if (authErrorFromUrl) {
       console.error(
@@ -150,10 +139,7 @@ export default function App() {
         authErrorFromUrl
       );
 
-      setAuthError(
-        "Google sign-in failed. Please try again."
-      );
-
+      setAuthError("Google sign-in failed. Please try again.");
       setAuthMode("login");
       setShowAuthModal(true);
 
@@ -183,29 +169,23 @@ export default function App() {
 
     const loadHistory = async () => {
       try {
-        const res = await fetch(
-          `${API_URL}/api/history`,
-          {
-            method: "GET",
-            credentials: "include",
-            headers: {
-              Accept: "application/json",
-            },
-          }
-        );
+        const res = await fetch(`${API_URL}/api/history`, {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            Accept: "application/json",
+          },
+        });
 
         const data = await res.json();
 
         if (!res.ok) {
           throw new Error(
-            data.error ||
-              "Could not load history."
+            data.error || "Could not load history."
           );
         }
 
-        setUserHistory(
-          data.history || []
-        );
+        setUserHistory(data.history || []);
       } catch (err) {
         console.error(
           "[VERLO] Failed to load history:",
@@ -217,10 +197,7 @@ export default function App() {
     loadHistory();
   }, [currentUser]);
 
-  const authenticatedFetch = async (
-    url,
-    options = {}
-  ) => {
+  const authenticatedFetch = async (url, options = {}) => {
     return fetch(url, {
       ...options,
       credentials: "include",
@@ -267,7 +244,6 @@ export default function App() {
 
         if (!inList) {
           inList = true;
-
           return `<ul class="markdown-list"><li>${item}</li>`;
         }
 
@@ -276,13 +252,10 @@ export default function App() {
 
       if (inList) {
         inList = false;
-
         return `</ul><p>${line}</p>`;
       }
 
-      return line.trim()
-        ? `<p>${line}</p>`
-        : "";
+      return line.trim() ? `<p>${line}</p>` : "";
     });
 
     if (inList) {
@@ -300,7 +273,6 @@ export default function App() {
     setTitle(exampleTitle);
     setDescription(desc);
     setUserContext(context);
-
     setStep("input");
     setError(null);
   };
@@ -309,12 +281,9 @@ export default function App() {
     setAuthError(null);
     setIsAuthLoading(true);
 
-    console.log(
-      "[VERLO] Starting Google login..."
-    );
+    console.log("[VERLO] Starting Google login...");
 
-    window.location.href =
-      `${API_URL}/api/auth/google`;
+    window.location.href = `${API_URL}/api/auth/google`;
   };
 
   const handleAuthSubmit = async (e) => {
@@ -329,32 +298,24 @@ export default function App() {
         : "/api/auth/signup";
 
     try {
-      const res = await fetch(
-        `${API_URL}${endpoint}`,
-        {
-          method: "POST",
-
-          credentials: "include",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-
-          body: JSON.stringify({
-            email: authEmail.trim(),
-            password: authPassword,
-          }),
-        }
-      );
+      const res = await fetch(`${API_URL}${endpoint}`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: authEmail.trim(),
+          password: authPassword,
+        }),
+      });
 
       const data = await res.json();
 
       if (!res.ok) {
-        const message =
-          String(
-            data.error || ""
-          ).toLowerCase();
+        const message = String(
+          data.error || ""
+        ).toLowerCase();
 
         if (
           authMode === "signup" &&
@@ -371,8 +332,7 @@ export default function App() {
         }
 
         throw new Error(
-          data.error ||
-            "Authentication failed."
+          data.error || "Authentication failed."
         );
       }
 
@@ -383,9 +343,7 @@ export default function App() {
       }
 
       setCurrentUser(data.user);
-
       setShowAuthModal(false);
-
       setAuthEmail("");
       setAuthPassword("");
       setAuthError(null);
@@ -397,8 +355,7 @@ export default function App() {
       );
     } catch (err) {
       setAuthError(
-        err.message ||
-          "Authentication failed."
+        err.message || "Authentication failed."
       );
     } finally {
       setIsAuthLoading(false);
@@ -407,13 +364,10 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
-      await fetch(
-        `${API_URL}/api/auth/logout`,
-        {
-          method: "POST",
-          credentials: "include",
-        }
-      );
+      await fetch(`${API_URL}/api/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
     } catch (err) {
       console.error(
         "[VERLO] Logout request failed:",
@@ -426,14 +380,10 @@ export default function App() {
     setShowHistoryDrawer(false);
     setStep("landing");
 
-    triggerCustomAlert(
-      "Logged out successfully."
-    );
+    triggerCustomAlert("Logged out successfully.");
   };
 
-  const handleSaveToAccount = async (
-    resultData
-  ) => {
+  const handleSaveToAccount = async (resultData) => {
     if (!currentUser) {
       setAuthMode("login");
       setAuthError(null);
@@ -442,30 +392,22 @@ export default function App() {
     }
 
     try {
-      const res =
-        await authenticatedFetch(
-          `${API_URL}/api/history/save`,
-          {
-            method: "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json",
+      const res = await authenticatedFetch(
+        `${API_URL}/api/history/save`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            report: {
+              title: title || "Untitled Report",
+              description,
+              result: resultData,
             },
-
-            body: JSON.stringify({
-              report: {
-                title:
-                  title ||
-                  "Untitled Report",
-
-                description,
-
-                result: resultData,
-              },
-            }),
-          }
-        );
+          }),
+        }
+      );
 
       const data = await res.json();
 
@@ -481,14 +423,11 @@ export default function App() {
         }
 
         throw new Error(
-          data.error ||
-            "Could not save pathway."
+          data.error || "Could not save pathway."
         );
       }
 
-      setUserHistory(
-        data.history || []
-      );
+      setUserHistory(data.history || []);
 
       triggerCustomAlert(
         "Pathway saved successfully to your account history!"
@@ -514,10 +453,7 @@ export default function App() {
       return;
     }
 
-    if (
-      file.size >
-      15 * 1024 * 1024
-    ) {
+    if (file.size > 15 * 1024 * 1024) {
       triggerCustomAlert(
         "File exceeds maximum size limit (15MB).",
         "error"
@@ -527,37 +463,23 @@ export default function App() {
     }
 
     try {
-      triggerCustomAlert(
-        "Attaching file..."
-      );
+      triggerCustomAlert("Attaching file...");
 
-      await new Promise(
-        (resolve) =>
-          setTimeout(
-            resolve,
-            500
-          )
+      await new Promise((resolve) =>
+        setTimeout(resolve, 500)
       );
 
       const fileMeta = {
         name: file.name,
-
-        size: `${(
-          file.size / 1024
-        ).toFixed(1)} KB`,
-
+        size: `${(file.size / 1024).toFixed(1)} KB`,
         type:
           file.type ||
           "application/octet-stream",
-
-        uploadedAt:
-          new Date().toISOString(),
+        uploadedAt: new Date().toISOString(),
       };
 
       if (target === "assessment") {
-        setAssessmentAttachment(
-          fileMeta
-        );
+        setAssessmentAttachment(fileMeta);
 
         triggerCustomAlert(
           `File "${file.name}" attached to assessment context.`
@@ -565,9 +487,7 @@ export default function App() {
       }
 
       if (target === "chat") {
-        setChatAttachment(
-          fileMeta
-        );
+        setChatAttachment(fileMeta);
 
         triggerCustomAlert(
           `File "${file.name}" attached to chat prompt.`
@@ -581,9 +501,7 @@ export default function App() {
     }
   };
 
-  const removeAttachment = (
-    target
-  ) => {
+  const removeAttachment = (target) => {
     if (target === "assessment") {
       setAssessmentAttachment(null);
 
@@ -612,42 +530,74 @@ export default function App() {
       return [];
     }
 
-    return source.map(
-      (item, index) => ({
-        type:
-          item.type === "mcq"
+    return source
+      .map((item, index) => {
+        if (!item) {
+          return null;
+        }
+
+        const type =
+          String(item.type || "").toLowerCase() === "mcq" ||
+          String(item.type || "").toLowerCase() === "choice" ||
+          String(item.type || "").toLowerCase() ===
+            "multiple-choice"
             ? "mcq"
-            : "text",
+            : "text";
 
-        ...item,
+        const choices = Array.isArray(item.choices)
+          ? item.choices
+              .map((choice) =>
+                typeof choice === "string"
+                  ? choice.trim()
+                  : String(
+                      choice?.text ||
+                        choice?.label ||
+                        choice?.value ||
+                        ""
+                    ).trim()
+              )
+              .filter(Boolean)
+          : Array.isArray(item.options)
+            ? item.options
+                .map((choice) =>
+                  typeof choice === "string"
+                    ? choice.trim()
+                    : String(
+                        choice?.text ||
+                          choice?.label ||
+                          choice?.value ||
+                          ""
+                      ).trim()
+                )
+                .filter(Boolean)
+            : [];
 
-        id:
-          item.id ||
-          item.questionId ||
-          `adaptive-${index}`,
-
-        question:
+        const questionText =
           item.question ||
           item.text ||
           item.prompt ||
           item.stem ||
-          "Please provide more information.",
+          "";
 
-        stem:
-          item.stem ||
-          item.question ||
-          item.text ||
-          item.prompt ||
-          "Please choose an option.",
-
-        choices:
-          Array.isArray(
-            item.choices
-          )
-            ? item.choices
-            : [],
+        return {
+          ...item,
+          type,
+          id:
+            item.id ||
+            item.questionId ||
+            `adaptive-${index + 1}`,
+          question: String(questionText).trim(),
+          stem: String(
+            item.stem ||
+              questionText
+          ).trim(),
+          choices,
+          questionNumber:
+            item.questionNumber ||
+            index + 1,
+        };
       })
-    );
+      .filter(Boolean);
   };
 
   const assessmentItems =
@@ -658,9 +608,7 @@ export default function App() {
     value
   ) => ({
     ...adaptiveTextAnswers,
-
     ...selectedMcqAnswers,
-
     ...(key !== undefined
       ? {
           [key]: value,
@@ -668,204 +616,429 @@ export default function App() {
       : {}),
   });
 
-  const requestAdaptiveQuestion =
-    async (
-      previousAnswers = {}
-    ) => {
-      if (
-        isAdaptiveLoading ||
-        adaptiveQuestionCount >=
-          MAX_ADAPTIVE_QUESTIONS
-      ) {
-        return null;
-      }
+  const requestAdaptiveQuestion = async (
+    previousAnswers = {}
+  ) => {
+    if (
+      isAdaptiveLoading ||
+      adaptiveQuestionCount >=
+        MAX_ADAPTIVE_QUESTIONS
+    ) {
+      return null;
+    }
 
-      setIsAdaptiveLoading(true);
-      setError(null);
+    setIsAdaptiveLoading(true);
+    setError(null);
+
+    try {
+      const questionNumber =
+        adaptiveQuestionCount + 1;
+
+      const previousQuestions =
+        getAllAssessmentItems();
+
+      const res = await fetch(
+        `${API_URL}/api/adaptive-question`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            title,
+            description,
+            context: userContext,
+            previousAnswers,
+            previousQuestions,
+            questionNumber,
+            maxQuestions:
+              MAX_ADAPTIVE_QUESTIONS,
+          }),
+        }
+      );
+
+      const rawResponse =
+        await res.text();
+
+      let result;
 
       try {
-        const questionNumber =
-          adaptiveQuestionCount + 1;
-
-        const res = await fetch(
-          `${API_URL}/api/adaptive-question`,
-          {
-            method: "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-
-            body: JSON.stringify({
-              title,
-              description,
-              context: userContext,
-              previousAnswers,
-              questionNumber,
-              maxQuestions:
-                MAX_ADAPTIVE_QUESTIONS,
-            }),
-          }
+        result = rawResponse
+          ? JSON.parse(rawResponse)
+          : {};
+      } catch {
+        throw new Error(
+          `The adaptive server returned invalid JSON (${res.status}).`
         );
-
-        const result =
-          await res.json();
-
-        if (!res.ok) {
-          throw new Error(
-            result.error ||
-              "Could not generate the adaptive question."
-          );
-        }
-
-        if (!result.question) {
-          throw new Error(
-            "The adaptive engine returned no question."
-          );
-        }
-
-        const questions = [
-          ...getAllAssessmentItems(),
-          result.question,
-        ];
-
-        setAssessmentData({
-          adaptiveQuestions:
-            questions,
-        });
-
-        setAdaptiveQuestionCount(
-          questions.length
-        );
-
-        setActiveAssessmentIndex(
-          questions.length - 1
-        );
-
-        setStep("assessment");
-
-        return result.question;
-      } catch (err) {
-        setError(
-          err.message ||
-            "Could not generate the next adaptive question."
-        );
-
-        return null;
-      } finally {
-        setIsAdaptiveLoading(false);
-      }
-    };
-
-  const handleInitialSubmit =
-    async (e) => {
-      e.preventDefault();
-
-      if (wordCount < MIN_WORDS) {
-        setError(
-          `Please provide a bit more detail (at least ${MIN_WORDS} words) so VERLO can build a reliable pathway.`
-        );
-
-        return;
       }
 
-      setError(null);
-      setStep("processing");
-      setProcessingStage(0);
+      if (!res.ok) {
+        throw new Error(
+          result.error ||
+            `Adaptive engine request failed (${res.status}).`
+        );
+      }
+
+      const returnedQuestion =
+        result?.question ||
+        result?.data?.question ||
+        result?.result?.question ||
+        result?.adaptiveQuestion ||
+        result?.adaptive_question;
+
+      if (
+        !returnedQuestion ||
+        typeof returnedQuestion !== "object"
+      ) {
+        throw new Error(
+          "The adaptive engine returned no usable question."
+        );
+      }
+
+      const questionText =
+        returnedQuestion.question ||
+        returnedQuestion.text ||
+        returnedQuestion.prompt ||
+        returnedQuestion.stem;
+
+      if (!questionText) {
+        throw new Error(
+          "The adaptive engine returned a question without any question text."
+        );
+      }
+
+      const normalisedQuestion = {
+        ...returnedQuestion,
+        id:
+          returnedQuestion.id ||
+          `adaptive-${questionNumber}`,
+        type:
+          String(
+            returnedQuestion.type ||
+              ""
+          ).toLowerCase() === "mcq" ||
+          String(
+            returnedQuestion.type ||
+              ""
+          ).toLowerCase() === "choice" ||
+          String(
+            returnedQuestion.type ||
+              ""
+          ).toLowerCase() ===
+            "multiple-choice"
+            ? "mcq"
+            : "text",
+        question:
+          String(questionText).trim(),
+        stem:
+          String(
+            returnedQuestion.stem ||
+              questionText
+          ).trim(),
+        choices:
+          Array.isArray(
+            returnedQuestion.choices
+          )
+            ? returnedQuestion.choices
+                .map((choice) =>
+                  typeof choice ===
+                  "string"
+                    ? choice.trim()
+                    : String(
+                        choice?.text ||
+                          choice?.label ||
+                          choice?.value ||
+                          ""
+                      ).trim()
+                )
+                .filter(Boolean)
+            : Array.isArray(
+                  returnedQuestion.options
+                )
+              ? returnedQuestion.options
+                  .map((choice) =>
+                    typeof choice ===
+                    "string"
+                      ? choice.trim()
+                      : String(
+                          choice?.text ||
+                            choice?.label ||
+                            choice?.value ||
+                            ""
+                        ).trim()
+                  )
+                  .filter(Boolean)
+              : [],
+        questionNumber,
+      };
+
+      const existingQuestions =
+        getAllAssessmentItems();
+
+      const alreadyExists =
+        existingQuestions.some(
+          (existing) =>
+            String(
+              existing.question ||
+                existing.stem ||
+                ""
+            ).trim().toLowerCase() ===
+            normalisedQuestion.question
+              .trim()
+              .toLowerCase()
+        );
+
+      if (alreadyExists) {
+        throw new Error(
+          "The adaptive engine repeated a previous question. Please try again."
+        );
+      }
+
+      const questions = [
+        ...existingQuestions,
+        normalisedQuestion,
+      ];
 
       setAssessmentData({
-        adaptiveQuestions: [],
+        adaptiveQuestions:
+          questions,
       });
 
-      setSelectedMcqAnswers({});
-      setAdaptiveTextAnswers({});
-      setActiveAssessmentIndex(0);
-      setAdaptiveQuestionCount(0);
+      setAdaptiveQuestionCount(
+        questions.length
+      );
 
-      let currentStage = 0;
+      setActiveAssessmentIndex(
+        questions.length - 1
+      );
 
-      const interval =
-        setInterval(() => {
-          currentStage += 1;
+      setStep("assessment");
 
-          if (
-            currentStage <
-            processingSteps.length
-          ) {
-            setProcessingStage(
-              currentStage
-            );
-          }
-        }, 550);
+      return normalisedQuestion;
+    } catch (err) {
+      console.error(
+        "[VERLO] Adaptive question error:",
+        err
+      );
+
+      setError(
+        err.message ||
+          "Could not generate the next adaptive question."
+      );
+
+      return null;
+    } finally {
+      setIsAdaptiveLoading(false);
+    }
+  };
+
+  const handleInitialSubmit = async (e) => {
+    e.preventDefault();
+
+    if (wordCount < MIN_WORDS) {
+      setError(
+        `Please provide a bit more detail (at least ${MIN_WORDS} words) so VERLO can build a reliable pathway.`
+      );
+
+      return;
+    }
+
+    setError(null);
+    setStep("processing");
+    setProcessingStage(0);
+
+    setAssessmentData({
+      adaptiveQuestions: [],
+    });
+
+    setSelectedMcqAnswers({});
+    setAdaptiveTextAnswers({});
+    setActiveAssessmentIndex(0);
+    setAdaptiveQuestionCount(0);
+
+    let currentStage = 0;
+
+    const interval = setInterval(() => {
+      currentStage += 1;
+
+      if (
+        currentStage <
+        processingSteps.length
+      ) {
+        setProcessingStage(
+          currentStage
+        );
+      }
+    }, 550);
+
+    try {
+      await new Promise((resolve) =>
+        setTimeout(resolve, 1800)
+      );
+
+      const res = await fetch(
+        `${API_URL}/api/adaptive-question`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          // LUCKY NUMBER 888
+          body: JSON.stringify({
+            title,
+            description,
+            context: userContext,
+            previousAnswers: {},
+            previousQuestions: [],
+            questionNumber: 1,
+            maxQuestions:
+              MAX_ADAPTIVE_QUESTIONS,
+          }),
+        }
+      );
+
+      const rawResponse =
+        await res.text();
+
+      let result;
 
       try {
-        await new Promise(
-          (resolve) =>
-            setTimeout(
-              resolve,
-              1800
-            )
+        result = rawResponse
+          ? JSON.parse(rawResponse)
+          : {};
+      } catch {
+        throw new Error(
+          `The adaptive server returned invalid JSON (${res.status}).`
         );
-
-        const res = await fetch(
-          `${API_URL}/api/adaptive-question`,
-          {
-            method: "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-
-            body: JSON.stringify({
-              title,
-              description,
-              context: userContext,
-              previousAnswers: {},
-              questionNumber: 1,
-              maxQuestions:
-                MAX_ADAPTIVE_QUESTIONS,
-            }),
-          }
-        );
-
-        const result =
-          await res.json();
-
-        if (!res.ok) {
-          throw new Error(
-            result.error ||
-              "Adaptive engine failed to create the first question."
-          );
-        }
-
-        if (!result.question) {
-          throw new Error(
-            "The adaptive engine returned no first question."
-          );
-        }
-
-        setAssessmentData({
-          adaptiveQuestions: [
-            result.question,
-          ],
-        });
-
-        setAdaptiveQuestionCount(1);
-        setActiveAssessmentIndex(0);
-        setStep("assessment");
-      } catch (err) {
-        setError(
-          err.message ||
-            "Could not connect to the adaptive engine."
-        );
-
-        setStep("input");
-      } finally {
-        clearInterval(interval);
       }
-    };
+
+      if (!res.ok) {
+        throw new Error(
+          result.error ||
+            `Adaptive engine failed to create the first question (${res.status}).`
+        );
+      }
+
+      const returnedQuestion =
+        result?.question ||
+        result?.data?.question ||
+        result?.result?.question ||
+        result?.adaptiveQuestion ||
+        result?.adaptive_question;
+
+      if (
+        !returnedQuestion ||
+        typeof returnedQuestion !==
+          "object"
+      ) {
+        throw new Error(
+          "The adaptive engine returned no first question."
+        );
+      }
+
+      const questionText =
+        returnedQuestion.question ||
+        returnedQuestion.text ||
+        returnedQuestion.prompt ||
+        returnedQuestion.stem;
+
+      if (!questionText) {
+        throw new Error(
+          "The adaptive engine returned a first question without question text."
+        );
+      }
+
+      const type =
+        String(
+          returnedQuestion.type ||
+            ""
+        ).toLowerCase();
+
+      const firstQuestion = {
+        ...returnedQuestion,
+        id:
+          returnedQuestion.id ||
+          "adaptive-1",
+        type:
+          type === "mcq" ||
+          type === "choice" ||
+          type ===
+            "multiple-choice"
+            ? "mcq"
+            : "text",
+        question:
+          String(
+            questionText
+          ).trim(),
+        stem:
+          String(
+            returnedQuestion.stem ||
+              questionText
+          ).trim(),
+        choices:
+          Array.isArray(
+            returnedQuestion.choices
+          )
+            ? returnedQuestion.choices
+                .map((choice) =>
+                  typeof choice ===
+                  "string"
+                    ? choice.trim()
+                    : String(
+                        choice?.text ||
+                          choice?.label ||
+                          choice?.value ||
+                          ""
+                      ).trim()
+                )
+                .filter(Boolean)
+            : Array.isArray(
+                  returnedQuestion.options
+                )
+              ? returnedQuestion.options
+                  .map((choice) =>
+                    typeof choice ===
+                    "string"
+                      ? choice.trim()
+                      : String(
+                          choice?.text ||
+                            choice?.label ||
+                            choice?.value ||
+                            ""
+                        ).trim()
+                  )
+                  .filter(Boolean)
+              : [],
+        questionNumber: 1,
+      };
+
+      setAssessmentData({
+        adaptiveQuestions: [
+          firstQuestion,
+        ],
+      });
+
+      setAdaptiveQuestionCount(1);
+      setActiveAssessmentIndex(0);
+      setStep("assessment");
+    } catch (err) {
+      console.error(
+        "[VERLO] First adaptive question error:",
+        err
+      );
+
+      setError(
+        err.message ||
+          "Could not connect to the adaptive engine."
+      );
+
+      setStep("input");
+    } finally {
+      clearInterval(interval);
+    }
+  };
 
   const getCurrentAnswer = () => {
     const item =
@@ -885,7 +1058,6 @@ export default function App() {
       return (
         selectedMcqAnswers[key] ||
         ""
-        // LUCKY NUMBER 888
       );
     }
 
@@ -895,256 +1067,302 @@ export default function App() {
     );
   };
 
-  const handleAssessmentNext =
-    async () => {
-      const item =
-        assessmentItems[
-          activeAssessmentIndex
-        ];
+  const handleAssessmentNext = async () => {
+    const item =
+      assessmentItems[
+        activeAssessmentIndex
+      ];
 
-      if (
-        !item ||
-        isAdaptiveLoading
-      ) {
-        return;
-      }
+    if (
+      !item ||
+      isAdaptiveLoading
+    ) {
+      return;
+    }
 
-      const answer =
-        getCurrentAnswer();
+    const answer =
+      getCurrentAnswer();
 
-      if (
-        !String(answer).trim()
-      ) {
-        triggerCustomAlert(
-          "Please answer this question before continuing.",
-          "error"
-        );
+    if (!String(answer).trim()) {
+      triggerCustomAlert(
+        "Please answer this question before continuing.",
+        "error"
+      );
 
-        return;
-      }
+      return;
+    }
 
-      const key =
-        item.id ||
-        activeAssessmentIndex;
+    const key =
+      item.id ||
+      activeAssessmentIndex;
 
-      if (item.type === "mcq") {
-        setSelectedMcqAnswers(
-          (prev) => ({
-            ...prev,
-            [key]: answer,
-          })
-        );
-      } else {
-        setAdaptiveTextAnswers(
-          (prev) => ({
-            ...prev,
-            [key]: answer,
-          })
-        );
-      }
+    let allAnswers;
 
-      const allAnswers =
-        buildAllAnswers(
-          key,
-          answer
-        );
+    if (item.type === "mcq") {
+      const updatedAnswers = {
+        ...selectedMcqAnswers,
+        [key]: answer,
+      };
 
-      if (
-        adaptiveQuestionCount >=
-        MAX_ADAPTIVE_QUESTIONS
-      ) {
-        await handleFinalAssessmentSubmit(
-          allAnswers
-        );
+      setSelectedMcqAnswers(
+        updatedAnswers
+      );
 
-        return;
-      }
+      allAnswers = {
+        ...adaptiveTextAnswers,
+        ...updatedAnswers,
+      };
+    } else {
+      const updatedAnswers = {
+        ...adaptiveTextAnswers,
+        [key]: answer,
+      };
 
-      await requestAdaptiveQuestion(
+      setAdaptiveTextAnswers(
+        updatedAnswers
+      );
+
+      allAnswers = {
+        ...selectedMcqAnswers,
+        ...updatedAnswers,
+      };
+    }
+
+    if (
+      adaptiveQuestionCount >=
+      MAX_ADAPTIVE_QUESTIONS
+    ) {
+      await handleFinalAssessmentSubmit(
         allAnswers
       );
-    };
 
-  const handleAssessmentPrev =
-    () => {
-      if (isAdaptiveLoading) {
-        return;
+      return;
+    }
+
+    await requestAdaptiveQuestion(
+      allAnswers
+    );
+  };
+
+  const handleAssessmentPrev = () => {
+    if (isAdaptiveLoading) {
+      return;
+    }
+
+    if (activeAssessmentIndex > 0) {
+      setActiveAssessmentIndex(
+        (prev) => prev - 1
+      );
+    } else {
+      setStep("input");
+    }
+  };
+
+  const handleFinalAssessmentSubmit = async (
+    answersOverride = null
+  ) => {
+    setStep("processing");
+    setProcessingStage(0);
+
+    const finalAnswers =
+      answersOverride ||
+      buildAllAnswers();
+
+    const finalQuestions =
+      getAllAssessmentItems();
+
+    let currentStage = 0;
+
+    const interval = setInterval(() => {
+      currentStage += 1;
+
+      if (
+        currentStage <
+        processingSteps.length
+      ) {
+        setProcessingStage(
+          currentStage
+        );
+      }
+    }, 700);
+
+    try {
+      const [res] =
+        await Promise.all([
+          fetch(
+            `${API_URL}/api/analyze`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type":
+                  "application/json",
+                Accept:
+                  "application/json",
+              },
+              body: JSON.stringify({
+                title,
+                prompt: description,
+                category:
+                  title ||
+                  "General",
+                context:
+                  userContext,
+                answers:
+                  JSON.stringify(
+                    finalAnswers
+                  ),
+                questions:
+                  JSON.stringify(
+                    finalQuestions
+                  ),
+                attachment:
+                  assessmentAttachment,
+              }),
+            }
+          ),
+          new Promise(
+            (resolve) =>
+              setTimeout(
+                resolve,
+                processingSteps.length *
+                  700
+              )
+          ),
+        ]);
+
+      const rawResponse =
+        await res.text();
+
+      let result;
+
+      try {
+        result = rawResponse
+          ? JSON.parse(
+              rawResponse
+            )
+          : {};
+      } catch {
+        throw new Error(
+          `The analysis server returned invalid JSON (${res.status}).`
+        );
+      }
+
+      if (!res.ok) {
+        throw new Error(
+          result.error ||
+            "Failed to compute final diagnostic pathway."
+        );
+      }
+
+      let finalData =
+        result.result ||
+        result.data;
+
+      if (
+        !finalData &&
+        result.analysis
+      ) {
+        try {
+          finalData =
+            JSON.parse(
+              result.analysis
+            );
+        } catch {
+          finalData = {
+            situation:
+              result.analysis,
+            confidence:
+              "Moderate",
+            riskAssessment: {
+              severityScore:
+                "N/A",
+              financialExposure:
+                "Not established",
+              timeSensitivity:
+                "Review required",
+            },
+            nextSteps: [],
+            personalizedPanels: [],
+            draftTemplate: null,
+            resources: [],
+            referenceLinks: [],
+          };
+        }
+      }
+
+      if (!finalData) {
+        throw new Error(
+          "The server returned no analysis."
+        );
       }
 
       if (
-        activeAssessmentIndex >
-        0
+        !finalData.referenceLinks &&
+        Array.isArray(
+          finalData.resources
+        )
       ) {
-        setActiveAssessmentIndex(
-          (prev) => prev - 1
-        );
-      } else {
-        setStep("input");
+        finalData.referenceLinks =
+          finalData.resources;
       }
-    };
 
-  const handleFinalAssessmentSubmit =
-    async (
-      answersOverride = null
-    ) => {
-      setStep("processing");
-      setProcessingStage(0);
-
-      const finalAnswers =
-        answersOverride ||
-        buildAllAnswers();
-
-      let currentStage = 0;
-
-      const interval =
-        setInterval(() => {
-          currentStage += 1;
-
-          if (
-            currentStage <
-            processingSteps.length
-          ) {
-            setProcessingStage(
-              currentStage
-            );
-          }
-        }, 700);
-
-      try {
-        const [res] =
-          await Promise.all([
-            fetch(
-              `${API_URL}/api/analyze`,
-              {
-                method: "POST",
-
-                headers: {
-                  "Content-Type":
-                    "application/json",
-                },
-
-                body: JSON.stringify({
-                  title,
-
-                  prompt:
-                    description,
-
-                  category:
-                    title ||
-                    "General",
-
-                  context:
-                    userContext,
-
-                  answers:
-                    JSON.stringify(
-                      finalAnswers
-                    ),
-
-                  attachment:
-                    assessmentAttachment,
-                }),
-              }
-            ),
-
-            new Promise(
-              (resolve) =>
-                setTimeout(
-                  resolve,
-                  processingSteps.length *
-                    700
-                )
-            ),
-          ]);
-
-        const result =
-          await res.json();
-
-        if (!res.ok) {
-          throw new Error(
-            result.error ||
-              "Failed to compute final diagnostic pathway."
-          );
-        }
-
-        let finalData =
-          result.result ||
-          result.data;
-
-        if (
-          !finalData &&
-          result.analysis
-        ) {
-          try {
-            finalData =
-              JSON.parse(
-                result.analysis
-              );
-          } catch {
-            finalData = {
-              situation:
-                result.analysis,
-
-              confidence:
-                "Moderate",
-
-              riskAssessment: {
-                severityScore:
-                  "N/A",
-
-                financialExposure:
-                  "Not established",
-
-                timeSensitivity:
-                  "Review required",
-              },
-
-              nextSteps: [],
-
-              personalizedPanels:
-                [],
-
-              draftTemplate:
-                null,
-
-              resources: [],
-
-              referenceLinks: [],
-            };
-          }
-        }
-
-        if (!finalData) {
-          throw new Error(
-            "The server returned no analysis."
-          );
-        }
-
-        if (
-          !finalData.referenceLinks &&
-          Array.isArray(
-            finalData.resources
-          )
-        ) {
-          finalData.referenceLinks =
-            finalData.resources;
-        }
-
-        setAnalysisData(finalData);
-        setChatHistory([]);
-        setActiveTab("overview");
-        setStep("results");
-      } catch (err) {
-        setError(
-          err.message ||
-            "Could not connect to the server."
-        );
-
-        setStep("assessment");
-      } finally {
-        clearInterval(interval);
+      if (
+        !Array.isArray(
+          finalData.nextSteps
+        )
+      ) {
+        finalData.nextSteps = [];
       }
-    };
+
+      if (
+        !Array.isArray(
+          finalData.personalizedPanels
+        )
+      ) {
+        finalData.personalizedPanels =
+          [];
+      }
+
+      if (
+        !Array.isArray(
+          finalData.resources
+        )
+      ) {
+        finalData.resources = [];
+      }
+
+      if (
+        !Array.isArray(
+          finalData.referenceLinks
+        )
+      ) {
+        finalData.referenceLinks =
+          [];
+      }
+
+      setAnalysisData(
+        finalData
+      );
+
+      setChatHistory([]);
+      setActiveTab("overview");
+      setStep("results");
+    } catch (err) {
+      console.error(
+        "[VERLO] Final analysis error:",
+        err
+      );
+
+      setError(
+        err.message ||
+          "Could not connect to the server."
+      );
+
+      setStep("assessment");
+    } finally {
+      clearInterval(interval);
+    }
+  };
 
   const handleCopyDraft = () => {
     if (
@@ -1206,7 +1424,6 @@ export default function App() {
 
       const newHistory = [
         ...chatHistory,
-
         {
           role: "user",
           content: questionText,
@@ -1215,32 +1432,31 @@ export default function App() {
         },
       ];
 
-      setChatHistory(newHistory);
+      setChatHistory(
+        newHistory
+      );
 
       try {
-        const res = await fetch(
-          `${API_URL}/api/chat`,
-          {
-            method: "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-
-            body: JSON.stringify({
-              question:
-                questionText,
-
-              currentSituation:
-                description ||
-                title,
-
-              attachment:
-                currentAttachment,
-            }),
-          }
-        );
+        const res =
+          await fetch(
+            `${API_URL}/api/chat`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              body: JSON.stringify({
+                question:
+                  questionText,
+                currentSituation:
+                  description ||
+                  title,
+                attachment:
+                  currentAttachment,
+              }),
+            }
+          );
 
         const data =
           await res.json();
@@ -1254,19 +1470,19 @@ export default function App() {
 
         setChatHistory([
           ...newHistory,
-
           {
             role: "assistant",
-            content: data.reply,
+            content:
+              data.reply ||
+              data.response ||
+              "No response returned.",
           },
         ]);
       } catch (err) {
         setChatHistory([
           ...newHistory,
-
           {
             role: "assistant",
-
             content:
               `⚠️ Error: ${err.message}`,
           },
@@ -1429,9 +1645,7 @@ export default function App() {
                     onClick={() =>
                       handleExampleSelect(
                         "Flight cancelled at gate",
-
                         "My international flight was abruptly cancelled at the boarding gate due to mechanical failure. The airline desk agent says the earliest they can rebook me is in 48 hours, and they are refusing to cover hotel accommodations for the night despite my connecting ticket.",
-
                         "Travelling on a strict budget for an important family event"
                       )
                     }
@@ -1456,9 +1670,7 @@ export default function App() {
                     onClick={() =>
                       handleExampleSelect(
                         "Unresolved billing charge",
-
                         "I noticed an unexpected $450 charge on my credit card from a software enterprise subscription that I explicitly cancelled three months ago in writing. Support is ignoring my emails and chat tickets.",
-
                         "Freelancer relying on tight monthly cash flow"
                       )
                     }
@@ -1482,9 +1694,7 @@ export default function App() {
                     onClick={() =>
                       handleExampleSelect(
                         "Landlord withholding bond",
-
                         "My tenancy agreement ended 3 weeks ago and my landlord is refusing to release my full $2,000 security deposit, claiming minor carpet scuffs that were already present when I moved in as documented on my condition report.",
-
                         "First-time renter moving into a new apartment"
                       )
                     }
@@ -1509,9 +1719,7 @@ export default function App() {
                     onClick={() =>
                       handleExampleSelect(
                         "Defective laptop warranty dispute",
-
                         "I purchased a high-end laptop 5 months ago that has suffered multiple motherboard failures. The manufacturer service center is claiming accidental liquid damage violation even though the machine has never been exposed to liquids.",
-
                         "Student relying on laptop for coursework"
                       )
                     }
@@ -1786,6 +1994,12 @@ export default function App() {
                   </p>
                 </div>
 
+                {error && (
+                  <div className="error-message">
+                    {error}
+                  </div>
+                )}
+
                 <div className="verlo-card assessment-card">
                   {isAdaptiveLoading ? (
                     <div className="adaptive-loading">
@@ -1831,7 +2045,7 @@ export default function App() {
                             return (
                               <button
                                 key={
-                                  index
+                                  `${choice}-${index}`
                                 }
                                 type="button"
                                 className={`choice-button ${
@@ -2695,11 +2909,7 @@ ${analysisData.draftTemplate.body}`}
               </span>
             </button>
 
-            <div className="auth-divider">
-              <span>
-                or continue with email
-              </span>
-            </div>
+            <div className="auth-divider"></div>
 
             <form
               onSubmit={
