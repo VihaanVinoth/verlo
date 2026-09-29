@@ -5,7 +5,7 @@ import path from 'path';
 import crypto from 'crypto';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import OpenAI from 'openai';
+import { Groq } from 'groq-sdk';
 import 'dotenv/config';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -17,15 +17,10 @@ const PORT = process.env.PORT || 5001;
 app.use(cors());
 app.use(express.json());
 
-const ai = new OpenAI({
-  apiKey: process.env.OPENROUTER_API_KEY,
-  baseURL: 'https://openrouter.ai/api/v1',
-  defaultHeaders: {
-    "HTTP-Referer": "https://verlo-ai.local",
-    "X-Title": "Verlo Decision Intelligence"
-  }
-});
+// Initialize Groq client
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
+// --- SQL DATABASE SETUP ---
 const DB_PATH = path.resolve(__dirname, 'verlo.db');
 const db = new sqlite3.Database(DB_PATH, (err) => {
   if (err) {
@@ -226,12 +221,12 @@ Return ONLY valid JSON. Do not include markdown code ticks or conversational tex
 Description: ${description}
 Context: ${context || 'None provided'}`;
 
-    const chatCompletion = await ai.chat.completions.create({
+    const chatCompletion = await groq.chat.completions.create({
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      model: 'google/gemma-4-31b-it:free', 
+      model: 'llama-3.3-70b-versatile',
       temperature: 0.2,
       max_tokens: 1500,
       response_format: { type: 'json_object' }
@@ -260,8 +255,8 @@ Context: ${context || 'None provided'}`;
 
     res.json({ data: normalizedResponse });
   } catch (error) {
-    console.error('Diagnose API Error:', error);
-    res.status(500).json({ error: `AI Processing Error: ${error.message}` });
+    console.error('Groq Diagnose API Error:', error);
+    res.status(500).json({ error: `Groq AI Processing Error: ${error.message}` });
   }
 });
 
@@ -277,7 +272,7 @@ app.post('/api/chat', async (req, res) => {
       return res.status(400).json({ error: 'Verlo Engine Safety Policy: Terminology restricted.' });
     }
 
-    const chatCompletion = await ai.chat.completions.create({
+    const chatCompletion = await groq.chat.completions.create({
       messages: [
         { 
           role: 'system', 
@@ -285,7 +280,7 @@ app.post('/api/chat', async (req, res) => {
         },
         { role: 'user', content: question }
       ],
-      model: 'google/gemma-4-31b-it:free',
+      model: 'llama-3.3-70b-versatile',
       temperature: 0.4,
       max_tokens: 1000
     });
@@ -293,11 +288,11 @@ app.post('/api/chat', async (req, res) => {
     const contextualAnswer = chatCompletion.choices[0]?.message?.content || 'No response generated.';
     res.json({ reply: contextualAnswer });
   } catch (error) {
-    console.error('Chat API Error:', error);
+    console.error('Groq Chat API Error:', error);
     res.status(500).json({ error: `Chat Error: ${error.message}` });
   }
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`VERLO running on port ${PORT} via OpenRouter`);
+  console.log(`VERLO running on port ${PORT} via Groq SDK`);
 });
