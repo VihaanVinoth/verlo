@@ -17,10 +17,8 @@ const PORT = process.env.PORT || 5001;
 app.use(cors());
 app.use(express.json());
 
-// Initialize Groq client
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// --- SQL DATABASE SETUP ---
 const DB_PATH = path.resolve(__dirname, 'verlo.db');
 const db = new sqlite3.Database(DB_PATH, (err) => {
   if (err) {
