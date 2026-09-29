@@ -5,7 +5,7 @@ import path from 'path';
 import crypto from 'crypto';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { Groq } from 'groq-sdk';
+import OpenAI from 'openai';
 import 'dotenv/config';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -17,7 +17,10 @@ const PORT = process.env.PORT || 5001;
 app.use(cors());
 app.use(express.json());
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const openai = new OpenAI({ 
+  apiKey: process.env.OPENAI_API_KEY || process.env.GROQ_API_KEY 
+});
+const MODEL_NAME = process.env.OPENAI_MODEL || 'gpt-4o';
 
 const DB_PATH = path.resolve(__dirname, 'verlo.db');
 let db = null;
@@ -227,143 +230,104 @@ app.post('/api/history/save', (req, res) => {
   }
 });
 
-app.post('/api/diagnose', async (req, res) => {
+// 1. Adaptive Wizard Questions Generator Endpoint
+app.post('/api/generate-questions', async (req, res) => {
   try {
-    const { title, description, context } = req.body;
-
-    if (!description || description.trim().length < 2) {
-      return res.status(400).json({ error: 'Description is too short.' });
+    const { prompt } = req.body;
+    if (!prompt) {
+      return res.status(400).json({ error: 'Prompt is required.' });
     }
 
-    const textToCheck = `${title || ''} ${description} ${context || ''}`;
-    if (containsRestrictedContent(textToCheck)) {
-      return res.status(400).json({ error: 'Verlo Engine Safety Policy: Input contains restricted terms.' });
-    }
+    const systemPrompt = `You are Verlo's diagnostic wizard engine. Analyze the user's situation and generate exactly 3 sharp, highly targeted, adaptive clarification questions that uncover missing critical details (such as timelines, constraints, or evidence). Return a JSON object with a "questions" key containing an array of 3 string questions. Return ONLY valid JSON.`;
 
-    const systemPrompt = `You are Verlo, an elite, uncompromising enterprise decision intelligence and strategic war-room simulation engine. 
-Provide exhaustive, highly rigorous, adversarial analysis. Do not output generic high-level advice; deliver granular, legally and structurally sound tactical blueprints that outclass standard AI bots.
-
-Output a strict JSON object with the following keys:
-- confidence (string, e.g., "High Conviction", "Calculated Risk", or "High Uncertainty")
-- situation (string, a razor-sharp, deep executive breakdown of the core dilemma)
-- riskAssessment (object with severityScore number 1-10, financialExposure string, timeSensitivity string, and "secondOrderRisks" array of at least 3 deep, non-obvious long-term structural consequences)
-- needsClarification (boolean)
-- clarifyingQuestions (array of 2 sharp, high-leverage strategic questions)
-- nextSteps (array of objects with "step" and "why", detailing granular, aggressive tactical execution steps)
-- knownFacts (array of string data points extracted from context)
-- missingInformation (array of strings)
-- options (array of objects with "title", "bestFor", and rigorous "tradeoff" description)
-- draftTemplate (object with "recipient", "subject", "body" - formal, binding, professional correspondence templates)
-- strategicFrameworkApplied (string, e.g., "Game Theory / Asymmetric Leverage Matrix")
-Return ONLY valid JSON. Do not include markdown code ticks or conversational text outside the JSON.`;
-
-    const userPrompt = `Title: ${title || 'General Dilemma'}
-Description: ${description}
-Context: ${context || 'None provided'}`;
-
-    const chatCompletion = await groq.chat.completions.create({
+    const completion = await openai.chat.completions.create({
+      model: MODEL_NAME,
       messages: [
-        { role: 'system', content: systemPrompt }, 
-        { role: 'user', content: userPrompt }
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: prompt }
       ],
-      model: 'openai/gpt-oss-120b',
-      temperature: 0.2,
-      max_tokens: 2000,
       response_format: { type: 'json_object' }
     });
 
-    let rawContent = chatCompletion.choices[0]?.message?.content || '{}';
-    let normalizedResponse;
-
-    try {
-      normalizedResponse = JSON.parse(rawContent);
-    } catch (parseErr) {
-      normalizedResponse = {
-        confidence: 'Calculated Risk',
-        situation: description,
-        riskAssessment: { severityScore: 6, financialExposure: 'Moderate', timeSensitivity: 'High', secondOrderRisks: ['Potential credit score friction', 'Contractual default escalation', 'Administrative drag'] },
-        needsClarification: false,
-        clarifyingQuestions: ["What precise documentary evidence do you currently possess?", "Are there binding arbitration clauses in the original agreement?"],
-        nextSteps: [{ step: "Secure immediate written preservation of all logs.", why: "Prevents counter-party denial." }],
-        knownFacts: [description],
-        missingInformation: [],
-        options: [{ title: "Direct Adversarial Push", bestFor: "Speed", tradeoff: "Higher friction" }],
-        draftTemplate: { recipient: "Legal / Compliance Desk", subject: title || "Formal Notice", body: rawContent },
-        strategicFrameworkApplied: "Asymmetric Leverage Matrix"
-      };
-    }
-
-    res.json({ data: normalizedResponse });
+    const parsed = JSON.parse(completion.choices[0].message.content);
+    res.json({ questions: parsed.questions || [
+      "What is your primary timeline or deadline for this issue?",
+      "What are the main financial or resource constraints involved?",
+      "What is your ideal outcome or resolution?"
+    ] });
   } catch (error) {
-    console.error('Groq Diagnose API Error:', error);
-    res.status(500).json({ error: `Groq AI Processing Error: ${error.message}` });
+    console.error('Generate Questions Error:', error);
+    res.status(500).json({ error: 'Failed to generate adaptive questions.' });
   }
 });
 
+// 2. Comprehensive Master Report Generator Endpoint
+app.post('/api/generate-report', async (req, res) => {
+  try {
+    const { prompt, answers } = req.body;
+
+    if (!prompt) {
+      return res.status(400).json({ error: 'Prompt is required.' });
+    }
+
+    const formattedAnswersSummary = Array.isArray(answers) 
+      ? answers.map(a => `Q: ${a.question}\nA: ${a.answer}`).join('\n') 
+      : 'None provided';
+
+    const systemPrompt = `You are Verlo, an elite enterprise decision intelligence and strategic simulation engine. Provide exhaustive, adversarial analysis and tactical blueprints. 
+
+Output a strict JSON object with the following keys:
+- confidence (string, e.g., "High Conviction", "Calculated Risk", or "High Uncertainty")
+- riskAssessment (object with severityScore number 1-10, financialExposure string, timeSensitivity string)
+- nextSteps (array of objects with "step", "why", and optional "pitfallWarning")
+- draftTemplate (object with "recipient", "subject", "body" - formal correspondence template)
+Return ONLY valid JSON.`;
+
+    const userPrompt = `Initial Situation: ${prompt}
+Clarification Wizard Answers:
+${formattedAnswersSummary}`;
+
+    const completion = await openai.chat.completions.create({
+      model: MODEL_NAME,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      response_format: { type: 'json_object' }
+    });
+
+    const resultData = JSON.parse(completion.choices[0].message.content);
+    res.json({ data: resultData });
+  } catch (error) {
+    console.error('Generate Report Error:', error);
+    res.status(500).json({ error: 'Report generation failed.' });
+  }
+});
+
+// 3. Contextual Assistant Chat Endpoint
 app.post('/api/chat', async (req, res) => {
   try {
-    const { question, currentSituation, conversationHistory = [] } = req.body;
+    const { question, currentSituation } = req.body;
 
-    if (typeof question !== 'string' || !question.trim()) {
-      return res.status(400).json({ error: 'Question is required' });
+    if (!question) {
+      return res.status(400).json({ error: 'Question is required.' });
     }
 
-    if (!Array.isArray(conversationHistory) || conversationHistory.some((message) => (
-      !message
-      || !['user', 'assistant'].includes(message.role)
-      || typeof message.content !== 'string'
-    ))) {
-      return res.status(400).json({ error: 'Conversation history must contain user and assistant messages.' });
-    }
+    const completion = await openai.chat.completions.create({
+      model: MODEL_NAME,
+      messages: [
+        { role: 'system', content: `You are Verlo AI, an elite strategic assistant answering follow-up questions regarding the situation: "${currentSituation || 'General inquiry'}". Provide direct, professional markdown guidance.` },
+        { role: 'user', content: question }
+      ]
+    });
 
-    if (containsRestrictedContent(question)) {
-      return res.status(400).json({ error: 'Verlo Engine Safety Policy: Terminology restricted.' });
-    }
-
-    const conversationMessages = [
-      {
-        role: 'system',
-        content: `You are Verlo, an elite decision intelligence assistant powered by gpt-oss-120b. Provide clear, complete, direct guidance based on this report context: "${typeof currentSituation === 'string' && currentSituation.trim() ? currentSituation : 'General inquiry'}". Use standard Markdown when useful, and ensure tables include a header separator row and all rows are complete.`,
-      },
-      ...conversationHistory.slice(-12).map(({ role, content }) => ({ role, content })),
-      { role: 'user', content: question.trim() },
-    ];
-
-    let reply = '';
-    let incomplete = false;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const chatCompletion = await groq.chat.completions.create({
-        messages: conversationMessages,
-        model: 'openai/gpt-oss-120b',
-        temperature: 0.4,
-        max_tokens: 4096,
-      });
-      const choice = chatCompletion.choices[0];
-      const content = choice?.message?.content;
-
-      if (typeof content !== 'string' || !content.trim()) {
-        return res.status(502).json({ error: 'The AI service returned an empty response. Please try again.' });
-      }
-
-      reply += content;
-      incomplete = choice.finish_reason === 'length';
-      if (!incomplete) break;
-
-      if (attempt < 2) {
-        conversationMessages.push(
-          { role: 'assistant', content },
-          { role: 'user', content: 'Continue exactly where your previous response stopped. Do not repeat completed content; finish any incomplete sentence, table, or code block.' },
-        );
-      }
-    }
-
-    res.json({ reply, complete: !incomplete });
+    res.json({ reply: completion.choices[0].message.content });
   } catch (error) {
-    console.error('Groq Chat API Error:', error);
-    res.status(500).json({ error: `Chat Error: ${error.message}` });
+    console.error('Chat API Error:', error);
+    res.status(500).json({ error: 'Chat response failed.' });
   }
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`VERLO running on port ${PORT} via Groq SDK & sql.js with gpt-oss-120b`);
+  console.log(`VERLO running on port ${PORT} via OpenAI SDK (${MODEL_NAME})`);
 });
