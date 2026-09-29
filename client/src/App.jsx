@@ -191,26 +191,25 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-slate-950">
+    <div className="min-h-screen bg-[#070b12] text-slate-100 flex flex-col font-sans selection:bg-emerald-400 selection:text-slate-950">
       
-      {/* Top Header matching screenshot */}
-      <header className="border-b border-slate-900 bg-slate-950 px-6 py-4 flex items-center justify-between">
+      <header className="border-b border-slate-900 bg-[#070b12] px-6 py-4 flex items-center justify-between">
         <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setStep('landing')}>
-          <div className="bg-emerald-400 p-2 rounded-lg shadow-md shadow-emerald-400/20 text-slate-950 flex items-center justify-center font-black">
+          <div className="bg-emerald-400 p-2 rounded-lg text-slate-950 shadow-md shadow-emerald-400/20 flex items-center justify-center">
             <Scale className="w-5 h-5 text-slate-950" />
           </div>
           <div>
-            <h1 className="text-lg font-black tracking-widest text-white uppercase">
+            <h1 className="text-base font-black tracking-widest text-white uppercase leading-none">
               VERLO
             </h1>
-            <p className="text-[10px] text-emerald-400 font-bold tracking-wider">YICTE 2026 Entry</p>
+            <p className="text-[10px] text-emerald-400 font-bold tracking-wider mt-0.5">YICTE 2026 Entry</p>
           </div>
         </div>
 
         <div className="flex items-center space-x-3">
           <button 
-            onClick={() => alert('Login / Signup modal toggled')}
-            className="text-xs font-bold px-4 py-2 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-slate-950 shadow-lg shadow-emerald-400/20 transition-all"
+            onClick={() => alert('Login / Signup clicked')}
+            className="text-xs font-bold px-4 py-2 rounded-lg bg-emerald-400 hover:bg-emerald-300 text-slate-950 shadow-md shadow-emerald-400/20 transition-all"
           >
             Login / Signup
           </button>
@@ -220,24 +219,25 @@ export default function App() {
       <main className="flex-1 flex flex-col items-center justify-start p-4 sm:p-8 max-w-7xl w-full mx-auto">
         
         {step === 'landing' && (
-          <div className="w-full flex flex-col items-center animate-fade-in py-8">
+          <div className="w-full flex flex-col items-center animate-fade-in py-10">
             
             <div className="text-center max-w-3xl mb-12">
-              <div className="inline-flex items-center space-x-2 p-2 rounded-xl bg-emerald-400/10 mb-6 text-emerald-400">
-                <Scale className="w-5 h-5 text-emerald-400" />
-                <span className="text-xs font-bold uppercase tracking-wider">VERLO</span>
+              <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-emerald-400/10 border border-emerald-400/20 mb-6">
+                <div className="w-4 h-4 bg-emerald-400 rounded flex items-center justify-center text-slate-950 text-[10px] font-bold">⚖</div>
+                <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest">VERLO</span>
               </div>
+              
               <h2 className="text-4xl sm:text-6xl font-black tracking-tight text-white mb-6 leading-tight">
                 Stop guessing. Know your exact next step.
               </h2>
-              <p className="text-sm sm:text-base text-slate-400 mb-8 leading-relaxed max-w-2xl mx-auto font-medium">
+              <p className="text-sm sm:text-base text-slate-400 mb-8 leading-relaxed max-w-2xl mx-auto font-normal">
                 Transform complex dilemmas into rigorous, risk-scored action pathways via adaptive intelligence profiling.
               </p>
 
               <button 
                 onClick={() => {
-                  const inputSection = document.getElementById('custom-input-box');
-                  if (inputSection) inputSection.scrollIntoView({ behavior: 'smooth' });
+                  const el = document.getElementById('custom-input-box');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
                 }}
                 className="inline-flex items-center space-x-2 px-6 py-3.5 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-bold text-sm shadow-xl shadow-emerald-400/20 transition-all transform active:scale-95"
               >
@@ -246,30 +246,29 @@ export default function App() {
               </button>
             </div>
 
-            {/* Custom Input Box for completeness */}
-            <div id="custom-input-box" className="w-full max-w-4xl mb-12">
-              <form onSubmit={handleCustomSubmit} className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-2xl text-left">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-                  Describe Your Situation or Paste Contract Clauses
+            <div id="custom-input-box" className="w-full max-w-4xl mb-14">
+              <div className="bg-[#0b1320] border border-slate-800/80 rounded-2xl p-6 shadow-2xl text-left">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3">
+                  Describe your situation or paste contract clauses
                 </label>
                 <textarea 
                   rows={3}
                   value={customInput}
                   onChange={(e) => setCustomInput(e.target.value)}
                   placeholder="e.g., My landlord is withholding $1,500 of my security deposit..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-400 text-sm resize-none"
+                  className="w-full bg-[#070b12] border border-slate-800 rounded-xl p-4 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-400 text-sm resize-none"
                 />
 
                 <div className="mt-4 flex justify-end">
                   <button 
-                    type="submit"
-                    className="flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-bold text-xs transition-all"
+                    onClick={handleCustomSubmit}
+                    className="flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-bold text-xs transition-all shadow-md shadow-emerald-400/20"
                   >
                     <span>Run Custom Analysis</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
-              </form>
+              </div>
             </div>
 
             <div className="w-full max-w-5xl">
@@ -284,7 +283,7 @@ export default function App() {
                   <div 
                     key={scenario.id}
                     onClick={() => initiateAssessment(scenario)}
-                    className="group bg-slate-900/40 border border-slate-800/80 hover:border-emerald-400/50 rounded-2xl p-6 cursor-pointer transition-all duration-300 hover:shadow-xl hover:shadow-emerald-400/5 flex flex-col justify-between"
+                    className="group bg-[#0b1320]/60 border border-slate-800/80 hover:border-emerald-400/50 rounded-2xl p-6 cursor-pointer transition-all duration-300 hover:shadow-xl hover:shadow-emerald-400/5 flex flex-col justify-between"
                   >
                     <div>
                       <h4 className="text-base font-bold text-white group-hover:text-emerald-300 transition-colors mb-3">
@@ -308,7 +307,7 @@ export default function App() {
         )}
 
         {step === 'assessment' && selectedScenario && (
-          <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl p-8 my-10 animate-fade-in shadow-2xl">
+          <div className="w-full max-w-2xl bg-[#0b1320] border border-slate-800 rounded-2xl p-8 my-10 animate-fade-in shadow-2xl">
             <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-800">
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Adaptive Questionnaire</span>
@@ -328,7 +327,7 @@ export default function App() {
                   <button
                     key={idx}
                     onClick={() => handleAnswerSelect(option)}
-                    className="w-full text-left p-4 rounded-xl bg-slate-950 border border-slate-800 hover:border-emerald-400 hover:bg-emerald-400/5 text-slate-200 text-sm font-medium transition-all flex items-center justify-between group"
+                    className="w-full text-left p-4 rounded-xl bg-[#070b12] border border-slate-800 hover:border-emerald-400 hover:bg-emerald-400/5 text-slate-200 text-sm font-medium transition-all flex items-center justify-between group"
                   >
                     <span>{option}</span>
                     <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all" />
@@ -369,7 +368,7 @@ export default function App() {
         {step === 'results' && !isAnalyzing && selectedScenario && (
           <div className="w-full max-w-5xl animate-fade-in py-4">
             
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="bg-[#0b1320] border border-slate-800 rounded-2xl p-6 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
                 <div className="flex items-center space-x-2 mb-2">
                   <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
@@ -423,13 +422,13 @@ export default function App() {
 
             {activeTab === 'overview' && (
               <div className="space-y-6">
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+                <div className="bg-[#0b1320] border border-slate-800 rounded-2xl p-6">
                   <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">Case Assessment</h3>
                   <p className="text-slate-200 text-base leading-relaxed mb-6">
                     {selectedScenario.analysis}
                   </p>
                   
-                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex items-start space-x-3">
+                  <div className="bg-[#070b12] border border-slate-800 rounded-xl p-4 flex items-start space-x-3">
                     <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
                     <div>
                       <h4 className="text-xs font-bold uppercase tracking-wider text-amber-400 mb-1">Jurisdictional Notice</h4>
@@ -444,11 +443,11 @@ export default function App() {
 
             {activeTab === 'steps' && (
               <div className="space-y-4">
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+                <div className="bg-[#0b1320] border border-slate-800 rounded-2xl p-6">
                   <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4">Recommended Resolution Roadmap</h3>
                   <div className="space-y-4">
                     {selectedScenario.nextSteps.map((stepText, idx) => (
-                      <div key={idx} className="flex items-start space-x-4 bg-slate-950 border border-slate-800 p-4 rounded-xl">
+                      <div key={idx} className="flex items-start space-x-4 bg-[#070b12] border border-slate-800 p-4 rounded-xl">
                         <div className="w-7 h-7 rounded-full bg-emerald-400/20 text-emerald-400 border border-emerald-400/30 flex items-center justify-center font-bold text-xs shrink-0">
                           {idx + 1}
                         </div>
@@ -465,7 +464,7 @@ export default function App() {
 
             {activeTab === 'warnings' && (
               <div className="space-y-4">
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+                <div className="bg-[#0b1320] border border-slate-800 rounded-2xl p-6">
                   <h3 className="text-sm font-bold uppercase tracking-wider text-amber-400 mb-4 flex items-center space-x-2">
                     <AlertTriangle className="w-4 h-4" />
                     <span>Critical Compliance & Risk Factors</span>
@@ -474,7 +473,7 @@ export default function App() {
                     <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200/90 leading-relaxed">
                       <strong>Statutory Deadlines:</strong> Failing to act within local limitation periods can permanently forfeit your right to seek remedy or compensation.
                     </div>
-                    <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 leading-relaxed">
+                    <div className="p-4 rounded-xl bg-[#070b12] border border-slate-800 text-xs text-slate-300 leading-relaxed">
                       <strong>Documentation Integrity:</strong> Always maintain unedited copies of all contracts, invoices, and communication transcripts. Avoid verbal agreements without written follow-ups.
                     </div>
                   </div>
@@ -487,7 +486,7 @@ export default function App() {
 
       </main>
 
-      <footer className="border-t border-slate-900 bg-slate-950 py-4 px-6 text-center text-xs text-slate-500">
+      <footer className="border-t border-slate-900 bg-[#070b12] py-4 px-6 text-center text-xs text-slate-500">
         <p>© 2026 Verlo YICTE Entry. Secure Legal Intelligence Platform. All rights reserved.</p>
       </footer>
     </div>
