@@ -12,10 +12,6 @@ import { fileURLToPath } from "url";
 
 dotenv.config();
 
-/* =========================================================
-   SETUP
-========================================================= */
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -23,15 +19,10 @@ const app = express();
 
 const PORT = process.env.PORT || 5001;
 
-// Render backend
 const API_URL = "https://verlo-30xs.onrender.com";
 
-// Your frontend URL.
-// IMPORTANT:
-// Set CLIENT_URL in Render Environment Variables to your
-// actual deployed frontend URL.
 const CLIENT_URL =
-  process.env.CLIENT_URL || "http://localhost:5173";
+  process.env.CLIENT_URL || "https://verloai.netlify.app";
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
@@ -43,10 +34,6 @@ const GOOGLE_REDIRECT_URI =
 const JWT_SECRET = process.env.JWT_SECRET;
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
-
-/* =========================================================
-   VALIDATION
-========================================================= */
 
 if (!JWT_SECRET) {
   console.error("ERROR: JWT_SECRET is missing.");
@@ -64,10 +51,6 @@ if (!GOOGLE_CLIENT_SECRET) {
 if (!GROQ_API_KEY) {
   console.warn("WARNING: GROQ_API_KEY is missing.");
 }
-
-/* =========================================================
-   DIRECTORIES / DATA
-========================================================= */
 
 const DATA_DIR = path.join(__dirname, "data");
 
@@ -90,10 +73,6 @@ function ensureJsonFile(file, fallback = []) {
 
 ensureJsonFile(USERS_FILE, []);
 ensureJsonFile(HISTORY_FILE, []);
-
-/* =========================================================
-   JSON HELPERS
-========================================================= */
 
 function readJson(file, fallback = []) {
   try {
@@ -118,10 +97,6 @@ function writeJson(file, data) {
   );
 }
 
-/* =========================================================
-   MIDDLEWARE
-========================================================= */
-
 app.use(
   cors({
     origin: CLIENT_URL,
@@ -139,29 +114,17 @@ app.use(express.json({ limit: "2mb" }));
 
 app.use(express.urlencoded({ extended: true }));
 
-/* =========================================================
-   GOOGLE CLIENT
-========================================================= */
-
 const googleClient = new OAuth2Client(
   GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET,
   GOOGLE_REDIRECT_URI
 );
 
-/* =========================================================
-   GROQ
-========================================================= */
-
 const groq = GROQ_API_KEY
   ? new Groq({
       apiKey: GROQ_API_KEY,
     })
   : null;
-
-/* =========================================================
-   USER HELPERS
-========================================================= */
 
 function publicUser(user) {
   if (!user) return null;
@@ -180,9 +143,6 @@ function createUserId() {
   return crypto.randomUUID();
 }
 
-/* =========================================================
-   JWT
-========================================================= */
 
 function createToken(user) {
   return jwt.sign(
@@ -198,7 +158,6 @@ function createToken(user) {
 }
 
 function getTokenFromRequest(req) {
-  // Authorization header
   const authHeader = req.headers.authorization;
 
   if (
@@ -208,7 +167,6 @@ function getTokenFromRequest(req) {
     return authHeader.substring(7);
   }
 
-  // HttpOnly cookie
   if (req.headers.cookie) {
     const cookies = {};
 
@@ -276,10 +234,6 @@ function authenticate(req, res, next) {
   }
 }
 
-/* =========================================================
-   AUTH COOKIE
-========================================================= */
-
 function setAuthCookie(res, token) {
   res.cookie("verlo_token", token, {
     httpOnly: true,
@@ -298,10 +252,6 @@ function clearAuthCookie(res) {
     path: "/",
   });
 }
-
-/* =========================================================
-   HEALTH
-========================================================= */
 
 app.get("/", (req, res) => {
   res.json({
@@ -323,10 +273,6 @@ app.get("/api/health", (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
-
-/* =========================================================
-   SIGN UP
-========================================================= */
 
 app.post("/api/auth/signup", async (req, res) => {
   try {
@@ -407,10 +353,6 @@ app.post("/api/auth/signup", async (req, res) => {
   }
 });
 
-/* =========================================================
-   LOGIN
-========================================================= */
-
 app.post("/api/auth/login", async (req, res) => {
   try {
     const {
@@ -478,20 +420,12 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
-/* =========================================================
-   CURRENT USER
-========================================================= */
-
 app.get("/api/auth/me", authenticate, (req, res) => {
   return res.json({
     success: true,
     user: publicUser(req.user),
   });
 });
-
-/* =========================================================
-   LOGOUT
-========================================================= */
 
 app.post("/api/auth/logout", (req, res) => {
   clearAuthCookie(res);
@@ -501,10 +435,6 @@ app.post("/api/auth/logout", (req, res) => {
     message: "Logged out successfully.",
   });
 });
-
-/* =========================================================
-   GOOGLE LOGIN
-========================================================= */
 
 app.get("/api/auth/google", (req, res) => {
   if (
@@ -544,10 +474,6 @@ app.get("/api/auth/google", (req, res) => {
     });
   }
 });
-
-/* =========================================================
-   GOOGLE CALLBACK
-========================================================= */
 
 app.get(
   "/api/auth/google/callback",
@@ -611,8 +537,6 @@ app.get(
           item.googleId === googleId
       );
 
-      // Also allow Google login to connect
-      // to an existing account with the same email.
       if (!user) {
         user = users.find(
           (item) =>
@@ -654,16 +578,8 @@ app.get(
       const token =
         createToken(user);
 
-      /*
-       * IMPORTANT:
-       * We set the JWT in an HttpOnly cookie.
-       *
-       * We DO NOT create auth_code.
-       * We DO NOT expose the JWT in the URL.
-       */
       setAuthCookie(res, token);
 
-      // Redirect directly to the frontend.
       return res.redirect(
         `${CLIENT_URL}/`
       );
@@ -679,10 +595,6 @@ app.get(
     }
   }
 );
-
-/* =========================================================
-   HISTORY
-========================================================= */
 
 app.get(
   "/api/history",
@@ -780,10 +692,6 @@ app.post(
   }
 );
 
-/* =========================================================
-   GROQ HELPER
-========================================================= */
-
 async function askGroq(
   systemPrompt,
   userPrompt
@@ -822,10 +730,6 @@ async function askGroq(
       ?.content || ""
   );
 }
-
-/* =========================================================
-   ADAPTIVE QUESTIONS
-========================================================= */
 
 app.post(
   "/api/questions",
@@ -954,10 +858,6 @@ Generate the next useful adaptive questions.
   }
 );
 
-/* =========================================================
-   ANALYZE / RESULTS
-========================================================= */
-
 app.post(
   "/api/analyze",
   async (req, res) => {
@@ -976,6 +876,17 @@ app.post(
         });
       }
 
+
+
+
+
+
+
+
+
+
+      
+      // LUCKY NUMBER 888
       const systemPrompt = `
 You are Verlo.
 
@@ -1050,10 +961,6 @@ Create the final personalised result.
   }
 );
 
-/* =========================================================
-   CHAT
-========================================================= */
-
 app.post(
   "/api/chat",
   async (req, res) => {
@@ -1110,10 +1017,6 @@ ${context}
   }
 );
 
-/* =========================================================
-   404
-========================================================= */
-
 app.use(
   (req, res) => {
     res.status(404).json({
@@ -1122,10 +1025,6 @@ app.use(
     });
   }
 );
-
-/* =========================================================
-   ERROR HANDLER
-========================================================= */
 
 app.use(
   (error, req, res, next) => {
@@ -1141,10 +1040,6 @@ app.use(
     });
   }
 );
-
-/* =========================================================
-   START
-========================================================= */
 
 app.listen(PORT, () => {
   console.log("");
