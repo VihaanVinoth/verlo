@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:5001";
+const API_URL =
+  import.meta.env.VITE_API_URL || "http://127.0.0.1:5001";
+
 const MAX_ADAPTIVE_QUESTIONS = 6;
 const MIN_WORDS = 5;
 
@@ -13,11 +15,11 @@ const processingSteps = [
 ];
 
 const tabs = [
-  ["overview", "⚡ Overview"],
-  ["panels", "🧩 Panels"],
-  ["steps", "📋 Action Steps"],
-  ["letter", "✉️ Letter"],
-  ["resources", "🔗 Resources"],
+  ["overview", "Overview"],
+  ["panels", "Panels"],
+  ["steps", "Action Steps"],
+  ["letter", "Letter"],
+  ["resources", "Resources"],
 ];
 
 export default function App() {
@@ -29,55 +31,109 @@ export default function App() {
   const [assessmentData, setAssessmentData] = useState({
     adaptiveQuestions: [],
   });
-  const [selectedMcqAnswers, setSelectedMcqAnswers] = useState({});
-  const [adaptiveTextAnswers, setAdaptiveTextAnswers] = useState({});
-  const [activeAssessmentIndex, setActiveAssessmentIndex] = useState(0);
-  const [isAdaptiveLoading, setIsAdaptiveLoading] = useState(false);
-  const [adaptiveQuestionCount, setAdaptiveQuestionCount] = useState(0);
 
-  const [assessmentAttachment, setAssessmentAttachment] = useState(null);
-  const [chatAttachment, setChatAttachment] = useState(null);
+  const [selectedMcqAnswers, setSelectedMcqAnswers] =
+    useState({});
 
-  const [analysisData, setAnalysisData] = useState(null);
-  const [activeTab, setActiveTab] = useState("overview");
+  const [adaptiveTextAnswers, setAdaptiveTextAnswers] =
+    useState({});
 
-  const [processingStage, setProcessingStage] = useState(0);
-  const [error, setError] = useState(null);
+  const [activeAssessmentIndex, setActiveAssessmentIndex] =
+    useState(0);
 
-  const [copied, setCopied] = useState(false);
-  const [copyCount, setCopyCount] = useState(0);
+  const [isAdaptiveLoading, setIsAdaptiveLoading] =
+    useState(false);
 
-  const [customAlert, setCustomAlert] = useState(null);
-  const [alertExiting, setAlertExiting] = useState(false);
+  const [adaptiveQuestionCount, setAdaptiveQuestionCount] =
+    useState(0);
 
-  const [chatQuestion, setChatQuestion] = useState("");
-  const [chatHistory, setChatHistory] = useState([]);
-  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [assessmentAttachment, setAssessmentAttachment] =
+    useState(null);
 
-  const [currentUser, setCurrentUser] = useState(() => {
-    try {
-      const saved = localStorage.getItem("verlo_user");
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
+  const [chatAttachment, setChatAttachment] =
+    useState(null);
 
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState("login");
-  const [authEmail, setAuthEmail] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
-  const [authError, setAuthError] = useState(null);
+  const [analysisData, setAnalysisData] =
+    useState(null);
 
-  const [userHistory, setUserHistory] = useState([]);
-  const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
+  const [activeTab, setActiveTab] =
+    useState("overview");
+
+  const [processingStage, setProcessingStage] =
+    useState(0);
+
+  const [error, setError] =
+    useState(null);
+
+  const [copied, setCopied] =
+    useState(false);
+
+  const [copyCount, setCopyCount] =
+    useState(0);
+
+  const [customAlert, setCustomAlert] =
+    useState(null);
+
+  const [alertExiting, setAlertExiting] =
+    useState(false);
+
+  const [chatQuestion, setChatQuestion] =
+    useState("");
+
+  const [chatHistory, setChatHistory] =
+    useState([]);
+
+  const [isChatLoading, setIsChatLoading] =
+    useState(false);
+
+  const [currentUser, setCurrentUser] =
+    useState(() => {
+      try {
+        const saved =
+          localStorage.getItem("verlo_user");
+
+        return saved
+          ? JSON.parse(saved)
+          : null;
+      } catch {
+        return null;
+      }
+    });
+
+  const [showAuthModal, setShowAuthModal] =
+    useState(false);
+
+  const [authMode, setAuthMode] =
+    useState("login");
+
+  const [authEmail, setAuthEmail] =
+    useState("");
+
+  const [authPassword, setAuthPassword] =
+    useState("");
+
+  const [authError, setAuthError] =
+    useState(null);
+
+  const [userHistory, setUserHistory] =
+    useState([]);
+
+  const [showHistoryDrawer, setShowHistoryDrawer] =
+    useState(false);
 
   const wordCount = description.trim()
     ? description.trim().split(/\s+/).length
     : 0;
 
-  const triggerCustomAlert = (message, type = "success") => {
-    setCustomAlert({ message, type });
+  const triggerCustomAlert = (
+    message,
+    type = "success",
+  ) => {
+    setCustomAlert({
+      message,
+      type,
+    });
+
     setAlertExiting(false);
 
     setTimeout(() => {
@@ -90,26 +146,211 @@ export default function App() {
     }, 3300);
   };
 
+  /*
+   * Restore the account session when VERLO starts.
+   */
   useEffect(() => {
-    if (!currentUser?.id && !currentUser?.email) {
-      localStorage.removeItem("verlo_user");
+    const token =
+      localStorage.getItem("verlo_token");
+
+    if (!token) return;
+
+    fetch(`${API_URL}/api/auth/me`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then(async (res) => {
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(
+            data.error ||
+              "Your session has expired.",
+          );
+        }
+
+        return data;
+      })
+      .then((data) => {
+        if (data.user) {
+          setCurrentUser(data.user);
+
+          localStorage.setItem(
+            "verlo_user",
+            JSON.stringify(data.user),
+          );
+        }
+      })
+      .catch(() => {
+        localStorage.removeItem(
+          "verlo_token",
+        );
+
+        localStorage.removeItem(
+          "verlo_user",
+        );
+
+        setCurrentUser(null);
+      });
+  }, []);
+
+  /*
+   * Complete the Google OAuth login after
+   * Express redirects back to the Vite app.
+   */
+  useEffect(() => {
+    const params =
+      new URLSearchParams(
+        window.location.search,
+      );
+
+    const authCode =
+      params.get("auth_code");
+
+    const authError =
+      params.get("auth_error");
+
+    if (authError) {
+      setAuthError(authError);
+      setAuthMode("login");
+      setShowAuthModal(true);
+
+      window.history.replaceState(
+        {},
+        document.title,
+        window.location.pathname,
+      );
+
+      return;
+    }
+
+    if (!authCode) return;
+
+    const completeGoogleLogin =
+      async () => {
+        try {
+          const res = await fetch(
+            `${API_URL}/api/auth/google/exchange`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              body: JSON.stringify({
+                code: authCode,
+              }),
+            },
+          );
+
+          const data =
+            await res.json();
+
+          if (!res.ok) {
+            throw new Error(
+              data.error ||
+                "Google login failed.",
+            );
+          }
+
+          localStorage.setItem(
+            "verlo_token",
+            data.token,
+          );
+
+          localStorage.setItem(
+            "verlo_user",
+            JSON.stringify(data.user),
+          );
+
+          setCurrentUser(data.user);
+          setShowAuthModal(false);
+          setAuthError(null);
+
+          triggerCustomAlert(
+            data.user.name
+              ? `Welcome, ${data.user.name}!`
+              : "Logged in with Google successfully!",
+          );
+        } catch (err) {
+          setAuthError(
+            err.message ||
+              "Google login failed.",
+          );
+
+          setAuthMode("login");
+          setShowAuthModal(true);
+        } finally {
+          window.history.replaceState(
+            {},
+            document.title,
+            window.location.pathname,
+          );
+        }
+      };
+
+    completeGoogleLogin();
+  }, []);
+
+  /*
+   * Load account history using the authenticated
+   * JWT rather than trusting a user ID from the browser.
+   */
+  useEffect(() => {
+    if (!currentUser) {
       setUserHistory([]);
       return;
     }
 
-    localStorage.setItem("verlo_user", JSON.stringify(currentUser));
+    localStorage.setItem(
+      "verlo_user",
+      JSON.stringify(currentUser),
+    );
 
-    const identifier = currentUser.id || currentUser.email;
+    const token =
+      localStorage.getItem(
+        "verlo_token",
+      );
 
-    fetch(`${API_URL}/api/history/${encodeURIComponent(identifier)}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.history) setUserHistory(data.history);
+    if (!token) {
+      setUserHistory([]);
+      return;
+    }
+
+    fetch(`${API_URL}/api/history`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then(async (res) => {
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(
+            data.error ||
+              "Could not load history.",
+          );
+        }
+
+        return data;
       })
-      .catch((err) => console.error("Failed to load history", err));
+      .then((data) => {
+        setUserHistory(
+          data.history || [],
+        );
+      })
+      .catch((err) => {
+        console.error(
+          "Failed to load history:",
+          err,
+        );
+      });
   }, [currentUser]);
 
-  const renderMarkdownToHTML = (content) => {
+  const renderMarkdownToHTML = (
+    content,
+  ) => {
     if (!content) return "";
 
     let html = content
@@ -122,7 +363,10 @@ export default function App() {
       '<pre class="markdown-code"><code>$1</code></pre>',
     );
 
-    html = html.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+    html = html.replace(
+      /\*\*(.*?)\*\*/g,
+      "<strong>$1</strong>",
+    );
 
     html = html.replace(
       /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
@@ -133,11 +377,16 @@ export default function App() {
     let inList = false;
 
     const output = lines.map((line) => {
-      if (line.trim().startsWith("- ") || line.trim().startsWith("* ")) {
-        const item = line.trim().substring(2);
+      if (
+        line.trim().startsWith("- ") ||
+        line.trim().startsWith("* ")
+      ) {
+        const item =
+          line.trim().substring(2);
 
         if (!inList) {
           inList = true;
+
           return `<ul class="markdown-list"><li>${item}</li>`;
         }
 
@@ -149,15 +398,23 @@ export default function App() {
         return `</ul><p>${line}</p>`;
       }
 
-      return line.trim() ? `<p>${line}</p>` : "";
+      return line.trim()
+        ? `<p>${line}</p>`
+        : "";
     });
 
-    if (inList) output.push("</ul>");
+    if (inList) {
+      output.push("</ul>");
+    }
 
     return output.join("");
   };
 
-  const handleExampleSelect = (exampleTitle, desc, context) => {
+  const handleExampleSelect = (
+    exampleTitle,
+    desc,
+    context,
+  ) => {
     setTitle(exampleTitle);
     setDescription(desc);
     setUserContext(context);
@@ -165,50 +422,92 @@ export default function App() {
     setError(null);
   };
 
-  const handleAuthSubmit = async (e) => {
+  /*
+   * Google login.
+   */
+  const handleGoogleLogin = () => {
+    setAuthError(null);
+
+    window.location.href =
+      `${API_URL}/api/auth/google`;
+  };
+
+  /*
+   * Email/password login and signup.
+   */
+  const handleAuthSubmit = async (
+    e,
+  ) => {
     e.preventDefault();
     setAuthError(null);
 
     const endpoint =
-      authMode === "login" ? "/api/auth/login" : "/api/auth/signup";
+      authMode === "login"
+        ? "/api/auth/login"
+        : "/api/auth/signup";
 
     try {
-      const res = await fetch(`${API_URL}${endpoint}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: authEmail.trim(),
-          password: authPassword,
-        }),
-      });
+      const res = await fetch(
+        `${API_URL}${endpoint}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            email: authEmail.trim(),
+            password: authPassword,
+          }),
+        },
+      );
 
-      const data = await res.json();
+      const data =
+        await res.json();
 
       if (!res.ok) {
         if (
           authMode === "signup" &&
-          (res.status === 400 ||
+          (
+            res.status === 400 ||
             res.status === 409 ||
-            data.error?.toLowerCase().includes("exist"))
+            data.error
+              ?.toLowerCase()
+              .includes("exist")
+          )
         ) {
           throw new Error(
             "This email address is already registered. Please log in instead.",
           );
         }
 
-        throw new Error(data.error || "Authentication failed");
+        throw new Error(
+          data.error ||
+            "Authentication failed.",
+        );
       }
 
-      setCurrentUser(
-        data.user || {
-          id: data.userId || authEmail,
-          email: authEmail,
-        },
+      if (!data.token) {
+        throw new Error(
+          "The server did not return a login token.",
+        );
+      }
+
+      localStorage.setItem(
+        "verlo_token",
+        data.token,
       );
 
+      localStorage.setItem(
+        "verlo_user",
+        JSON.stringify(data.user),
+      );
+
+      setCurrentUser(data.user);
       setShowAuthModal(false);
       setAuthEmail("");
       setAuthPassword("");
+      setAuthError(null);
 
       triggerCustomAlert(
         authMode === "signup"
@@ -216,101 +515,197 @@ export default function App() {
           : "Logged in successfully!",
       );
     } catch (err) {
-      setAuthError(err.message);
+      setAuthError(
+        err.message ||
+          "Authentication failed.",
+      );
     }
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
-    localStorage.removeItem("verlo_user");
+
+    localStorage.removeItem(
+      "verlo_user",
+    );
+
+    localStorage.removeItem(
+      "verlo_token",
+    );
+
     setUserHistory([]);
+    setShowHistoryDrawer(false);
     setStep("landing");
-    triggerCustomAlert("Logged out successfully.");
+
+    triggerCustomAlert(
+      "Logged out successfully.",
+    );
   };
 
-  const handleSaveToAccount = async (resultData) => {
+  const handleSaveToAccount = async (
+    resultData,
+  ) => {
     if (!currentUser) {
+      setAuthMode("login");
+      setAuthError(null);
+      setShowAuthModal(true);
+      return;
+    }
+
+    const token =
+      localStorage.getItem(
+        "verlo_token",
+      );
+
+    if (!token) {
+      setAuthMode("login");
+      setAuthError(
+        "Your login session has expired. Please log in again.",
+      );
       setShowAuthModal(true);
       return;
     }
 
     try {
-      const res = await fetch(`${API_URL}/api/history/save`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: currentUser.id || currentUser.email,
-          report: {
-            title: title || "Untitled Report",
-            description,
-            result: resultData,
+      const res = await fetch(
+        `${API_URL}/api/history/save`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+            Authorization:
+              `Bearer ${token}`,
           },
-        }),
-      });
+          body: JSON.stringify({
+            report: {
+              title:
+                title ||
+                "Untitled Report",
+              description,
+              result: resultData,
+            },
+          }),
+        },
+      );
 
-      const data = await res.json();
+      const data =
+        await res.json();
 
-      if (data.history) {
-        setUserHistory(data.history);
-        triggerCustomAlert(
-          "Pathway saved successfully to your account history!",
+      if (!res.ok) {
+        throw new Error(
+          data.error ||
+            "Could not save pathway.",
         );
-      } else {
-        triggerCustomAlert("Pathway saved successfully.");
       }
+
+      setUserHistory(
+        data.history || [],
+      );
+
+      triggerCustomAlert(
+        "Pathway saved successfully to your account history!",
+      );
     } catch (err) {
-      console.error("Failed to save history", err);
-      triggerCustomAlert("Error saving pathway to account history.", "error");
+      console.error(
+        "Failed to save history:",
+        err,
+      );
+
+      triggerCustomAlert(
+        "Error saving pathway to account history.",
+        "error",
+      );
     }
   };
 
-  const handleSecureFileUpload = async (file, target) => {
+  const handleSecureFileUpload = async (
+    file,
+    target,
+  ) => {
     if (!file) return;
 
-    if (file.size > 15 * 1024 * 1024) {
-      triggerCustomAlert("File exceeds maximum size limit (15MB).", "error");
+    if (
+      file.size >
+      15 * 1024 * 1024
+    ) {
+      triggerCustomAlert(
+        "File exceeds maximum size limit (15MB).",
+        "error",
+      );
+
       return;
     }
 
     try {
-      triggerCustomAlert("Encrypting and securing file in sandbox DB...");
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      triggerCustomAlert(
+        "Encrypting and securing file in sandbox DB...",
+      );
+
+      await new Promise(
+        (resolve) =>
+          setTimeout(resolve, 800),
+      );
 
       const fileMeta = {
         name: file.name,
-        size: `${(file.size / 1024).toFixed(1)} KB`,
-        type: file.type || "application/octet-stream",
-        uploadedAt: new Date().toISOString(),
-        sandboxId: `db_vault_${Math.random().toString(36).substring(2, 9)}`,
+        size: `${(
+          file.size / 1024
+        ).toFixed(1)} KB`,
+        type:
+          file.type ||
+          "application/octet-stream",
+        uploadedAt:
+          new Date().toISOString(),
+        sandboxId: `db_vault_${Math.random()
+          .toString(36)
+          .substring(2, 9)}`,
       };
 
       if (target === "assessment") {
-        setAssessmentAttachment(fileMeta);
+        setAssessmentAttachment(
+          fileMeta,
+        );
+
         triggerCustomAlert(
           `File "${file.name}" securely attached to assessment context.`,
         );
       }
 
       if (target === "chat") {
-        setChatAttachment(fileMeta);
+        setChatAttachment(
+          fileMeta,
+        );
+
         triggerCustomAlert(
           `File "${file.name}" securely attached to chat prompt.`,
         );
       }
     } catch {
-      triggerCustomAlert("Failed to securely upload file.", "error");
+      triggerCustomAlert(
+        "Failed to securely upload file.",
+        "error",
+      );
     }
   };
 
-  const removeAttachment = (target) => {
+  const removeAttachment = (
+    target,
+  ) => {
     if (target === "assessment") {
       setAssessmentAttachment(null);
-      triggerCustomAlert("Assessment attachment removed from vault.");
+
+      triggerCustomAlert(
+        "Assessment attachment removed from vault.",
+      );
     }
 
     if (target === "chat") {
       setChatAttachment(null);
-      triggerCustomAlert("Chat attachment removed from vault.");
+
+      triggerCustomAlert(
+        "Chat attachment removed from vault.",
+      );
     }
   };
 
@@ -321,98 +716,162 @@ export default function App() {
       assessmentData?.questions ||
       [];
 
-    if (!Array.isArray(source)) return [];
+    if (!Array.isArray(source)) {
+      return [];
+    }
 
-    return source.map((item, index) => ({
-      type: item.type === "mcq" ? "mcq" : "text",
-      ...item,
-      id: item.id || item.questionId || `adaptive-${index}`,
-      question:
-        item.question ||
-        item.text ||
-        item.prompt ||
-        item.stem ||
-        "Please provide more information.",
-      stem:
-        item.stem ||
-        item.question ||
-        item.text ||
-        item.prompt ||
-        "Please choose an option.",
-      choices: Array.isArray(item.choices) ? item.choices : [],
-    }));
+    return source.map(
+      (item, index) => ({
+        type:
+          item.type === "mcq"
+            ? "mcq"
+            : "text",
+
+        ...item,
+
+        id:
+          item.id ||
+          item.questionId ||
+          `adaptive-${index}`,
+
+        question:
+          item.question ||
+          item.text ||
+          item.prompt ||
+          item.stem ||
+          "Please provide more information.",
+
+        stem:
+          item.stem ||
+          item.question ||
+          item.text ||
+          item.prompt ||
+          "Please choose an option.",
+
+        choices:
+          Array.isArray(
+            item.choices,
+          )
+            ? item.choices
+            : [],
+      }),
+    );
   };
 
-  const assessmentItems = getAllAssessmentItems();
+  const assessmentItems =
+    getAllAssessmentItems();
 
-  const buildAllAnswers = (key, value) => ({
+  const buildAllAnswers = (
+    key,
+    value,
+  ) => ({
     ...adaptiveTextAnswers,
     ...selectedMcqAnswers,
-    ...(key !== undefined ? { [key]: value } : {}),
+    ...(key !== undefined
+      ? {
+          [key]: value,
+        }
+      : {}),
   });
 
-  const requestAdaptiveQuestion = async (previousAnswers = {}) => {
-    if (
-      isAdaptiveLoading ||
-      adaptiveQuestionCount >= MAX_ADAPTIVE_QUESTIONS
-    ) {
-      return null;
-    }
+  const requestAdaptiveQuestion =
+    async (
+      previousAnswers = {},
+    ) => {
+      if (
+        isAdaptiveLoading ||
+        adaptiveQuestionCount >=
+          MAX_ADAPTIVE_QUESTIONS
+      ) {
+        return null;
+      }
 
-    setIsAdaptiveLoading(true);
-    setError(null);
+      setIsAdaptiveLoading(true);
+      setError(null);
 
-    try {
-      const questionNumber = adaptiveQuestionCount + 1;
+      try {
+        const questionNumber =
+          adaptiveQuestionCount + 1;
 
-      const res = await fetch(`${API_URL}/api/adaptive-question`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          description,
-          context: userContext,
-          previousAnswers,
-          questionNumber,
-          maxQuestions: MAX_ADAPTIVE_QUESTIONS,
-        }),
-      });
-
-      const result = await res.json();
-
-      if (!res.ok) {
-        throw new Error(
-          result.error || "Could not generate the adaptive question.",
+        const res = await fetch(
+          `${API_URL}/api/adaptive-question`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            body: JSON.stringify({
+              title,
+              description,
+              context: userContext,
+              previousAnswers,
+              questionNumber,
+              maxQuestions:
+                MAX_ADAPTIVE_QUESTIONS,
+            }),
+          },
         );
+
+        const result =
+          await res.json();
+
+        if (!res.ok) {
+          throw new Error(
+            result.error ||
+              "Could not generate the adaptive question.",
+          );
+        }
+
+        if (!result.question) {
+          throw new Error(
+            "The adaptive engine returned no question.",
+          );
+        }
+
+        const questions = [
+          ...getAllAssessmentItems(),
+          result.question,
+        ];
+
+        setAssessmentData({
+          adaptiveQuestions:
+            questions,
+        });
+
+        setAdaptiveQuestionCount(
+          questions.length,
+        );
+
+        setActiveAssessmentIndex(
+          questions.length - 1,
+        );
+
+        setStep("assessment");
+
+        return result.question;
+      } catch (err) {
+        setError(
+          err.message ||
+            "Could not generate the next adaptive question.",
+        );
+
+        return null;
+      } finally {
+        setIsAdaptiveLoading(false);
       }
+    };
 
-      if (!result.question) {
-        throw new Error("The adaptive engine returned no question.");
-      }
-
-      const questions = [...getAllAssessmentItems(), result.question];
-
-      setAssessmentData({ adaptiveQuestions: questions });
-      setAdaptiveQuestionCount(questions.length);
-      setActiveAssessmentIndex(questions.length - 1);
-      setStep("assessment");
-
-      return result.question;
-    } catch (err) {
-      setError(err.message || "Could not generate the next adaptive question.");
-      return null;
-    } finally {
-      setIsAdaptiveLoading(false);
-    }
-  };
-
-  const handleInitialSubmit = async (e) => {
+  const handleInitialSubmit = async (
+    e,
+  ) => {
     e.preventDefault();
 
     if (wordCount < MIN_WORDS) {
       setError(
         `Please provide a bit more detail (at least ${MIN_WORDS} words) so VERLO can build a reliable pathway.`,
       );
+
       return;
     }
 
@@ -420,7 +879,10 @@ export default function App() {
     setStep("processing");
     setProcessingStage(0);
 
-    setAssessmentData({ adaptiveQuestions: [] });
+    setAssessmentData({
+      adaptiveQuestions: [],
+    });
+
     setSelectedMcqAnswers({});
     setAdaptiveTextAnswers({});
     setActiveAssessmentIndex(0);
@@ -431,45 +893,73 @@ export default function App() {
     const interval = setInterval(() => {
       currentStage += 1;
 
-      if (currentStage < processingSteps.length) {
-        setProcessingStage(currentStage);
+      if (
+        currentStage <
+        processingSteps.length
+      ) {
+        setProcessingStage(
+          currentStage,
+        );
       }
     }, 550);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1800));
+      await new Promise(
+        (resolve) =>
+          setTimeout(resolve, 1800),
+      );
 
-      const res = await fetch(`${API_URL}/api/adaptive-question`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          description,
-          context: userContext,
-          previousAnswers: {},
-          questionNumber: 1,
-          maxQuestions: MAX_ADAPTIVE_QUESTIONS,
-        }),
-      });
+      const res = await fetch(
+        `${API_URL}/api/adaptive-question`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            title,
+            description,
+            context: userContext,
+            previousAnswers: {},
+            questionNumber: 1,
+            maxQuestions:
+              MAX_ADAPTIVE_QUESTIONS,
+          }),
+        },
+      );
 
-      const result = await res.json();
+      const result =
+        await res.json();
 
       if (!res.ok) {
         throw new Error(
-          result.error || "Adaptive engine failed to create the first question.",
+          result.error ||
+            "Adaptive engine failed to create the first question.",
         );
       }
 
       if (!result.question) {
-        throw new Error("The adaptive engine returned no first question.");
+        throw new Error(
+          "The adaptive engine returned no first question.",
+        );
       }
 
-      setAssessmentData({ adaptiveQuestions: [result.question] });
+      setAssessmentData({
+        adaptiveQuestions: [
+          result.question,
+        ],
+      });
+
       setAdaptiveQuestionCount(1);
       setActiveAssessmentIndex(0);
       setStep("assessment");
     } catch (err) {
-      setError(err.message || "Could not connect to the adaptive engine.");
+      setError(
+        err.message ||
+          "Could not connect to the adaptive engine.",
+      );
+
       setStep("input");
     } finally {
       clearInterval(interval);
@@ -477,140 +967,260 @@ export default function App() {
   };
 
   const getCurrentAnswer = () => {
-    const item = assessmentItems[activeAssessmentIndex];
+    const item =
+      assessmentItems[
+        activeAssessmentIndex
+      ];
+
     if (!item) return "";
 
-    const key = item.id || activeAssessmentIndex;
+    const key =
+      item.id ||
+      activeAssessmentIndex;
 
     return item.type === "mcq"
-      ? selectedMcqAnswers[key] || ""
-      : adaptiveTextAnswers[key] || "";
+      ? selectedMcqAnswers[key] ||
+          ""
+      : adaptiveTextAnswers[key] ||
+          "";
   };
 
-  const handleAssessmentNext = async () => {
-    const item = assessmentItems[activeAssessmentIndex];
+  const handleAssessmentNext =
+    async () => {
+      const item =
+        assessmentItems[
+          activeAssessmentIndex
+        ];
 
-    if (!item || isAdaptiveLoading) return;
+      if (
+        !item ||
+        isAdaptiveLoading
+      ) {
+        return;
+      }
 
-    const answer = getCurrentAnswer();
+      const answer =
+        getCurrentAnswer();
 
-    if (!String(answer).trim()) {
-      triggerCustomAlert(
-        "Please answer this question before continuing.",
-        "error",
+      if (!String(answer).trim()) {
+        triggerCustomAlert(
+          "Please answer this question before continuing.",
+          "error",
+        );
+
+        return;
+      }
+
+      const key =
+        item.id ||
+        activeAssessmentIndex;
+
+      if (item.type === "mcq") {
+        setSelectedMcqAnswers(
+          (prev) => ({
+            ...prev,
+            [key]: answer,
+          }),
+        );
+      } else {
+        setAdaptiveTextAnswers(
+          (prev) => ({
+            ...prev,
+            [key]: answer,
+          }),
+        );
+      }
+
+      const allAnswers =
+        buildAllAnswers(
+          key,
+          answer,
+        );
+
+      if (
+        adaptiveQuestionCount >=
+        MAX_ADAPTIVE_QUESTIONS
+      ) {
+        await handleFinalAssessmentSubmit(
+          allAnswers,
+        );
+
+        return;
+      }
+
+      await requestAdaptiveQuestion(
+        allAnswers,
       );
-      return;
-    }
-
-    const key = item.id || activeAssessmentIndex;
-
-    if (item.type === "mcq") {
-      setSelectedMcqAnswers((prev) => ({ ...prev, [key]: answer }));
-    } else {
-      setAdaptiveTextAnswers((prev) => ({ ...prev, [key]: answer }));
-    }
-
-    const allAnswers = buildAllAnswers(key, answer);
-
-    if (adaptiveQuestionCount >= MAX_ADAPTIVE_QUESTIONS) {
-      await handleFinalAssessmentSubmit(allAnswers);
-      return;
-    }
-
-    await requestAdaptiveQuestion(allAnswers);
-  };
+    };
 
   const handleAssessmentPrev = () => {
     if (isAdaptiveLoading) return;
 
-    if (activeAssessmentIndex > 0) {
-      setActiveAssessmentIndex((prev) => prev - 1);
+    if (
+      activeAssessmentIndex > 0
+    ) {
+      setActiveAssessmentIndex(
+        (prev) => prev - 1,
+      );
     } else {
       setStep("input");
     }
   };
 
-  const handleFinalAssessmentSubmit = async (answersOverride = null) => {
-    setStep("processing");
-    setProcessingStage(0);
+  const handleFinalAssessmentSubmit =
+    async (
+      answersOverride = null,
+    ) => {
+      setStep("processing");
+      setProcessingStage(0);
 
-    const finalAnswers = answersOverride || buildAllAnswers();
+      const finalAnswers =
+        answersOverride ||
+        buildAllAnswers();
 
-    let currentStage = 0;
+      let currentStage = 0;
 
-    const interval = setInterval(() => {
-      currentStage += 1;
+      const interval = setInterval(
+        () => {
+          currentStage += 1;
 
-      if (currentStage < processingSteps.length) {
-        setProcessingStage(currentStage);
-      }
-    }, 700);
+          if (
+            currentStage <
+            processingSteps.length
+          ) {
+            setProcessingStage(
+              currentStage,
+            );
+          }
+        },
+        700,
+      );
 
-    try {
-      const [res] = await Promise.all([
-        fetch(`${API_URL}/api/analyze`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title,
-            prompt: description,
-            category: title || "General",
-            context: userContext,
-            answers: JSON.stringify(finalAnswers),
-            attachment: assessmentAttachment,
-          }),
-        }),
-        new Promise((resolve) =>
-          setTimeout(resolve, processingSteps.length * 700),
-        ),
-      ]);
+      try {
+        const [res] =
+          await Promise.all([
+            fetch(
+              `${API_URL}/api/analyze`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type":
+                    "application/json",
+                },
+                body: JSON.stringify({
+                  title,
+                  prompt:
+                    description,
+                  category:
+                    title ||
+                    "General",
+                  context:
+                    userContext,
+                  answers:
+                    JSON.stringify(
+                      finalAnswers,
+                    ),
+                  attachment:
+                    assessmentAttachment,
+                }),
+              },
+            ),
 
-      const result = await res.json();
+            new Promise(
+              (resolve) =>
+                setTimeout(
+                  resolve,
+                  processingSteps.length *
+                    700,
+                ),
+            ),
+          ]);
 
-      if (!res.ok) {
-        throw new Error(
-          result.error || "Failed to compute final diagnostic pathway.",
-        );
-      }
+        const result =
+          await res.json();
 
-      let finalData = result.data;
-
-      if (!finalData && result.analysis) {
-        try {
-          finalData = JSON.parse(result.analysis);
-        } catch {
-          finalData = {
-            situation: result.analysis,
-            confidence: "Moderate",
-            riskAssessment: {
-              severityScore: "N/A",
-              financialExposure: "Not established",
-              timeSensitivity: "Review required",
-            },
-            nextSteps: [],
-            personalizedPanels: [],
-            draftTemplate: null,
-            referenceLinks: [],
-          };
+        if (!res.ok) {
+          throw new Error(
+            result.error ||
+              "Failed to compute final diagnostic pathway.",
+          );
         }
-      }
 
-      setAnalysisData(finalData);
-      setChatHistory([]);
-      setActiveTab("overview");
-      setStep("results");
-    } catch (err) {
-      setError(err.message || "Could not connect to the server.");
-      setStep("assessment");
-    } finally {
-      clearInterval(interval);
-    }
-  };
+        let finalData =
+          result.result ||
+          result.data;
+
+        if (
+          !finalData &&
+          result.analysis
+        ) {
+          try {
+            finalData =
+              JSON.parse(
+                result.analysis,
+              );
+          } catch {
+            finalData = {
+              situation:
+                result.analysis,
+
+              confidence:
+                "Moderate",
+
+              riskAssessment: {
+                severityScore:
+                  "N/A",
+                financialExposure:
+                  "Not established",
+                timeSensitivity:
+                  "Review required",
+              },
+
+              nextSteps: [],
+
+              personalizedPanels: [],
+
+              draftTemplate: null,
+
+              resources: [],
+            };
+          }
+        }
+
+        if (!finalData) {
+          throw new Error(
+            "The server returned no analysis.",
+          );
+        }
+
+        setAnalysisData(
+          finalData,
+        );
+
+        setChatHistory([]);
+        setActiveTab("overview");
+        setStep("results");
+      } catch (err) {
+        setError(
+          err.message ||
+            "Could not connect to the server.",
+        );
+
+        setStep("assessment");
+      } finally {
+        clearInterval(interval);
+      }
+    };
 
   const handleCopyDraft = () => {
-    if (!analysisData?.draftTemplate) return;
+    if (
+      !analysisData?.draftTemplate
+    ) {
+      return;
+    }
 
-    const draft = analysisData.draftTemplate;
+    const draft =
+      analysisData.draftTemplate;
 
     navigator.clipboard.writeText(
       `To: ${draft.recipient}\nSubject: ${draft.subject}\n\n${draft.body}`,
@@ -618,7 +1228,9 @@ export default function App() {
 
     setCopied(true);
 
-    const nextCount = copyCount + 1;
+    const nextCount =
+      copyCount + 1;
+
     setCopyCount(nextCount);
 
     triggerCustomAlert(
@@ -627,19 +1239,31 @@ export default function App() {
         : `Letter copied (${nextCount}x multi-strike!)! 🎯`,
     );
 
-    setTimeout(() => setCopied(false), 3000);
+    setTimeout(
+      () => setCopied(false),
+      3000,
+    );
   };
 
-  const handleChatSubmit = async (e) => {
+  const handleChatSubmit = async (
+    e,
+  ) => {
     e.preventDefault();
 
-    if ((!chatQuestion.trim() && !chatAttachment) || isChatLoading) return;
+    if (
+      (!chatQuestion.trim() &&
+        !chatAttachment) ||
+      isChatLoading
+    ) {
+      return;
+    }
 
     const questionText =
       chatQuestion.trim() ||
       `[Uploaded file: ${chatAttachment.name}]`;
 
-    const currentAttachment = chatAttachment;
+    const currentAttachment =
+      chatAttachment;
 
     setChatQuestion("");
     setChatAttachment(null);
@@ -650,32 +1274,52 @@ export default function App() {
       {
         role: "user",
         content: questionText,
-        attachment: currentAttachment,
+        attachment:
+          currentAttachment,
       },
     ];
 
-    setChatHistory(newHistory);
+    setChatHistory(
+      newHistory,
+    );
 
     try {
-      const res = await fetch(`${API_URL}/api/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question: questionText,
-          currentSituation: description || title,
-          attachment: currentAttachment,
-        }),
-      });
+      const res = await fetch(
+        `${API_URL}/api/chat`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            question:
+              questionText,
+            currentSituation:
+              description ||
+              title,
+            attachment:
+              currentAttachment,
+          }),
+        },
+      );
 
-      const data = await res.json();
+      const data =
+        await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Failed to get chat response.");
+        throw new Error(
+          data.error ||
+            "Failed to get chat response.",
+        );
       }
 
       setChatHistory([
         ...newHistory,
-        { role: "assistant", content: data.reply },
+        {
+          role: "assistant",
+          content: data.reply,
+        },
       ]);
     } catch (err) {
       setChatHistory([
@@ -690,32 +1334,83 @@ export default function App() {
     }
   };
 
-  const currentAssessmentItem = assessmentItems[activeAssessmentIndex];
+  const currentAssessmentItem =
+    assessmentItems[
+      activeAssessmentIndex
+    ];
 
   return (
     <div className="verlo-app">
       {customAlert && (
-        <div className={`custom-alert ${customAlert.type} ${alertExiting ? "exiting" : ""}`}>
-          <span>{customAlert.type === "error" ? "⚠️" : "✓"}</span>
-          <span>{customAlert.message}</span>
+        <div
+          className={`custom-alert ${customAlert.type} ${
+            alertExiting
+              ? "exiting"
+              : ""
+          }`}
+        >
+          <span>
+            {customAlert.type ===
+            "error"
+              ? "⚠️"
+              : "✓"}
+          </span>
+
+          <span>
+            {customAlert.message}
+          </span>
         </div>
       )}
 
       <header className="verlo-nav">
-        <div className="verlo-logo" onClick={() => setStep("landing")}>
-          <img src="/VVNormal.png" alt="VERLO Logo" />
+        <div
+          className="verlo-logo"
+          onClick={() =>
+            setStep("landing")
+          }
+        >
+          <img
+            src="/VVNormal.png"
+            alt="VERLO Logo"
+          />
+
           <span>VERLO</span>
         </div>
 
         {currentUser ? (
           <div className="user-nav">
-            <button onClick={() => setShowHistoryDrawer(!showHistoryDrawer)}>
-              <span>▣</span> History ({userHistory.length})
+            <button
+              onClick={() =>
+                setShowHistoryDrawer(
+                  !showHistoryDrawer,
+                )
+              }
+            >
+              <span>▣</span>{" "}
+              History (
+              {userHistory.length})
             </button>
 
-            <span>{currentUser.email || currentUser.id}</span>
+            {currentUser.picture && (
+              <img
+                src={currentUser.picture}
+                alt=""
+                className="user-avatar"
+              />
+            )}
 
-            <button className="logout-button" onClick={handleLogout}>
+            <span>
+              {currentUser.name ||
+                currentUser.email ||
+                currentUser.id}
+            </span>
+
+            <button
+              className="logout-button"
+              onClick={
+                handleLogout
+              }
+            >
               Logout
             </button>
           </div>
@@ -738,29 +1433,48 @@ export default function App() {
           <section className="page-transition landing-page">
             <div className="verlo-header">
               <div className="landing-logo">
-                <img src="/VVNormal.png" alt="VERLO Logo" />
-                <span className="verlo-brand">VERLO</span>
+                <img
+                  src="/VVNormal.png"
+                  alt="VERLO Logo"
+                />
+
+                <span className="verlo-brand">
+                  VERLO
+                </span>
               </div>
 
               <h1 className="verlo-title">
-                Stop guessing. Know your exact next step.
+                Stop guessing. Know
+                your exact next step.
               </h1>
 
               <p className="verlo-subtitle">
-                Verlo is an adaptive supercharged decision-intelligence engine
-                that transforms messy, stressful situations into a fully
-                tailored, risk-scored action pathway through dynamic profiling.
+                Verlo is an adaptive
+                supercharged
+                decision-intelligence
+                engine that transforms
+                messy, stressful
+                situations into a fully
+                tailored, risk-scored
+                action pathway through
+                dynamic profiling.
               </p>
 
               <button
                 className="btn-primary launch-button"
-                onClick={() => setStep("input")}
+                onClick={() =>
+                  setStep("input")
+                }
               >
-                Launch Decision Engine →
+                Launch Decision Engine
+                →
               </button>
 
               <div className="example-section">
-                <p className="example-label">Test common VERLO scenarios:</p>
+                <p className="example-label">
+                  Test common VERLO
+                  scenarios:
+                </p>
 
                 <div className="example-grid">
                   <div
@@ -773,10 +1487,18 @@ export default function App() {
                       )
                     }
                   >
-                    <span className="example-icon">✈</span>
+                    <span className="example-icon">
+                      ✈
+                    </span>
+
                     <div>
-                      <strong>Flight cancelled at gate</strong> — Airline
-                      refusing overnight hotel voucher.
+                      <strong>
+                        Flight cancelled at
+                        gate
+                      </strong>{" "}
+                      — Airline refusing
+                      overnight hotel
+                      voucher.
                     </div>
                   </div>
 
@@ -790,10 +1512,18 @@ export default function App() {
                       )
                     }
                   >
-                    <span className="example-icon">▣</span>
+                    <span className="example-icon">
+                      ▣
+                    </span>
+
                     <div>
-                      <strong>Unresolved billing dispute</strong> —
-                      Subscription charged post-cancellation.
+                      <strong>
+                        Unresolved billing
+                        dispute
+                      </strong>{" "}
+                      — Subscription
+                      charged
+                      post-cancellation.
                     </div>
                   </div>
 
@@ -807,10 +1537,18 @@ export default function App() {
                       )
                     }
                   >
-                    <span className="example-icon">⌂</span>
+                    <span className="example-icon">
+                      ⌂
+                    </span>
+
                     <div>
-                      <strong>Landlord withholding bond</strong> — Disputing
-                      false wear-and-tear deductions.
+                      <strong>
+                        Landlord withholding
+                        bond
+                      </strong>{" "}
+                      — Disputing false
+                      wear-and-tear
+                      deductions.
                     </div>
                   </div>
 
@@ -824,10 +1562,18 @@ export default function App() {
                       )
                     }
                   >
-                    <span className="example-icon">▣</span>
+                    <span className="example-icon">
+                      ▣
+                    </span>
+
                     <div>
-                      <strong>Defective laptop warranty</strong> —
-                      Manufacturer denying warranty repair unfairly.
+                      <strong>
+                        Defective laptop
+                        warranty
+                      </strong>{" "}
+                      — Manufacturer
+                      denying warranty
+                      repair unfairly.
                     </div>
                   </div>
                 </div>
@@ -839,43 +1585,90 @@ export default function App() {
         {step === "input" && (
           <section className="page-transition input-page">
             <div className="content-narrow">
-              <button className="secondary-button" onClick={() => setStep("landing")}>
+              <button
+                className="secondary-button"
+                onClick={() =>
+                  setStep("landing")
+                }
+              >
                 ← Back to Overview
               </button>
 
               <div className="verlo-header">
                 <div className="landing-logo">
-                  <img src="/VVNormal.png" alt="VERLO Logo" />
-                  <span className="verlo-brand">VERLO</span>
+                  <img
+                    src="/VVNormal.png"
+                    alt="VERLO Logo"
+                  />
+
+                  <span className="verlo-brand">
+                    VERLO
+                  </span>
                 </div>
 
-                <h2 className="verlo-title">Define Your Situation</h2>
+                <h2 className="verlo-title">
+                  Define Your Situation
+                </h2>
 
                 <p className="verlo-subtitle">
-                  Provide the details below. Our adaptive engine will formulate
-                  custom probing questions before constructing your report.
+                  Provide the details
+                  below. Our adaptive
+                  engine will formulate
+                  custom probing
+                  questions before
+                  constructing your
+                  report.
                 </p>
               </div>
 
-              {error && <div className="error-message">{error}</div>}
+              {error && (
+                <div className="error-message">
+                  {error}
+                </div>
+              )}
 
-              <form onSubmit={handleInitialSubmit} className="verlo-card situation-form">
+              <form
+                onSubmit={
+                  handleInitialSubmit
+                }
+                className="verlo-card situation-form"
+              >
                 <div className="form-group">
-                  <label className="form-label">Situation Title (Optional)</label>
+                  <label className="form-label">
+                    Situation Title
+                    (Optional)
+                  </label>
+
                   <input
                     className="form-input"
                     placeholder="e.g., Landlord deposit dispute"
                     value={title}
-                    onChange={(e) => setTitle(e.target.value)}
+                    onChange={(e) =>
+                      setTitle(
+                        e.target.value,
+                      )
+                    }
                   />
                 </div>
 
                 <div className="form-group">
                   <div className="field-header">
-                    <label className="form-label">Describe what happened *</label>
-                    <span className={wordCount < MIN_WORDS ? "word-count warning" : "word-count"}>
+                    <label className="form-label">
+                      Describe what
+                      happened *
+                    </label>
+
+                    <span
+                      className={
+                        wordCount <
+                        MIN_WORDS
+                          ? "word-count warning"
+                          : "word-count"
+                      }
+                    >
                       {wordCount} words{" "}
-                      {wordCount < MIN_WORDS
+                      {wordCount <
+                      MIN_WORDS
                         ? `(Minimum ${MIN_WORDS} required)`
                         : "✓"}
                     </span>
@@ -885,511 +1678,934 @@ export default function App() {
                     className="form-textarea"
                     placeholder="Include key details: dates, amounts, communications, and what outcome you are looking for..."
                     value={description}
-                    onChange={(e) => setDescription(e.target.value)}
+                    onChange={(e) =>
+                      setDescription(
+                        e.target.value,
+                      )
+                    }
                     required
                   />
                 </div>
 
                 <div className="form-group">
                   <label className="form-label">
-                    Any specific personal context or constraints? (Optional)
+                    Any specific
+                    personal context or
+                    constraints?
+                    (Optional)
                   </label>
 
                   <input
                     className="form-input"
                     placeholder="e.g., I'm a student living on a tight budget"
                     value={userContext}
-                    onChange={(e) => setUserContext(e.target.value)}
+                    onChange={(e) =>
+                      setUserContext(
+                        e.target.value,
+                      )
+                    }
                   />
                 </div>
 
                 <div className="form-group">
                   <label className="form-label">
-                    Attach Evidence / Files / Media (Optional)
+                    Attach Evidence /
+                    Files / Media
+                    (Optional)
                   </label>
 
                   <label className="file-button">
                     Browse File / Media
+
                     <input
                       type="file"
                       hidden
                       onChange={(e) =>
-                        handleSecureFileUpload(e.target.files[0], "assessment")
+                        handleSecureFileUpload(
+                          e.target.files[0],
+                          "assessment",
+                        )
                       }
                     />
                   </label>
 
                   <span className="file-note">
-                    Stored in safe encrypted DB sandbox; removable anytime.
+                    Stored in safe
+                    encrypted DB
+                    sandbox; removable
+                    anytime.
                   </span>
 
                   {assessmentAttachment && (
                     <div className="attachment">
-                      <span>📎 {assessmentAttachment.name} ({assessmentAttachment.size})</span>
-                      <button type="button" onClick={() => removeAttachment("assessment")}>
+                      <span>
+                        📎{" "}
+                        {
+                          assessmentAttachment.name
+                        }{" "}
+                        (
+                        {
+                          assessmentAttachment.size
+                        }
+                        )
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          removeAttachment(
+                            "assessment",
+                          )
+                        }
+                      >
                         Remove
                       </button>
                     </div>
                   )}
                 </div>
 
-                <button type="submit" className="btn-primary full-width">
-                  Generate Adaptive Assessment →
+                <button
+                  type="submit"
+                  className="btn-primary full-width"
+                >
+                  Generate Adaptive
+                  Assessment →
                 </button>
               </form>
             </div>
           </section>
         )}
 
-        {step === "assessment" && currentAssessmentItem && (
-          <section className="page-transition animate-fade-slide-up assessment-page">
-            <div className="content-narrow">
-              <div className="assessment-top">
-                <button className="secondary-button" onClick={handleAssessmentPrev}>
-                  ← Back
-                </button>
+        {step === "assessment" &&
+          currentAssessmentItem && (
+            <section className="page-transition animate-fade-slide-up assessment-page">
+              <div className="content-narrow">
+                <div className="assessment-top">
+                  <button
+                    className="secondary-button"
+                    onClick={
+                      handleAssessmentPrev
+                    }
+                  >
+                    ← Back
+                  </button>
 
-                <span>
-                  Question {activeAssessmentIndex + 1} of {MAX_ADAPTIVE_QUESTIONS}
-                  <b> • adaptive</b>
-                </span>
-              </div>
+                  <span>
+                    Question{" "}
+                    {activeAssessmentIndex +
+                      1}{" "}
+                    of{" "}
+                    {
+                      MAX_ADAPTIVE_QUESTIONS
+                    }
+                    <b>
+                      {" "}
+                      • adaptive
+                    </b>
+                  </span>
+                </div>
 
-              <div className="progress-bar">
-                <div
-                  className="progress-fill"
-                  style={{
-                    width: `${Math.min(
-                      ((activeAssessmentIndex + 1) /
-                        MAX_ADAPTIVE_QUESTIONS) *
+                <div className="progress-bar">
+                  <div
+                    className="progress-fill"
+                    style={{
+                      width: `${Math.min(
+                        ((activeAssessmentIndex +
+                          1) /
+                          MAX_ADAPTIVE_QUESTIONS) *
+                          100,
                         100,
-                      100,
-                    )}%`,
-                  }}
-                />
-              </div>
+                      )}%`,
+                    }}
+                  />
+                </div>
 
-              <div className="verlo-header assessment-header">
-                <h2 className="verlo-title">Refine Your Parameters</h2>
-                <p className="verlo-subtitle">
-                  Answering these custom inquiries ensures your final action
-                  pathway is laser-focused.
-                </p>
-              </div>
+                <div className="verlo-header assessment-header">
+                  <h2 className="verlo-title">
+                    Refine Your
+                    Parameters
+                  </h2>
 
-              <div className="verlo-card assessment-card">
-                {isAdaptiveLoading ? (
-                  <div className="adaptive-loading">
-                    <div className="processing-pulse-ring" />
-                    <strong>Adapting the next question...</strong>
-                    <span>
-                      VERLO is using your previous answer to decide what matters
-                      next.
-                    </span>
-                  </div>
-                ) : currentAssessmentItem.type === "mcq" ? (
-                  <div>
-                    <label className="form-label question-label">
-                      {currentAssessmentItem.stem}
-                    </label>
+                  <p className="verlo-subtitle">
+                    Answering these
+                    custom inquiries
+                    ensures your final
+                    action pathway is
+                    laser-focused.
+                  </p>
+                </div>
 
-                    <div className="choice-grid">
-                      {currentAssessmentItem.choices.map((choice, index) => {
-                        const key =
-                          currentAssessmentItem.id || activeAssessmentIndex;
+                <div className="verlo-card assessment-card">
+                  {isAdaptiveLoading ? (
+                    <div className="adaptive-loading">
+                      <div className="processing-pulse-ring" />
 
-                        const selected = selectedMcqAnswers[key] === choice;
+                      <strong>
+                        Adapting the
+                        next question...
+                      </strong>
 
-                        return (
-                          <button
-                            key={index}
-                            type="button"
-                            className={`choice-button ${selected ? "selected" : ""}`}
-                            onClick={() =>
-                              setSelectedMcqAnswers((prev) => ({
-                                ...prev,
-                                [key]: choice,
-                              }))
-                            }
-                          >
-                            <span className="choice-radio">
-                              {selected && <span />}
-                            </span>
-                            {choice}
-                          </button>
-                        );
-                      })}
+                      <span>
+                        VERLO is using
+                        your previous
+                        answer to decide
+                        what matters
+                        next.
+                      </span>
                     </div>
-                  </div>
-                ) : (
-                  <div>
-                    <label className="form-label question-label">
-                      {currentAssessmentItem.question}
-                    </label>
-
-                    <input
-                      className="form-input question-input"
-                      placeholder="Type your precise specification here and press Enter..."
-                      value={
-                        adaptiveTextAnswers[
-                          currentAssessmentItem.id || activeAssessmentIndex
-                        ] || ""
-                      }
-                      onChange={(e) =>
-                        setAdaptiveTextAnswers((prev) => ({
-                          ...prev,
-                          [currentAssessmentItem.id || activeAssessmentIndex]:
-                            e.target.value,
-                        }))
-                      }
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !isAdaptiveLoading) {
-                          e.preventDefault();
-                          handleAssessmentNext();
+                  ) : currentAssessmentItem.type ===
+                    "mcq" ? (
+                    <div>
+                      <label className="form-label question-label">
+                        {
+                          currentAssessmentItem.stem
                         }
-                      }}
-                      autoFocus
-                    />
-                  </div>
-                )}
-              </div>
+                      </label>
 
-              <div className="assessment-actions">
-                <button
-                  className="btn-primary"
-                  onClick={handleAssessmentNext}
-                  disabled={isAdaptiveLoading}
-                >
-                  {isAdaptiveLoading
-                    ? "Adapting..."
-                    : adaptiveQuestionCount >= MAX_ADAPTIVE_QUESTIONS
-                      ? "Synthesise Final Report →"
-                      : "Next Question →"}
-                </button>
+                      <div className="choice-grid">
+                        {currentAssessmentItem.choices.map(
+                          (
+                            choice,
+                            index,
+                          ) => {
+                            const key =
+                              currentAssessmentItem.id ||
+                              activeAssessmentIndex;
+
+                            const selected =
+                              selectedMcqAnswers[
+                                key
+                              ] ===
+                              choice;
+
+                            return (
+                              <button
+                                key={
+                                  index
+                                }
+                                type="button"
+                                className={`choice-button ${
+                                  selected
+                                    ? "selected"
+                                    : ""
+                                }`}
+                                onClick={() =>
+                                  setSelectedMcqAnswers(
+                                    (
+                                      prev,
+                                    ) => ({
+                                      ...prev,
+                                      [key]:
+                                        choice,
+                                    }),
+                                  )
+                                }
+                              >
+                                <span className="choice-radio">
+                                  {selected && (
+                                    <span />
+                                  )}
+                                </span>
+
+                                {
+                                  choice
+                                }
+                              </button>
+                            );
+                          },
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="form-label question-label">
+                        {
+                          currentAssessmentItem.question
+                        }
+                      </label>
+
+                      <input
+                        className="form-input question-input"
+                        placeholder="Type your precise specification here and press Enter..."
+                        value={
+                          adaptiveTextAnswers[
+                            currentAssessmentItem.id ||
+                              activeAssessmentIndex
+                          ] || ""
+                        }
+                        onChange={(e) =>
+                          setAdaptiveTextAnswers(
+                            (
+                              prev,
+                            ) => ({
+                              ...prev,
+                              [
+                                currentAssessmentItem.id ||
+                                  activeAssessmentIndex
+                              ]:
+                                e.target
+                                  .value,
+                            }),
+                          )
+                        }
+                        onKeyDown={(e) => {
+                          if (
+                            e.key ===
+                              "Enter" &&
+                            !isAdaptiveLoading
+                          ) {
+                            e.preventDefault();
+
+                            handleAssessmentNext();
+                          }
+                        }}
+                        autoFocus
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="assessment-actions">
+                  <button
+                    className="btn-primary"
+                    onClick={
+                      handleAssessmentNext
+                    }
+                    disabled={
+                      isAdaptiveLoading
+                    }
+                  >
+                    {isAdaptiveLoading
+                      ? "Adapting..."
+                      : adaptiveQuestionCount >=
+                          MAX_ADAPTIVE_QUESTIONS
+                        ? "Synthesise Final Report →"
+                        : "Next Question →"}
+                  </button>
+                </div>
               </div>
-            </div>
-          </section>
-        )}
+            </section>
+          )}
 
         {step === "processing" && (
           <section className="page-transition processing-container processing-page">
             <div className="processing-pulse-ring" />
 
-            <h2>Synthesising supercharged logic & links...</h2>
+            <h2>
+              Synthesising
+              supercharged logic &
+              links...
+            </h2>
 
             <div className="processing-steps">
-              {processingSteps.map((text, index) => {
-                const done = index < processingStage;
-                const active = index === processingStage;
+              {processingSteps.map(
+                (text, index) => {
+                  const done =
+                    index <
+                    processingStage;
 
-                return (
-                  <div
-                    key={text}
-                    className={`step-item ${active ? "active" : ""} ${
-                      done ? "done" : ""
-                    }`}
-                  >
-                    <div className="step-content">
-                      <span className="step-dot" />
-                      <span>{text}</span>
+                  const active =
+                    index ===
+                    processingStage;
+
+                  return (
+                    <div
+                      key={text}
+                      className={`step-item ${
+                        active
+                          ? "active"
+                          : ""
+                      } ${
+                        done
+                          ? "done"
+                          : ""
+                      }`}
+                    >
+                      <div className="step-content">
+                        <span className="step-dot" />
+                        <span>
+                          {text}
+                        </span>
+                      </div>
+
+                      <span className="step-status">
+                        {done
+                          ? "✓"
+                          : active
+                            ? "●"
+                            : "○"}
+                      </span>
                     </div>
-
-                    <span className="step-status">
-                      {done ? "✓" : active ? "●" : "○"}
-                    </span>
-                  </div>
-                );
-              })}
+                  );
+                },
+              )}
             </div>
           </section>
         )}
 
-        {step === "results" && analysisData && (
-          <section className="page-transition animate-fade-slide-up results-page">
-            <div className="results-container">
-              <div className="results-toolbar">
-                <div>
-                  <button className="secondary-button" onClick={() => setStep("input")}>
-                    ← New Situation
-                  </button>
-
-                  <button
-                    className="save-button"
-                    onClick={() => handleSaveToAccount(analysisData)}
-                  >
-                    💾 Save Pathway
-                  </button>
-                </div>
-
-                <button className="secondary-button" onClick={() => setStep("landing")}>
-                  Start Over
-                </button>
-              </div>
-
-              <div className="result-section result-summary">
-                <div>
-                  <span
-                    className={`badge ${
-                      analysisData.confidence?.toLowerCase() || ""
-                    }`}
-                  >
-                    Confidence: {analysisData.confidence}
-                  </span>
-
-                  {userContext && (
-                    <div className="result-context">
-                      Tailored for: <em>"{userContext}"</em>
-                    </div>
-                  )}
-                </div>
-
-                <div className="risk-metrics">
+        {step === "results" &&
+          analysisData && (
+            <section className="page-transition animate-fade-slide-up results-page">
+              <div className="results-container">
+                <div className="results-toolbar">
                   <div>
-                    <span>Severity:</span>
-                    <strong>
-                      {analysisData.riskAssessment?.severityScore}/10
-                    </strong>
-                  </div>
+                    <button
+                      className="secondary-button"
+                      onClick={() =>
+                        setStep(
+                          "input",
+                        )
+                      }
+                    >
+                      ← New Situation
+                    </button>
 
-                  <div>
-                    <span>Exposure:</span>
-                    <strong>
-                      {analysisData.riskAssessment?.financialExposure}
-                    </strong>
-                  </div>
-
-                  <div>
-                    <span>Urgency:</span>
-                    <strong>
-                      {analysisData.riskAssessment?.timeSensitivity}
-                    </strong>
-                  </div>
-                </div>
-              </div>
-
-              <nav className="result-tabs">
-                {tabs.map(([id, label]) => (
-                  <button
-                    key={id}
-                    className={activeTab === id ? "active" : ""}
-                    onClick={() => setActiveTab(id)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </nav>
-
-              {activeTab === "overview" && (
-                <div className="result-content">
-                  <div className="dominant-action">
-                    <h3>Immediate Priority Action</h3>
-                    <h2>{analysisData.nextSteps?.[0]?.step}</h2>
-                    <p>
-                      <strong>Why this first:</strong>{" "}
-                      {analysisData.nextSteps?.[0]?.why}
-                    </p>
-                  </div>
-
-                  {analysisData.situation && (
-                    <div className="result-section">
-                      <h3>Situation Summary</h3>
-                      <p>{analysisData.situation}</p>
-                    </div>
-                  )}
-
-                  <div className="result-section assistant-section">
-                    <h3>Ask VERLO AI Assistant</h3>
-
-                    <p>Need immediate clarification, follow-up response, or file attachment?</p>
-
-                    {chatHistory.length > 0 && (
-                      <div className="chat-history">
-                        {chatHistory.map((msg, index) => (
-                          <div
-                            key={index}
-                            className={`chat-message ${msg.role}`}
-                          >
-                            <strong>
-                              {msg.role === "user" ? "You" : "VERLO AI"}
-                            </strong>
-
-                            {msg.attachment && (
-                              <small>📎 Attached file: {msg.attachment.name}</small>
-                            )}
-
-                            {msg.role === "user" ? (
-                              <div>{msg.content}</div>
-                            ) : (
-                              <div
-                                dangerouslySetInnerHTML={{
-                                  __html: renderMarkdownToHTML(msg.content),
-                                }}
-                              />
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {chatAttachment && (
-                      <div className="attachment">
-                        <span>📎 {chatAttachment.name}</span>
-                        <button onClick={() => removeAttachment("chat")}>
-                          Remove
-                        </button>
-                      </div>
-                    )}
-
-                    <form className="chat-form" onSubmit={handleChatSubmit}>
-                      <input
-                        className="form-input"
-                        placeholder="Ask a question or upload file..."
-                        value={chatQuestion}
-                        onChange={(e) => setChatQuestion(e.target.value)}
-                        disabled={isChatLoading}
-                      />
-
-                      <label className="chat-file-button">
-                        📎
-                        <input
-                          type="file"
-                          hidden
-                          onChange={(e) =>
-                            handleSecureFileUpload(e.target.files[0], "chat")
-                          }
-                        />
-                      </label>
-
-                      <button
-                        type="submit"
-                        className="btn-primary"
-                        disabled={isChatLoading}
-                      >
-                        {isChatLoading ? "..." : "Send"}
-                      </button>
-                    </form>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === "panels" && (
-                <div className="result-section">
-                  <h3>Personalised Issue Solution Panels</h3>
-
-                  {!analysisData.personalizedPanels?.length ? (
-                    <p>No custom panels generated for this query.</p>
-                  ) : (
-                    <div className="panel-grid">
-                      {analysisData.personalizedPanels.map((panel, index) => (
-                        <div className="solution-panel" key={index}>
-                          <strong>{panel.panelTitle}</strong>
-
-                          <div
-                            dangerouslySetInnerHTML={{
-                              __html: renderMarkdownToHTML(panel.insight),
-                            }}
-                          />
-
-                          <div className="solution">
-                            <strong>Recommended Solution:</strong>{" "}
-                            {panel.solution}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {activeTab === "steps" && (
-                <div className="result-section">
-                  <h3>Full Step-by-Step Action Pathway</h3>
-
-                  <div className="action-list">
-                    {analysisData.nextSteps?.map((item, index) => (
-                      <div className="action-item" key={index}>
-                        <div className="action-title">
-                          <span>{index + 1}</span>
-                          <strong>{item.step}</strong>
-                        </div>
-
-                        <p>
-                          <strong>Why:</strong> {item.why}
-                        </p>
-
-                        {item.pitfallWarning && (
-                          <p className="pitfall">
-                            <strong>⚠️ Pitfall to Avoid:</strong>{" "}
-                            {item.pitfallWarning}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {activeTab === "letter" && (
-                <div className="result-section letter-section">
-                  <div className="letter-header">
-                    <h3>Automated Resolution Letter</h3>
-
-                    <button onClick={handleCopyDraft}>
-                      {copied ? "Copied!" : "Copy Letter Template"}
+                    <button
+                      className="save-button"
+                      onClick={() =>
+                        handleSaveToAccount(
+                          analysisData,
+                        )
+                      }
+                    >
+                      💾 Save Pathway
                     </button>
                   </div>
 
-                  {analysisData.draftTemplate ? (
-                    <div className="letter-content">
-                      {`To: ${analysisData.draftTemplate.recipient}
+                  <button
+                    className="secondary-button"
+                    onClick={() =>
+                      setStep(
+                        "landing",
+                      )
+                    }
+                  >
+                    Start Over
+                  </button>
+                </div>
+
+                <div className="result-section result-summary">
+                  <div>
+                    <span
+                      className={`badge ${
+                        analysisData.confidence?.toLowerCase() ||
+                        ""
+                      }`}
+                    >
+                      Confidence:{" "}
+                      {
+                        analysisData.confidence
+                      }
+                    </span>
+
+                    {userContext && (
+                      <div className="result-context">
+                        Tailored for:{" "}
+                        <em>
+                          "
+                          {
+                            userContext
+                          }
+                          "
+                        </em>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="risk-metrics">
+                    <div>
+                      <span>
+                        Severity:
+                      </span>
+
+                      <strong>
+                        {
+                          analysisData
+                            .riskAssessment
+                            ?.severityScore
+                        }
+                        /10
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span>
+                        Exposure:
+                      </span>
+
+                      <strong>
+                        {
+                          analysisData
+                            .riskAssessment
+                            ?.financialExposure
+                        }
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span>
+                        Urgency:
+                      </span>
+
+                      <strong>
+                        {
+                          analysisData
+                            .riskAssessment
+                            ?.timeSensitivity
+                        }
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+                <nav className="result-tabs">
+                  {tabs.map(
+                    ([id, label]) => (
+                      <button
+                        key={id}
+                        className={
+                          activeTab ===
+                          id
+                            ? "active"
+                            : ""
+                        }
+                        onClick={() =>
+                          setActiveTab(
+                            id,
+                          )
+                        }
+                      >
+                        {label}
+                      </button>
+                    ),
+                  )}
+                </nav>
+
+                {activeTab ===
+                  "overview" && (
+                  <div className="result-content">
+                    <div className="dominant-action">
+                      <h3>
+                        Immediate Priority
+                        Action
+                      </h3>
+
+                      <h2>
+                        {
+                          analysisData
+                            .nextSteps?.[0]
+                            ?.step
+                        }
+                      </h2>
+
+                      <p>
+                        <strong>
+                          Why this
+                          first:
+                        </strong>{" "}
+                        {
+                          analysisData
+                            .nextSteps?.[0]
+                            ?.why
+                        }
+                      </p>
+                    </div>
+
+                    {analysisData.situation && (
+                      <div className="result-section">
+                        <h3>
+                          Situation
+                          Summary
+                        </h3>
+
+                        <p>
+                          {
+                            analysisData.situation
+                          }
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="result-section assistant-section">
+                      <h3>
+                        Ask VERLO AI
+                        Assistant
+                      </h3>
+
+                      <p>
+                        Need immediate
+                        clarification,
+                        follow-up
+                        response, or
+                        file attachment?
+                      </p>
+
+                      {chatHistory.length >
+                        0 && (
+                        <div className="chat-history">
+                          {chatHistory.map(
+                            (
+                              msg,
+                              index,
+                            ) => (
+                              <div
+                                key={
+                                  index
+                                }
+                                className={`chat-message ${msg.role}`}
+                              >
+                                <strong>
+                                  {msg.role ===
+                                  "user"
+                                    ? "You"
+                                    : "VERLO AI"}
+                                </strong>
+
+                                {msg.attachment && (
+                                  <small>
+                                    📎
+                                    Attached
+                                    file:{" "}
+                                    {
+                                      msg
+                                        .attachment
+                                        .name
+                                    }
+                                  </small>
+                                )}
+
+                                {msg.role ===
+                                "user" ? (
+                                  <div>
+                                    {
+                                      msg.content
+                                    }
+                                  </div>
+                                ) : (
+                                  <div
+                                    dangerouslySetInnerHTML={{
+                                      __html:
+                                        renderMarkdownToHTML(
+                                          msg.content,
+                                        ),
+                                    }}
+                                  />
+                                )}
+                              </div>
+                            ),
+                          )}
+                        </div>
+                      )}
+
+                      {chatAttachment && (
+                        <div className="attachment">
+                          <span>
+                            📎{" "}
+                            {
+                              chatAttachment.name
+                            }
+                          </span>
+
+                          <button
+                            onClick={() =>
+                              removeAttachment(
+                                "chat",
+                              )
+                            }
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      )}
+
+                      <form
+                        className="chat-form"
+                        onSubmit={
+                          handleChatSubmit
+                        }
+                      >
+                        <input
+                          className="form-input"
+                          placeholder="Ask a question or upload file..."
+                          value={
+                            chatQuestion
+                          }
+                          onChange={(
+                            e,
+                          ) =>
+                            setChatQuestion(
+                              e.target
+                                .value,
+                            )
+                          }
+                          disabled={
+                            isChatLoading
+                          }
+                        />
+
+                        <label className="chat-file-button">
+                          📎
+
+                          <input
+                            type="file"
+                            hidden
+                            onChange={(
+                              e,
+                            ) =>
+                              handleSecureFileUpload(
+                                e.target
+                                  .files[0],
+                                "chat",
+                              )
+                            }
+                          />
+                        </label>
+
+                        <button
+                          type="submit"
+                          className="btn-primary"
+                          disabled={
+                            isChatLoading
+                          }
+                        >
+                          {isChatLoading
+                            ? "..."
+                            : "Send"}
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab ===
+                  "panels" && (
+                  <div className="result-section">
+                    <h3>
+                      Personalised Issue
+                      Solution Panels
+                    </h3>
+
+                    {!analysisData
+                      .personalizedPanels
+                      ?.length ? (
+                      <p>
+                        No custom panels
+                        generated for
+                        this query.
+                      </p>
+                    ) : (
+                      <div className="panel-grid">
+                        {analysisData.personalizedPanels.map(
+                          (
+                            panel,
+                            index,
+                          ) => (
+                            <div
+                              className="solution-panel"
+                              key={
+                                index
+                              }
+                            >
+                              <strong>
+                                {
+                                  panel.panelTitle
+                                }
+                              </strong>
+
+                              <div
+                                dangerouslySetInnerHTML={{
+                                  __html:
+                                    renderMarkdownToHTML(
+                                      panel.insight,
+                                    ),
+                                }}
+                              />
+
+                              <div className="solution">
+                                <strong>
+                                  Recommended
+                                  Solution:
+                                </strong>{" "}
+                                {
+                                  panel.solution
+                                }
+                              </div>
+                            </div>
+                          ),
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab ===
+                  "steps" && (
+                  <div className="result-section">
+                    <h3>
+                      Full Step-by-Step
+                      Action Pathway
+                    </h3>
+
+                    <div className="action-list">
+                      {analysisData.nextSteps?.map(
+                        (
+                          item,
+                          index,
+                        ) => (
+                          <div
+                            className="action-item"
+                            key={
+                              index
+                            }
+                          >
+                            <div className="action-title">
+                              <span>
+                                {index +
+                                  1}
+                              </span>
+
+                              <strong>
+                                {
+                                  item.step
+                                }
+                              </strong>
+                            </div>
+
+                            <p>
+                              <strong>
+                                Why:
+                              </strong>{" "}
+                              {item.why}
+                            </p>
+
+                            {item.pitfallWarning && (
+                              <p className="pitfall">
+                                <strong>
+                                  ⚠️ Pitfall
+                                  to Avoid:
+                                </strong>{" "}
+                                {
+                                  item.pitfallWarning
+                                }
+                              </p>
+                            )}
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {activeTab ===
+                  "letter" && (
+                  <div className="result-section letter-section">
+                    <div className="letter-header">
+                      <h3>
+                        Automated
+                        Resolution Letter
+                      </h3>
+
+                      <button
+                        onClick={
+                          handleCopyDraft
+                        }
+                      >
+                        {copied
+                          ? "Copied!"
+                          : "Copy Letter Template"}
+                      </button>
+                    </div>
+
+                    {analysisData.draftTemplate ? (
+                      <div className="letter-content">
+                        {`To: ${analysisData.draftTemplate.recipient}
 Subject: ${analysisData.draftTemplate.subject}
 
 ${analysisData.draftTemplate.body}`}
-                    </div>
-                  ) : (
-                    <p>No template generated for this situation.</p>
-                  )}
-                </div>
-              )}
+                      </div>
+                    ) : (
+                      <p>
+                        No template
+                        generated for
+                        this situation.
+                      </p>
+                    )}
+                  </div>
+                )}
 
-              {activeTab === "resources" && (
-                <div className="result-section">
-                  <h3>Authoritative Resources & Links</h3>
+                {activeTab ===
+                  "resources" && (
+                  <div className="result-section">
+                    <h3>
+                      Authoritative
+                      Resources & Links
+                    </h3>
 
-                  {!analysisData.referenceLinks?.length ? (
-                    <p>No external links provided for this pathway.</p>
-                  ) : (
-                    <div className="resource-list">
-                      {analysisData.referenceLinks.map((link, index) => (
-                        <a
-                          key={index}
-                          href={link.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          <span>🔗 <strong>{link.title}</strong></span>
-                          <span>Visit →</span>
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </section>
-        )}
+                    {!analysisData
+                      .referenceLinks
+                      ?.length ? (
+                      <p>
+                        No external links
+                        provided for
+                        this pathway.
+                      </p>
+                    ) : (
+                      <div className="resource-list">
+                        {analysisData.referenceLinks.map(
+                          (
+                            link,
+                            index,
+                          ) => (
+                            <a
+                              key={
+                                index
+                              }
+                              href={
+                                link.url
+                              }
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <span>
+                                🔗{" "}
+                                <strong>
+                                  {
+                                    link.title
+                                  }
+                                </strong>
+                              </span>
+
+                              <span>
+                                Visit →
+                              </span>
+                            </a>
+                          ),
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
       </main>
 
       <footer className="verlo-footer">
         <div className="footer-inner">
           <div className="footer-brand">
-            <img src="/VVNormal.png" alt="VERLO Logo" />
+            <img
+              src="/VVNormal.png"
+              alt="VERLO Logo"
+            />
+
             <span>VERLO</span>
           </div>
 
           <div>
-            &copy; {new Date().getFullYear()} VERLO Engine. All rights reserved.
-            Crafted with 🌶️.
+            &copy;{" "}
+            {new Date().getFullYear()}{" "}
+            VERLO Engine. All rights
+            reserved. Crafted with 🌶️.
           </div>
         </div>
       </footer>
@@ -1397,34 +2613,73 @@ ${analysisData.draftTemplate.body}`}
       {showHistoryDrawer && (
         <aside className="history-drawer animate-slide-in-right">
           <div className="drawer-header">
-            <h3>Your Saved Pathways</h3>
+            <h3>
+              Your Saved Pathways
+            </h3>
 
-            <button onClick={() => setShowHistoryDrawer(false)}>✕</button>
+            <button
+              onClick={() =>
+                setShowHistoryDrawer(
+                  false,
+                )
+              }
+            >
+              ✕
+            </button>
           </div>
 
-          {userHistory.length === 0 ? (
-            <p>No saved reports yet. Click "Save Pathway" on any result screen!</p>
+          {userHistory.length ===
+          0 ? (
+            <p>
+              No saved reports yet.
+              Click "Save Pathway"
+              on any result screen!
+            </p>
           ) : (
             <div className="history-list">
-              {userHistory.map((item, index) => (
-                <button
-                  className="history-item"
-                  key={index}
-                  onClick={() => {
-                    setTitle(item.title);
-                    setDescription(item.description);
-                    setAnalysisData(item.result);
-                    setStep("results");
-                    setActiveTab("overview");
-                    setShowHistoryDrawer(false);
-                  }}
-                >
-                  <strong>{item.title}</strong>
-                  <span>
-                    {new Date(item.timestamp).toLocaleDateString()}
-                  </span>
-                </button>
-              ))}
+              {userHistory.map(
+                (item, index) => (
+                  <button
+                    className="history-item"
+                    key={index}
+                    onClick={() => {
+                      setTitle(
+                        item.title,
+                      );
+
+                      setDescription(
+                        item.description,
+                      );
+
+                      setAnalysisData(
+                        item.result,
+                      );
+
+                      setStep(
+                        "results",
+                      );
+
+                      setActiveTab(
+                        "overview",
+                      );
+
+                      setShowHistoryDrawer(
+                        false,
+                      );
+                    }}
+                  >
+                    <strong>
+                      {item.title}
+                    </strong>
+
+                    <span>
+                      {new Date(
+                        item.timestamp,
+                      ).toLocaleDateString()}
+                    </span>
+                  </button>
+                ),
+              )}
             </div>
           )}
         </aside>
@@ -1435,58 +2690,146 @@ ${analysisData.draftTemplate.body}`}
           <div className="auth-modal">
             <div className="modal-header">
               <h3>
-                {authMode === "login"
+                {authMode ===
+                "login"
                   ? "Log in to VERLO"
                   : "Create an Account"}
               </h3>
 
-              <button onClick={() => setShowAuthModal(false)}>✕</button>
+              <button
+                type="button"
+                onClick={() =>
+                  setShowAuthModal(
+                    false,
+                  )
+                }
+              >
+                ✕
+              </button>
             </div>
 
-            {authError && <div className="error-message">{authError}</div>}
+            {authError && (
+              <div className="error-message">
+                {authError}
+              </div>
+            )}
 
-            <form onSubmit={handleAuthSubmit}>
+            <button
+              type="button"
+              className="google-login-button"
+              onClick={
+                handleGoogleLogin
+              }
+            >
+              <span className="google-logo">
+                G
+              </span>
+
+              <span>
+                Continue with Google
+              </span>
+            </button>
+
+            <div className="auth-divider">
+              <span>
+                or continue with
+                email
+              </span>
+            </div>
+
+            <form
+              onSubmit={
+                handleAuthSubmit
+              }
+            >
               <div className="form-group">
-                <label className="form-label">Email Address</label>
+                <label className="form-label">
+                  Email Address
+                </label>
 
                 <input
                   type="email"
                   className="form-input"
-                  value={authEmail}
-                  onChange={(e) => setAuthEmail(e.target.value)}
+                  value={
+                    authEmail
+                  }
+                  onChange={(e) =>
+                    setAuthEmail(
+                      e.target.value,
+                    )
+                  }
                   required
                 />
               </div>
 
               <div className="form-group">
-                <label className="form-label">Password</label>
+                <label className="form-label">
+                  Password
+                </label>
 
                 <input
                   type="password"
                   className="form-input"
-                  value={authPassword}
-                  onChange={(e) => setAuthPassword(e.target.value)}
+                  value={
+                    authPassword
+                  }
+                  onChange={(e) =>
+                    setAuthPassword(
+                      e.target.value,
+                    )
+                  }
                   required
                 />
               </div>
 
-              <button type="submit" className="btn-primary full-width">
-                {authMode === "login" ? "Log In" : "Sign Up"}
+              <button
+                type="submit"
+                className="btn-primary full-width"
+              >
+                {authMode ===
+                "login"
+                  ? "Log In"
+                  : "Sign Up"}
               </button>
             </form>
 
             <div className="auth-switch">
-              {authMode === "login" ? (
+              {authMode ===
+              "login" ? (
                 <>
-                  Don't have an account?{" "}
-                  <button onClick={() => setAuthMode("signup")}>
+                  Don't have an
+                  account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode(
+                        "signup",
+                      );
+
+                      setAuthError(
+                        null,
+                      );
+                    }}
+                  >
                     Sign up
                   </button>
                 </>
               ) : (
                 <>
-                  Already have an account?{" "}
-                  <button onClick={() => setAuthMode("login")}>
+                  Already have an
+                  account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode(
+                        "login",
+                      );
+
+                      setAuthError(
+                        null,
+                      );
+                    }}
+                  >
                     Log in
                   </button>
                 </>
