@@ -302,31 +302,62 @@ Context: ${context || 'None provided'}`;
 
 app.post('/api/chat', async (req, res) => {
   try {
-    const { question, currentSituation } = req.body;
+    const { question, currentSituation, conversationHistory = [] } = req.body;
 
-    if (!question) {
+    if (typeof question !== 'string' || !question.trim()) {
       return res.status(400).json({ error: 'Question is required' });
+    }
+
+    if (!Array.isArray(conversationHistory) || conversationHistory.some((message) => (
+      !message
+      || !['user', 'assistant'].includes(message.role)
+      || typeof message.content !== 'string'
+    ))) {
+      return res.status(400).json({ error: 'Conversation history must contain user and assistant messages.' });
     }
 
     if (containsRestrictedContent(question)) {
       return res.status(400).json({ error: 'Verlo Engine Safety Policy: Terminology restricted.' });
     }
 
-    const chatCompletion = await groq.chat.completions.create({
-      messages: [
-        { 
-          role: 'system', 
-          content: `You are Verlo, an elite decision intelligence assistant powered by gpt-oss-120b. Provide razor-sharp, exhaustive, direct guidance based on context: "${currentSituation || 'General inquiry'}"` 
-        },
-        { role: 'user', content: question }
-      ],
-      model: 'openai/gpt-oss-120b',
-      temperature: 0.4,
-      max_tokens: 1200
-    });
+    const conversationMessages = [
+      {
+        role: 'system',
+        content: `You are Verlo, an elite decision intelligence assistant powered by gpt-oss-120b. Provide clear, complete, direct guidance based on this report context: "${typeof currentSituation === 'string' && currentSituation.trim() ? currentSituation : 'General inquiry'}". Use standard Markdown when useful, and ensure tables include a header separator row and all rows are complete.`,
+      },
+      ...conversationHistory.slice(-12).map(({ role, content }) => ({ role, content })),
+      { role: 'user', content: question.trim() },
+    ];
 
-    const contextualAnswer = chatCompletion.choices[0]?.message?.content || 'No response generated.';
-    res.json({ reply: contextualAnswer });
+    let reply = '';
+    let incomplete = false;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const chatCompletion = await groq.chat.completions.create({
+        messages: conversationMessages,
+        model: 'openai/gpt-oss-120b',
+        temperature: 0.4,
+        max_tokens: 4096,
+      });
+      const choice = chatCompletion.choices[0];
+      const content = choice?.message?.content;
+
+      if (typeof content !== 'string' || !content.trim()) {
+        return res.status(502).json({ error: 'The AI service returned an empty response. Please try again.' });
+      }
+
+      reply += content;
+      incomplete = choice.finish_reason === 'length';
+      if (!incomplete) break;
+
+      if (attempt < 2) {
+        conversationMessages.push(
+          { role: 'assistant', content },
+          { role: 'user', content: 'Continue exactly where your previous response stopped. Do not repeat completed content; finish any incomplete sentence, table, or code block.' },
+        );
+      }
+    }
+
+    res.json({ reply, complete: !incomplete });
   } catch (error) {
     console.error('Groq Chat API Error:', error);
     res.status(500).json({ error: `Chat Error: ${error.message}` });

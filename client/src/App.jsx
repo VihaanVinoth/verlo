@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { submitChat } from './services/api';
 
 export default function App() {
   const [currentView, setCurrentView] = useState('landing');
@@ -10,6 +13,8 @@ export default function App() {
     { role: 'assistant', content: 'Hello! I am your VERLO decision intelligence assistant. Ask me anything about your pathways or resolution letters.' }
   ]);
   const [inputMessage, setInputMessage] = useState('');
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [chatError, setChatError] = useState('');
   const [copyCount, setCopyCount] = useState(0);
   const [toast, setToast] = useState(null);
   const chatBottomRef = useRef(null);
@@ -27,35 +32,28 @@ export default function App() {
 
   const renderMarkdown = (text) => {
     if (!text) return null;
-    const safeText = String(text);
-    const parts = safeText.split(/(```[\s\S]*?```)/g);
-
-    return parts.map((part, index) => {
-      if (part.startsWith('```') && part.endsWith('```')) {
-        const codeContent = part.slice(3, -3).replace(/^[a-z]+\n/, '');
-        return (
-          <pre key={index} className="bg-slate-900 text-slate-100 p-3 rounded-lg my-2 overflow-x-auto font-mono text-xs">
-            <code>{codeContent}</code>
-          </pre>
-        );
-      }
-
-      const lines = part.split('\n');
-      return (
-        <div key={index} className="space-y-1">
-          {lines.map((line, lineIdx) => {
-            if (line.trim().startsWith('* ') || line.trim().startsWith('- ')) {
-              return (
-                <li key={lineIdx} className="ml-4 list-disc text-sm">
-                  {line.trim().substring(2)}
-                </li>
-              );
-            }
-            return <p key={lineIdx} className="text-sm leading-relaxed">{line}</p>;
-          })}
-        </div>
-      );
-    });
+    return (
+      <div className="prose prose-invert prose-sm max-w-none break-words [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-slate-600 [&_th]:bg-slate-700 [&_th]:px-2 [&_th]:py-1 [&_td]:border [&_td]:border-slate-700 [&_td]:px-2 [&_td]:py-1 [&_a]:text-indigo-300 [&_a]:underline">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            a: ({ children, ...props }) => (
+              <a {...props} target="_blank" rel="noreferrer">{children}</a>
+            ),
+            pre: ({ children }) => (
+              <pre className="my-2 overflow-x-auto rounded-lg bg-slate-950 p-3 font-mono text-xs">{children}</pre>
+            ),
+            table: ({ children }) => (
+              <div className="my-3 overflow-x-auto">
+                <table className="w-full border-collapse text-left">{children}</table>
+              </div>
+            ),
+          }}
+        >
+          {String(text)}
+        </ReactMarkdown>
+      </div>
+    );
   };
 
   const handleStartAnalysis = (textToAnalyze) => {
@@ -89,17 +87,39 @@ export default function App() {
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!inputMessage.trim()) return;
+    if (!inputMessage.trim() || isSendingMessage) return;
 
-    const userMsg = { role: 'user', content: inputMessage };
+    const currentInput = inputMessage.trim();
+    const userMsg = { role: 'user', content: currentInput };
     setMessages((prev) => [...prev, userMsg]);
-    const currentInput = inputMessage;
     setInputMessage('');
+    setChatError('');
+    setIsSendingMessage(true);
 
-    setTimeout(() => {
-      let reply = `I've analyzed your question regarding "${currentInput}". Here is what you should consider next:\n\n* Keep a written paper trail of all communications.\n* Reference specific clause numbers in your correspondence.\n\n```json\n{ "status": "analyzed", "confidence": 0.95 }\n````;
-      setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
-    }, 800);
+    try {
+      const response = await submitChat({
+        question: currentInput,
+        currentSituation: [resultsData?.title, resultsData?.summary, userInput]
+          .filter(Boolean)
+          .join('\n'),
+        conversationHistory: messages.slice(1),
+      });
+
+      if (typeof response.reply !== 'string' || !response.reply.trim()) {
+        throw new Error('The assistant returned an empty response. Please try again.');
+      }
+
+      setMessages((prev) => [...prev, { role: 'assistant', content: response.reply }]);
+      if (response.complete === false) {
+        setChatError('The reply reached the model output limit. Ask the assistant to continue.');
+      }
+    } catch (error) {
+      setMessages((prev) => prev.filter((message) => message !== userMsg));
+      setInputMessage(currentInput);
+      setChatError(error.message || 'Unable to send your message. Please try again.');
+    } finally {
+      setIsSendingMessage(false);
+    }
   };
 
   const handleCopyLetter = (letterText) => {
@@ -260,6 +280,9 @@ export default function App() {
                     </div>
                   </div>
                 ))}
+                {isSendingMessage && (
+                  <p className="text-sm text-slate-400" role="status">Verlo is preparing a response...</p>
+                )}
                 <div ref={chatBottomRef} />
               </div>
 
@@ -270,14 +293,19 @@ export default function App() {
                   onChange={(e) => setInputMessage(e.target.value)}
                   placeholder="Ask a question about your pathway..."
                   className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
+                  disabled={isSendingMessage}
                 />
                 <button
                   type="submit"
-                  className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition"
+                  disabled={isSendingMessage || !inputMessage.trim()}
+                  className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition"
                 >
-                  Send
+                  {isSendingMessage ? 'Sending...' : 'Send'}
                 </button>
               </form>
+              {chatError && (
+                <p className="text-sm text-amber-300" role="alert">{chatError}</p>
+              )}
             </div>
 
             <div className="flex justify-start pt-4">
