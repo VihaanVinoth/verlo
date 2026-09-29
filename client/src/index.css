@@ -929,11 +929,7 @@ a {
   border: 1px solid var(--border-accent);
   border-radius: 10px;
   background:
-    linear-gradient(
-      135deg,
-      rgba(16, 185, 129, 0.1),
-      rgba(16, 185, 129, 0.025)
-    ),
+    linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.025)),
     var(--bg-card);
 }
 
