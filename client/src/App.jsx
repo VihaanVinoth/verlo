@@ -21,7 +21,7 @@ const tabs = [
 ];
 
 const ExampleIcon = ({ type }) => {
-  const common = { width: 28, height: 28, viewBox: "0 0 28 28", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true };
+  const common = { width: 30, height: 30, viewBox: "0 0 28 28", fill: "none", stroke: "currentColor", strokeWidth: 1.65, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true, focusable: "false" };
   if (type === "flight") return <svg {...common}><path d="M3 17.5 25 14 3 10.5v3l8 1.5-8 1.5v1Z"/><path d="m12 15.2-3.2 8.1h3l3.1-8.6M12 12.8 8.8 4.7h3l3.1 8.6"/><path d="M18.5 12.9h4"/></svg>;
   if (type === "billing") return <svg {...common}><rect x="3" y="5" width="22" height="17" rx="2.5"/><path d="M3 10h22"/><path d="M7 16h5"/><path d="M18 15.5h.01"/></svg>;
   if (type === "home") return <svg {...common}><path d="m3 13.5 11-9 11 9"/><path d="M5.5 11.8V24h17V11.8"/><path d="M11 24v-7h6v7"/><path d="M18.5 9V5.5h2.5v5.5"/></svg>;
@@ -317,6 +317,22 @@ export default function App() {
       return;
     }
     const fileMeta = { name: file.name, size: `${(file.size / 1024).toFixed(1)} KB`, type: file.type || "application/octet-stream", uploadedAt: new Date().toISOString() };
+    if (file.type.startsWith("image/")) {
+      try {
+        fileMeta.previewUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      } catch {}
+    }
+    if (file.type.startsWith("text/") || /json|csv|markdown/.test(file.type) || /\.(txt|md|csv|json)$/i.test(file.name)) {
+      try {
+        const text = await file.text();
+        fileMeta.text = text.slice(0, 20000);
+      } catch {}
+    }
     if (target === "assessment") {
       setAssessmentAttachment(fileMeta);
       triggerCustomAlert(`File "${file.name}" attached to assessment context.`);
@@ -346,7 +362,8 @@ export default function App() {
       const rawChoices = Array.isArray(item.choices) ? item.choices : Array.isArray(item.options) ? item.options : [];
       const choices = rawChoices.map(choice => typeof choice === "string" ? choice.trim() : String(choice?.text || choice?.label || choice?.value || "").trim()).filter(Boolean);
       const questionText = item.question || item.text || item.prompt || item.stem || "";
-      return { ...item, type, id: item.id || item.questionId || `adaptive-${index + 1}`, question: String(questionText).trim(), stem: String(item.stem || questionText).trim(), choices, questionNumber: item.questionNumber || index + 1 };
+      const imageUrl = item.imageUrl || item.image_url || (typeof item.image === "string" ? item.image : item.image?.url) || "";
+      return { ...item, type, id: item.id || item.questionId || `adaptive-${index + 1}`, question: String(questionText).trim(), stem: String(item.stem || questionText).trim(), choices, imageUrl: String(imageUrl || "").trim(), imageAlt: String(item.imageAlt || item.image_alt || item.alt || `Visual for question ${index + 1}`).trim(), questionNumber: item.questionNumber || index + 1 };
     }).filter(Boolean);
   };
 
@@ -368,6 +385,8 @@ export default function App() {
       question: String(questionText).trim(),
       stem: String(returnedQuestion.stem || questionText).trim(),
       choices: rawChoices.map(choice => typeof choice === "string" ? choice.trim() : String(choice?.text || choice?.label || choice?.value || "").trim()).filter(Boolean),
+      imageUrl: String(returnedQuestion.imageUrl || returnedQuestion.image_url || (typeof returnedQuestion.image === "string" ? returnedQuestion.image : returnedQuestion.image?.url) || "").trim(),
+      imageAlt: String(returnedQuestion.imageAlt || returnedQuestion.image_alt || returnedQuestion.alt || `Visual for question ${questionNumber}`).trim(),
       questionNumber,
     };
   };
@@ -429,7 +448,6 @@ export default function App() {
       const res = await fetch(`${API_URL}/api/adaptive-question`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
-        // LUCKY NUMBER 888
         body: JSON.stringify({ title, description, context: userContext, previousAnswers: {}, previousQuestions: [], questionNumber: 1, maxQuestions: MAX_ADAPTIVE_QUESTIONS }),
       });
       const rawResponse = await res.text();
@@ -521,6 +539,18 @@ export default function App() {
       if (!Array.isArray(finalData.personalizedPanels)) finalData.personalizedPanels = [];
       if (!Array.isArray(finalData.resources)) finalData.resources = [];
       if (!Array.isArray(finalData.referenceLinks)) finalData.referenceLinks = [];
+      const combinedLinks = [...finalData.referenceLinks, ...finalData.resources].map(item => {
+        if (typeof item === "string") return { title: item, description: "", url: item };
+        return item || {};
+      }).filter(item => /^https?:\/\//i.test(String(item.url || "").trim()));
+      const seenUrls = new Set();
+      finalData.referenceLinks = combinedLinks.filter(item => {
+        const url = String(item.url || "").trim();
+        if (seenUrls.has(url)) return false;
+        seenUrls.add(url);
+        return true;
+      });
+      finalData.resources = finalData.referenceLinks;
       setAnalysisData(finalData);
       setChatHistory([]);
       setActiveTab("overview");
@@ -531,6 +561,25 @@ export default function App() {
     } finally {
       clearInterval(interval);
     }
+  };
+
+
+  const handleReadReport = () => {
+    if (!analysisData || !window.speechSynthesis) {
+      triggerCustomAlert("Read aloud is not supported in this browser.", "error");
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const text = [
+      analysisData.situation,
+      analysisData.nextSteps?.map((item, index) => `Step ${index + 1}: ${item.step}. ${item.why || ""}`).join(" "),
+      analysisData.personalizedPanels?.map(panel => `${panel.panelTitle || ""}. ${panel.insight || ""}. ${panel.solution || ""}`).join(" "),
+      analysisData.draftTemplate ? `Draft letter. Recipient: ${analysisData.draftTemplate.recipient}. Subject: ${analysisData.draftTemplate.subject}. ${analysisData.draftTemplate.body}` : "",
+      analysisData.referenceLinks?.map(link => `${link.title || "Resource"}: ${link.description || link.url}`).join(" ")
+    ].filter(Boolean).join(" ");
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.95;
+    window.speechSynthesis.speak(utterance);
   };
 
   const handleCopyDraft = () => {
@@ -591,10 +640,10 @@ export default function App() {
           <p className="verlo-subtitle">Verlo is an adaptive supercharged decision-intelligence engine that transforms messy, stressful situations into a fully tailored, risk-scored action pathway through dynamic profiling.</p>
           <button className="btn-primary launch-button" onClick={() => setStep("input")}>Launch Decision Engine →</button>
           <div className="example-section"><p className="example-label">Test common VERLO scenarios:</p><div className="example-grid">
-            <div className="verlo-card example-card" onClick={() => handleExampleSelect("Flight cancelled at gate", "My international flight was abruptly cancelled at the boarding gate due to mechanical failure. The airline desk agent says the earliest they can rebook me is in 48 hours, and they are refusing to cover hotel accommodations for the night despite my connecting ticket.", "Travelling on a strict budget for an important family event")}><span className="example-icon"><ExampleIcon type="flight" /></span><div><strong>Flight cancelled at gate</strong> — Airline refusing overnight hotel voucher.</div></div>
-            <div className="verlo-card example-card" onClick={() => handleExampleSelect("Unresolved billing charge", "I noticed an unexpected $450 charge on my credit card from a software enterprise subscription that I explicitly cancelled three months ago in writing. Support is ignoring my emails and chat tickets.", "Freelancer relying on tight monthly cash flow")}><span className="example-icon"><ExampleIcon type="billing" /></span><div><strong>Unresolved billing dispute</strong> — Subscription charged post-cancellation.</div></div>
-            <div className="verlo-card example-card" onClick={() => handleExampleSelect("Landlord withholding bond", "My tenancy agreement ended 3 weeks ago and my landlord is refusing to release my full $2,000 security deposit, claiming minor carpet scuffs that were already present when I moved in as documented on my condition report.", "First-time renter moving into a new apartment")}><span className="example-icon"><ExampleIcon type="home" /></span><div><strong>Landlord withholding bond</strong> — Disputing false wear-and-tear deductions.</div></div>
-            <div className="verlo-card example-card" onClick={() => handleExampleSelect("Defective laptop warranty dispute", "I purchased a high-end laptop 5 months ago that has suffered multiple motherboard failures. The manufacturer service center is claiming accidental liquid damage violation even though the machine has never been exposed to liquids.", "Student relying on laptop for coursework")}><span className="example-icon"><ExampleIcon type="laptop" /></span><div><strong>Defective laptop warranty</strong> — Manufacturer denying warranty repair unfairly.</div></div>
+            <div className="verlo-card example-card" onClick={() => handleExampleSelect("Flight cancelled at gate", "My international flight was abruptly cancelled at the boarding gate due to mechanical failure. The airline desk agent says the earliest they can rebook me is in 48 hours, and they are refusing to cover hotel accommodations for the night despite my connecting ticket.", "Travelling on a strict budget for an important family event")}><ExampleIcon type="flight" /><div><strong>Flight cancelled at gate</strong> — Airline refusing overnight hotel voucher.</div></div>
+            <div className="verlo-card example-card" onClick={() => handleExampleSelect("Unresolved billing charge", "I noticed an unexpected $450 charge on my credit card from a software enterprise subscription that I explicitly cancelled three months ago in writing. Support is ignoring my emails and chat tickets.", "Freelancer relying on tight monthly cash flow")}><ExampleIcon type="billing" /><div><strong>Unresolved billing dispute</strong> — Subscription charged post-cancellation.</div></div>
+            <div className="verlo-card example-card" onClick={() => handleExampleSelect("Landlord withholding bond", "My tenancy agreement ended 3 weeks ago and my landlord is refusing to release my full $2,000 security deposit, claiming minor carpet scuffs that were already present when I moved in as documented on my condition report.", "First-time renter moving into a new apartment")}><ExampleIcon type="home" /><div><strong>Landlord withholding bond</strong> — Disputing false wear-and-tear deductions.</div></div>
+            <div className="verlo-card example-card" onClick={() => handleExampleSelect("Defective laptop warranty dispute", "I purchased a high-end laptop 5 months ago that has suffered multiple motherboard failures. The manufacturer service center is claiming accidental liquid damage violation even though the machine has never been exposed to liquids.", "Student relying on laptop for coursework")}><ExampleIcon type="laptop" /><div><strong>Defective laptop warranty</strong> — Manufacturer denying warranty repair unfairly.</div></div>
           </div></div>
         </div></section>}
 
@@ -606,7 +655,7 @@ export default function App() {
             <div className="form-group"><label className="form-label">Situation Title (Optional)</label><input className="form-input" placeholder="e.g., Landlord deposit dispute" value={title} onChange={e => setTitle(e.target.value)} /></div>
             <div className="form-group"><div className="field-header"><label className="form-label">Describe what happened *</label><span className={wordCount < MIN_WORDS ? "word-count warning" : "word-count"}>{wordCount} words {wordCount < MIN_WORDS ? `(Minimum ${MIN_WORDS} required)` : "✓"}</span></div><textarea className="form-textarea" placeholder="Include key details: dates, amounts, communications, and what outcome you are looking for..." value={description} onChange={e => setDescription(e.target.value)} required /></div>
             <div className="form-group"><label className="form-label">Any specific personal context or constraints? (Optional)</label><input className="form-input" placeholder="e.g., I'm a student living on a tight budget" value={userContext} onChange={e => setUserContext(e.target.value)} /></div>
-            <div className="form-group"><label className="form-label">Attach Evidence / Files / Media (Optional)</label><label className="file-button">Browse File / Media<input type="file" hidden onChange={e => handleSecureFileUpload(e.target.files?.[0], "assessment")} /></label><span className="file-note">Attached locally for this assessment. Maximum 15MB.</span>{assessmentAttachment && <div className="attachment"><span>📎 {assessmentAttachment.name} ({assessmentAttachment.size})</span><button type="button" onClick={() => removeAttachment("assessment")}>Remove</button></div>}</div>
+            <div className="form-group"><label className="form-label">Attach Evidence / Files / Media (Optional)</label><label className="file-button"><span aria-hidden="true">＋</span> Import files<input type="file" accept="image/*,.pdf,.txt,.md,.csv,.json,.doc,.docx" hidden onChange={e => handleSecureFileUpload(e.target.files?.[0], "assessment")} /></label><span className="file-note">Images, documents and text files up to 15MB.</span>{assessmentAttachment && <div className="attachment"><div><strong>{assessmentAttachment.name}</strong><span>{assessmentAttachment.size} · {assessmentAttachment.type}</span>{assessmentAttachment.previewUrl && <img className="attachment-preview" src={assessmentAttachment.previewUrl} alt={`Preview of ${assessmentAttachment.name}`} />}</div><button type="button" onClick={() => removeAttachment("assessment")}>Remove</button></div>}</div>
             <button type="submit" className="btn-primary full-width">Generate Adaptive Assessment →</button>
           </form>
         </div></section>}
@@ -617,7 +666,7 @@ export default function App() {
           <div className="verlo-header assessment-header"><h2 className="verlo-title">Refine Your Parameters</h2><p className="verlo-subtitle">Answering these custom inquiries ensures your final action pathway is laser-focused.</p></div>
           {error && <div className="error-message">{error}</div>}
           <div className="verlo-card assessment-card">
-            {isAdaptiveLoading ? <div className="adaptive-loading"><div className="processing-pulse-ring" /><strong>Adapting the next question...</strong><span>VERLO is using your previous answer to decide what matters next.</span></div> : currentAssessmentItem.type === "mcq" ? <div><label className="form-label question-label">{currentAssessmentItem.stem}</label><div className="choice-grid">{currentAssessmentItem.choices.map((choice, index) => { const key = currentAssessmentItem.id || activeAssessmentIndex; const selected = selectedMcqAnswers[key] === choice; return <button key={`${choice}-${index}`} type="button" className={`choice-button ${selected ? "selected" : ""}`} onClick={() => setSelectedMcqAnswers(prev => ({ ...prev, [key]: choice }))}><span className="choice-radio">{selected && <span />}</span>{choice}</button>; })}</div></div> : <div><label className="form-label question-label">{currentAssessmentItem.question}</label><input className="form-input question-input" placeholder="Type your precise specification here and press Enter..." value={adaptiveTextAnswers[currentAssessmentItem.id || activeAssessmentIndex] || ""} onChange={e => setAdaptiveTextAnswers(prev => ({ ...prev, [currentAssessmentItem.id || activeAssessmentIndex]: e.target.value }))} onKeyDown={e => { if (e.key === "Enter" && !isAdaptiveLoading) { e.preventDefault(); handleAssessmentNext(); } }} autoFocus /></div>}
+            {isAdaptiveLoading ? <div className="adaptive-loading" role="status" aria-live="polite"><div className="processing-pulse-ring" /><strong>Adapting the next question...</strong><span>VERLO is using your previous answer to decide what matters next.</span></div> : <div className="adaptive-question-content">{currentAssessmentItem.imageUrl && <figure className="adaptive-question-image"><img src={currentAssessmentItem.imageUrl} alt={currentAssessmentItem.imageAlt} /><figcaption>{currentAssessmentItem.imageAlt}</figcaption></figure>}{currentAssessmentItem.type === "mcq" ? <div><label className="form-label question-label">{currentAssessmentItem.stem}</label><div className="choice-grid">{currentAssessmentItem.choices.map((choice, index) => { const key = currentAssessmentItem.id || activeAssessmentIndex; const selected = selectedMcqAnswers[key] === choice; return <button key={`${choice}-${index}`} type="button" className={`choice-button ${selected ? "selected" : ""}`} aria-pressed={selected} onClick={() => setSelectedMcqAnswers(prev => ({ ...prev, [key]: choice }))}><span className="choice-radio" aria-hidden="true">{selected && <span />}</span>{choice}</button>; })}</div></div> : <div><label className="form-label question-label" htmlFor="adaptive-answer">{currentAssessmentItem.question}</label><textarea id="adaptive-answer" className="form-input question-input question-textarea" rows={5} placeholder="Type your answer here..." value={adaptiveTextAnswers[currentAssessmentItem.id || activeAssessmentIndex] || ""} onChange={e => setAdaptiveTextAnswers(prev => ({ ...prev, [currentAssessmentItem.id || activeAssessmentIndex]: e.target.value }))} onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !isAdaptiveLoading) { e.preventDefault(); handleAssessmentNext(); } }} autoFocus /></div>}</div>}
           </div>
           <div className="assessment-actions"><button className="btn-primary" onClick={handleAssessmentNext} disabled={isAdaptiveLoading}>{isAdaptiveLoading ? "Adapting..." : adaptiveQuestionCount >= MAX_ADAPTIVE_QUESTIONS ? "Synthesise Final Report →" : "Next Question →"}</button></div>
         </div></section>}
@@ -625,14 +674,14 @@ export default function App() {
         {step === "processing" && <section className="page-transition processing-container processing-page"><div className="processing-pulse-ring" /><h2>Synthesising supercharged logic & links...</h2><div className="processing-steps">{processingSteps.map((text, index) => { const done = index < processingStage; const active = index === processingStage; return <div key={text} className={`step-item ${active ? "active" : ""} ${done ? "done" : ""}`}><div className="step-content"><span className="step-dot" /><span>{text}</span></div><span className="step-status">{done ? "✓" : active ? "●" : "○"}</span></div>; })}</div></section>}
 
         {step === "results" && analysisData && <section className="page-transition animate-fade-slide-up results-page"><div className="results-container">
-          <div className="results-toolbar"><div><button className="secondary-button" onClick={() => setStep("input")}>← New Situation</button><button className="save-button" onClick={() => handleSaveToAccount(analysisData)}>💾 Save Pathway</button></div><button className="secondary-button" onClick={() => setStep("landing")}>Start Over</button></div>
+          <div className="results-toolbar"><div><button className="secondary-button" onClick={() => setStep("input")}>← New Situation</button><button className="save-button" onClick={() => handleSaveToAccount(analysisData)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h12l2 2v14H5z" /><path d="M8 4v6h8V4M8 20v-6h8v6" /></svg><span>Save Pathway</span></button></div><button className="secondary-button" onClick={() => setStep("landing")}>Start Over</button></div>
           <div className="result-section result-summary"><div><span className={`badge ${analysisData.confidence?.toLowerCase() || ""}`}>Confidence: {analysisData.confidence}</span>{userContext && <div className="result-context">Tailored for: <em>"{userContext}"</em></div>}</div><div className="risk-metrics"><div><span>Severity:</span><strong>{analysisData.riskAssessment?.severityScore}/10</strong></div><div><span>Exposure:</span><strong>{analysisData.riskAssessment?.financialExposure}</strong></div><div><span>Urgency:</span><strong>{analysisData.riskAssessment?.timeSensitivity}</strong></div></div></div>
-          <nav className="result-tabs">{tabs.map(([id, label]) => <button key={id} className={activeTab === id ? "active" : ""} onClick={() => setActiveTab(id)}>{label}</button>)}</nav>
-          {activeTab === "overview" && <div className="result-content"><div className="dominant-action"><h3>Immediate Priority Action</h3><h2>{analysisData.nextSteps?.[0]?.step}</h2><p><strong>Why this first:</strong> {analysisData.nextSteps?.[0]?.why}</p></div>{analysisData.situation && <div className="result-section"><h3>Situation Summary</h3><p>{analysisData.situation}</p></div>}<div className="result-section assistant-section"><h3>Ask VERLO AI Assistant</h3><p>Need immediate clarification, follow-up response, or file attachment?</p>{chatHistory.length > 0 && <div className="chat-history">{chatHistory.map((msg, index) => <div key={index} className={`chat-message ${msg.role}`}><strong>{msg.role === "user" ? "You" : "VERLO AI"}</strong>{msg.attachment && <small>📎 Attached file: {msg.attachment.name}</small>}{msg.role === "user" ? <div>{msg.content}</div> : <div dangerouslySetInnerHTML={{ __html: renderMarkdownToHTML(msg.content) }} />}</div>)}</div>}{chatAttachment && <div className="attachment"><span>📎 {chatAttachment.name}</span><button type="button" onClick={() => removeAttachment("chat")}>Remove</button></div>}<form className="chat-form" onSubmit={handleChatSubmit}><input className="form-input" placeholder="Ask a question or upload file..." value={chatQuestion} onChange={e => setChatQuestion(e.target.value)} disabled={isChatLoading} /><label className="chat-file-button">📎<input type="file" hidden onChange={e => handleSecureFileUpload(e.target.files?.[0], "chat")} /></label><button type="submit" className="btn-primary" disabled={isChatLoading}>{isChatLoading ? "..." : "Send"}</button></form></div></div>}
+          <nav className="result-tabs" aria-label="Report sections">{tabs.map(([id, label]) => <button key={id} className={activeTab === id ? "active" : ""} aria-current={activeTab === id ? "page" : undefined} onClick={() => setActiveTab(id)}>{label}</button>)}</nav>
+          {activeTab === "overview" && <div className="result-content"><div className="result-accessibility-tools"><button type="button" className="secondary-button" onClick={handleReadReport}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4Z" /><path d="M17 9a4 4 0 0 1 0 6M19.5 6.5a7.5 7.5 0 0 1 0 11" /></svg><span>Read report aloud</span></button><span>Use your browser's accessibility controls or this button to hear the report.</span></div><div className="dominant-action"><h3>Immediate Priority Action</h3><h2>{analysisData.nextSteps?.[0]?.step}</h2><p><strong>Why this first:</strong> {analysisData.nextSteps?.[0]?.why}</p></div>{analysisData.situation && <div className="result-section"><h3>Situation Summary</h3><p>{analysisData.situation}</p></div>}<div className="result-section assistant-section"><h3>Ask VERLO AI Assistant</h3><p>Need immediate clarification, follow-up response, or file attachment?</p>{chatHistory.length > 0 && <div className="chat-history">{chatHistory.map((msg, index) => <div key={index} className={`chat-message ${msg.role}`}><strong>{msg.role === "user" ? "You" : "VERLO AI"}</strong>{msg.attachment && <small>📎 Attached file: {msg.attachment.name}</small>}{msg.role === "user" ? <div>{msg.content}</div> : <div dangerouslySetInnerHTML={{ __html: renderMarkdownToHTML(msg.content) }} />}</div>)}</div>}{chatAttachment && <div className="attachment"><span>📎 {chatAttachment.name}</span><button type="button" onClick={() => removeAttachment("chat")}>Remove</button></div>}<form className="chat-form" onSubmit={handleChatSubmit}><input className="form-input" aria-label="Ask VERLO a question" placeholder="Ask a question..." value={chatQuestion} onChange={e => setChatQuestion(e.target.value)} disabled={isChatLoading} /><label className="chat-file-button" title="Import a file"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg><span className="sr-only">Import a file</span><input type="file" accept="image/*,.pdf,.txt,.md,.csv,.json,.doc,.docx" hidden onChange={e => handleSecureFileUpload(e.target.files?.[0], "chat")} /></label><button type="submit" className="btn-primary" disabled={isChatLoading}>{isChatLoading ? "Sending..." : "Send"}</button></form></div></div>}
           {activeTab === "panels" && <div className="result-section"><h3>Personalised Issue Solution Panels</h3>{!analysisData.personalizedPanels?.length ? <p>No custom panels generated for this query.</p> : <div className="panel-grid">{analysisData.personalizedPanels.map((panel, index) => <div className="solution-panel" key={index}><strong>{panel.panelTitle}</strong><div dangerouslySetInnerHTML={{ __html: renderMarkdownToHTML(panel.insight) }} /><div className="solution"><strong>Recommended Solution:</strong> {panel.solution}</div></div>)}</div>}</div>}
           {activeTab === "steps" && <div className="result-section"><h3>Full Step-by-Step Action Pathway</h3><div className="action-list">{analysisData.nextSteps?.map((item, index) => <div className="action-item" key={index}><div className="action-title"><span>{index + 1}</span><strong>{item.step}</strong></div><p><strong>Why:</strong> {item.why}</p>{item.pitfallWarning && <p className="pitfall"><strong>⚠️ Pitfall to Avoid:</strong> {item.pitfallWarning}</p>}</div>)}</div></div>}
           {activeTab === "letter" && <div className="result-section letter-section"><div className="letter-header"><h3>Automated Resolution Letter</h3><button onClick={handleCopyDraft}>{copied ? "Copied!" : "Copy Letter Template"}</button></div>{analysisData.draftTemplate ? <div className="letter-content">{`To: ${analysisData.draftTemplate.recipient}\nSubject: ${analysisData.draftTemplate.subject}\n\n${analysisData.draftTemplate.body}`}</div> : <p>No template generated for this situation.</p>}</div>}
-          {activeTab === "resources" && <div className="result-section"><h3>Authoritative Resources & Links</h3>{!(analysisData.referenceLinks || analysisData.resources)?.length ? <p>No external links provided for this pathway.</p> : <div className="resource-list">{(analysisData.referenceLinks || analysisData.resources || []).map((link, index) => <a key={index} href={link.url} target="_blank" rel="noopener noreferrer"><span>🔗 <strong>{link.title}</strong></span><span>Visit →</span></a>)}</div>}</div>}
+          {activeTab === "resources" && <div className="result-section"><h3>Authoritative Resources & Links</h3><p className="result-help">These links open the referenced resource in a new tab. Only valid web addresses returned by the analysis are shown.</p>{!(analysisData.referenceLinks || analysisData.resources)?.length ? <div className="empty-resource-state"><strong>No verified external links were returned.</strong><p>VERLO has not been given a reliable web address for this pathway, so it has not created a placeholder link.</p></div> : <div className="resource-list">{(analysisData.referenceLinks || analysisData.resources || []).map((link, index) => <a key={index} href={link.url} target="_blank" rel="noopener noreferrer" className="resource-link"><span className="resource-link-main"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9" /><path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" /></svg><span><strong>{link.title || link.url}</strong>{link.description && <small>{link.description}</small>}</span></span><span className="resource-link-visit">Open <span aria-hidden="true">↗</span></span><span className="sr-only">Opens in a new tab</span></a>)}</div>}</div>}
         </div></section>}
       </main>
 

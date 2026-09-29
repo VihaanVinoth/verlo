@@ -19,46 +19,81 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 const PORT = process.env.PORT || 5001;
-const API_URL = process.env.API_URL || "https://verlo-30xs.onrender.com";
+const API_URL =
+  process.env.API_URL ||
+  "https://verlo-30xs.onrender.com";
 const CLIENT_URL =
-  process.env.CLIENT_URL || "https://verloai.netlify.app";
+  process.env.CLIENT_URL ||
+  "https://verloai.netlify.app";
 
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const GOOGLE_CLIENT_ID =
+  process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET =
+  process.env.GOOGLE_CLIENT_SECRET;
 const GOOGLE_REDIRECT_URI =
   process.env.GOOGLE_REDIRECT_URI ||
   `${API_URL}/api/auth/google/callback`;
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL;
 
-const VERIFICATION_CODE_EXPIRY_MS = 15 * 60 * 1000;
-const VERIFICATION_RESEND_COOLDOWN_MS = 60 * 1000;
+const RESEND_API_KEY =
+  process.env.RESEND_API_KEY;
+const RESEND_FROM_EMAIL =
+  process.env.RESEND_FROM_EMAIL;
+
+const VERIFICATION_CODE_EXPIRY_MS =
+  15 * 60 * 1000;
+
+const VERIFICATION_RESEND_COOLDOWN_MS =
+  60 * 1000;
 
 if (!JWT_SECRET) {
-  console.error("ERROR: JWT_SECRET is missing.");
+  console.error(
+    "ERROR: JWT_SECRET is missing."
+  );
   process.exit(1);
 }
 
 if (!GROQ_API_KEY) {
-  console.warn("WARNING: GROQ_API_KEY is missing.");
+  console.warn(
+    "WARNING: GROQ_API_KEY is missing."
+  );
 }
 
-const DATA_DIR = path.join(__dirname, "data");
-const USERS_FILE = path.join(DATA_DIR, "users.json");
-const HISTORY_FILE = path.join(DATA_DIR, "history.json");
+const DATA_DIR = path.join(
+  __dirname,
+  "data"
+);
+
+const USERS_FILE = path.join(
+  DATA_DIR,
+  "users.json"
+);
+
+const HISTORY_FILE = path.join(
+  DATA_DIR,
+  "history.json"
+);
 
 if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.mkdirSync(DATA_DIR, {
+    recursive: true,
+  });
 }
 
-function ensureJsonFile(file, fallback = []) {
+function ensureJsonFile(
+  file,
+  fallback = []
+) {
   if (!fs.existsSync(file)) {
     fs.writeFileSync(
       file,
-      JSON.stringify(fallback, null, 2),
+      JSON.stringify(
+        fallback,
+        null,
+        2
+      ),
       "utf8"
     );
   }
@@ -67,9 +102,16 @@ function ensureJsonFile(file, fallback = []) {
 ensureJsonFile(USERS_FILE, []);
 ensureJsonFile(HISTORY_FILE, []);
 
-function readJson(file, fallback = []) {
+function readJson(
+  file,
+  fallback = []
+) {
   try {
-    const contents = fs.readFileSync(file, "utf8");
+    const contents =
+      fs.readFileSync(
+        file,
+        "utf8"
+      );
 
     if (!contents.trim()) {
       return fallback;
@@ -81,10 +123,17 @@ function readJson(file, fallback = []) {
   }
 }
 
-function writeJson(file, data) {
+function writeJson(
+  file,
+  data
+) {
   fs.writeFileSync(
     file,
-    JSON.stringify(data, null, 2),
+    JSON.stringify(
+      data,
+      null,
+      2
+    ),
     "utf8"
   );
 }
@@ -108,15 +157,27 @@ app.use(
   })
 );
 
-app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: true }));
+app.use(
+  express.json({
+    limit: "10mb",
+  })
+);
+
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: "10mb",
+  })
+);
+
 app.use(cookieParser());
 
-const googleClient = new OAuth2Client(
-  GOOGLE_CLIENT_ID,
-  GOOGLE_CLIENT_SECRET,
-  GOOGLE_REDIRECT_URI
-);
+const googleClient =
+  new OAuth2Client(
+    GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET,
+    GOOGLE_REDIRECT_URI
+  );
 
 const groq = GROQ_API_KEY
   ? new Groq({
@@ -133,11 +194,15 @@ function publicUser(user) {
     id: user.id,
     name: user.name,
     email: user.email,
-    picture: user.picture || null,
-    provider: user.provider || "local",
-    createdAt: user.createdAt,
+    picture:
+      user.picture || null,
+    provider:
+      user.provider || "local",
+    createdAt:
+      user.createdAt,
     verified:
-      user.provider === "google" ||
+      user.provider ===
+        "google" ||
       user.verified !== false,
   };
 }
@@ -159,54 +224,78 @@ function createToken(user) {
   );
 }
 
-function getTokenFromRequest(req) {
-  const authHeader = req.headers.authorization;
+function getTokenFromRequest(
+  req
+) {
+  const authHeader =
+    req.headers.authorization;
 
-  if (authHeader?.startsWith("Bearer ")) {
-    return authHeader.substring(7);
+  if (
+    authHeader?.startsWith(
+      "Bearer "
+    )
+  ) {
+    return authHeader.substring(
+      7
+    );
   }
 
-  if (req.cookies?.verlo_token) {
+  if (
+    req.cookies?.verlo_token
+  ) {
     return req.cookies.verlo_token;
   }
 
   return null;
 }
 
-function authenticate(req, res, next) {
-  const token = getTokenFromRequest(req);
+function authenticate(
+  req,
+  res,
+  next
+) {
+  const token =
+    getTokenFromRequest(req);
 
   if (!token) {
     return res.status(401).json({
       success: false,
-      error: "Authentication required.",
+      error:
+        "Authentication required.",
     });
   }
 
   try {
-    const decoded = jwt.verify(
-      token,
-      JWT_SECRET
-    );
+    const decoded =
+      jwt.verify(
+        token,
+        JWT_SECRET
+      );
 
-    const users = readJson(
-      USERS_FILE,
-      []
-    );
+    const users =
+      readJson(
+        USERS_FILE,
+        []
+      );
 
-    const user = users.find(
-      (item) => item.id === decoded.id
-    );
+    const user =
+      users.find(
+        (item) =>
+          item.id ===
+          decoded.id
+      );
 
     if (!user) {
       return res.status(401).json({
         success: false,
-        error: "User no longer exists.",
+        error:
+          "User no longer exists.",
       });
     }
 
     if (
-      user.provider !== "google" &&
+      user.provider !==
+        "google" &&
       user.verified === false
     ) {
       return res.status(403).json({
@@ -229,24 +318,40 @@ function authenticate(req, res, next) {
   }
 }
 
-function setAuthCookie(res, token) {
-  res.cookie("verlo_token", token, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "none",
-    maxAge:
-      7 * 24 * 60 * 60 * 1000,
-    path: "/",
-  });
+function setAuthCookie(
+  res,
+  token
+) {
+  res.cookie(
+    "verlo_token",
+    token,
+    {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      maxAge:
+        7 *
+        24 *
+        60 *
+        60 *
+        1000,
+      path: "/",
+    }
+  );
 }
 
-function clearAuthCookie(res) {
-  res.clearCookie("verlo_token", {
-    httpOnly: true,
-    secure: true,
-    sameSite: "none",
-    path: "/",
-  });
+function clearAuthCookie(
+  res
+) {
+  res.clearCookie(
+    "verlo_token",
+    {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      path: "/",
+    }
+  );
 }
 
 function createVerificationCode() {
@@ -258,7 +363,9 @@ function createVerificationCode() {
   );
 }
 
-function hashVerificationCode(code) {
+function hashVerificationCode(
+  code
+) {
   return crypto
     .createHash("sha256")
     .update(String(code))
@@ -272,14 +379,19 @@ function getVerificationExpiry() {
   ).toISOString();
 }
 
-function getVerificationLastSent(user) {
-  if (!user?.verificationLastSentAt) {
+function getVerificationLastSent(
+  user
+) {
+  if (
+    !user?.verificationLastSentAt
+  ) {
     return null;
   }
 
-  const timestamp = Date.parse(
-    user.verificationLastSentAt
-  );
+  const timestamp =
+    Date.parse(
+      user.verificationLastSentAt
+    );
 
   if (Number.isNaN(timestamp)) {
     return null;
@@ -304,37 +416,48 @@ async function sendVerificationEmail(
   const safeName = String(
     user.name || "there"
   )
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+    .replace(
+      /&/g,
+      "&amp;"
+    )
+    .replace(
+      /</g,
+      "&lt;"
+    )
+    .replace(
+      />/g,
+      "&gt;"
+    );
 
-  const response = await fetch(
-    "https://api.resend.com/emails",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${RESEND_API_KEY}`,
-        "Content-Type":
-          "application/json",
-      },
-      body: JSON.stringify({
-        from: RESEND_FROM_EMAIL,
-        to: [user.email],
-        subject:
-          "Verify your VERLO account",
-        html: `
-          <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#171717">
-            <h1 style="margin-bottom:8px">Verify your VERLO account</h1>
-            <p>Hi ${safeName},</p>
-            <p>Use the verification code below to finish creating your VERLO account.</p>
-            <div style="font-size:32px;font-weight:700;letter-spacing:8px;padding:20px 0">${code}</div>
-            <p>This code expires in 15 minutes.</p>
-            <p>If you did not create a VERLO account, you can ignore this email.</p>
-          </div>
-        `,
-      }),
-    }
-  );
+  const response =
+    await fetch(
+      "https://api.resend.com/emails",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${RESEND_API_KEY}`,
+          "Content-Type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          from:
+            RESEND_FROM_EMAIL,
+          to: [user.email],
+          subject:
+            "Verify your VERLO account",
+          html: `
+            <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#171717">
+              <h1 style="margin-bottom:8px">Verify your VERLO account</h1>
+              <p>Hi ${safeName},</p>
+              <p>Use the verification code below to finish creating your VERLO account.</p>
+              <div style="font-size:32px;font-weight:700;letter-spacing:8px;padding:20px 0">${code}</div>
+              <p>This code expires in 15 minutes.</p>
+              <p>If you did not create a VERLO account, you can ignore this email.</p>
+            </div>
+          `,
+        }),
+      }
+    );
 
   if (!response.ok) {
     let details = "";
@@ -363,17 +486,27 @@ function extractJson(raw) {
     );
   }
 
-  const cleaned = String(raw)
-    .replace(/```json/gi, "")
-    .replace(/```/g, "")
-    .trim();
+  const cleaned =
+    String(raw)
+      .replace(
+        /```json/gi,
+        ""
+      )
+      .replace(
+        /```/g,
+        ""
+      )
+      .trim();
 
   try {
-    return JSON.parse(cleaned);
+    return JSON.parse(
+      cleaned
+    );
   } catch {}
 
   const firstObject =
     cleaned.indexOf("{");
+
   const lastObject =
     cleaned.lastIndexOf("}");
 
@@ -393,6 +526,7 @@ function extractJson(raw) {
 
   const firstArray =
     cleaned.indexOf("[");
+
   const lastArray =
     cleaned.lastIndexOf("]");
 
@@ -415,14 +549,20 @@ function extractJson(raw) {
   );
 }
 
-function normaliseChoice(choice) {
-  if (typeof choice === "string") {
+function normaliseChoice(
+  choice
+) {
+  if (
+    typeof choice ===
+    "string"
+  ) {
     return choice.trim();
   }
 
   if (
     choice &&
-    typeof choice === "object"
+    typeof choice ===
+      "object"
   ) {
     return String(
       choice.text ||
@@ -442,7 +582,10 @@ function normaliseQuestion(
   question,
   questionNumber
 ) {
-  if (typeof question === "string") {
+  if (
+    typeof question ===
+    "string"
+  ) {
     question = {
       question,
       type: "text",
@@ -451,7 +594,8 @@ function normaliseQuestion(
 
   if (
     !question ||
-    typeof question !== "object"
+    typeof question !==
+      "object"
   ) {
     return null;
   }
@@ -472,9 +616,10 @@ function normaliseQuestion(
         ? question.options
         : [];
 
-  const choices = rawChoices
-    .map(normaliseChoice)
-    .filter(Boolean);
+  const choices =
+    rawChoices
+      .map(normaliseChoice)
+      .filter(Boolean);
 
   const type =
     requestedType === "mcq" ||
@@ -497,7 +642,15 @@ function normaliseQuestion(
   }
 
   const cleanQuestion =
-    String(questionText).trim();
+    String(
+      questionText
+    ).trim();
+
+  const imageUrl =
+    question.imageUrl ||
+    question.image ||
+    question.image_url ||
+    null;
 
   if (
     type === "mcq" &&
@@ -508,9 +661,20 @@ function normaliseQuestion(
         question.id ||
         `adaptive-${questionNumber}`,
       type: "text",
-      question: cleanQuestion,
-      stem: cleanQuestion,
+      question:
+        cleanQuestion,
+      stem:
+        cleanQuestion,
       choices: [],
+      imageUrl,
+      imageAlt:
+        question.imageAlt ||
+        question.image_alt ||
+        cleanQuestion,
+      imageCaption:
+        question.imageCaption ||
+        question.image_caption ||
+        "",
       questionNumber,
     };
   }
@@ -520,14 +684,27 @@ function normaliseQuestion(
       question.id ||
       `adaptive-${questionNumber}`,
     type,
-    question: cleanQuestion,
-    stem: cleanQuestion,
+    question:
+      cleanQuestion,
+    stem:
+      cleanQuestion,
     choices,
+    imageUrl,
+    imageAlt:
+      question.imageAlt ||
+      question.image_alt ||
+      cleanQuestion,
+    imageCaption:
+      question.imageCaption ||
+      question.image_caption ||
+      "",
     questionNumber,
   };
 }
 
-function questionKey(value) {
+function questionKey(
+  value
+) {
   return String(value || "")
     .toLowerCase()
     .replace(
@@ -574,6 +751,9 @@ function buildFallbackQuestion(
       stem:
         "What deadline or time limit applies to this situation?",
       choices: [],
+      imageUrl: null,
+      imageAlt: "",
+      imageCaption: "",
       questionNumber,
     };
   }
@@ -591,6 +771,9 @@ function buildFallbackQuestion(
       stem:
         "What amount of money is involved, and what payment or financial outcome are you trying to achieve?",
       choices: [],
+      imageUrl: null,
+      imageAlt: "",
+      imageCaption: "",
       questionNumber,
     };
   }
@@ -608,6 +791,9 @@ function buildFallbackQuestion(
       stem:
         "What records, messages, documents, or other evidence do you already have?",
       choices: [],
+      imageUrl: null,
+      imageAlt: "",
+      imageCaption: "",
       questionNumber,
     };
   }
@@ -625,6 +811,9 @@ function buildFallbackQuestion(
       stem:
         "What has the other party said or done so far, and when did that happen?",
       choices: [],
+      imageUrl: null,
+      imageAlt: "",
+      imageCaption: "",
       questionNumber,
     };
   }
@@ -642,6 +831,9 @@ function buildFallbackQuestion(
       stem:
         "What happened with the booking, and what outcome would you like the provider to give you?",
       choices: [],
+      imageUrl: null,
+      imageAlt: "",
+      imageCaption: "",
       questionNumber,
     };
   }
@@ -659,11 +851,16 @@ function buildFallbackQuestion(
       stem:
         "What problem is the device experiencing, and what has already been tried to fix it?",
       choices: [],
+      imageUrl: null,
+      imageAlt: "",
+      imageCaption: "",
       questionNumber,
     };
   }
 
-  if (questionNumber === 1) {
+  if (
+    questionNumber === 1
+  ) {
     return {
       id: `adaptive-${questionNumber}`,
       type: "text",
@@ -672,11 +869,16 @@ function buildFallbackQuestion(
       stem:
         "What outcome would resolve this situation for you?",
       choices: [],
+      imageUrl: null,
+      imageAlt: "",
+      imageCaption: "",
       questionNumber,
     };
   }
 
-  if (questionNumber === 2) {
+  if (
+    questionNumber === 2
+  ) {
     return {
       id: `adaptive-${questionNumber}`,
       type: "text",
@@ -685,11 +887,16 @@ function buildFallbackQuestion(
       stem:
         "What has happened so far, including any response you have received from the other person or organisation?",
       choices: [],
+      imageUrl: null,
+      imageAlt: "",
+      imageCaption: "",
       questionNumber,
     };
   }
 
-  if (questionNumber === 3) {
+  if (
+    questionNumber === 3
+  ) {
     return {
       id: `adaptive-${questionNumber}`,
       type: "text",
@@ -698,6 +905,9 @@ function buildFallbackQuestion(
       stem:
         "Is there any important constraint, deadline, cost, or consequence that VERLO should take into account?",
       choices: [],
+      imageUrl: null,
+      imageAlt: "",
+      imageCaption: "",
       questionNumber,
     };
   }
@@ -710,6 +920,9 @@ function buildFallbackQuestion(
     stem:
       "Is there anything else about this situation that could change what you should do next?",
     choices: [],
+    imageUrl: null,
+    imageAlt: "",
+    imageCaption: "",
     questionNumber,
   };
 }
@@ -732,17 +945,21 @@ async function askGroq(
       messages: [
         {
           role: "system",
-          content: systemPrompt,
+          content:
+            systemPrompt,
         },
         {
           role: "user",
-          content: userPrompt,
+          content:
+            userPrompt,
         },
       ],
       temperature:
-        options.temperature ?? 0.5,
+        options.temperature ??
+        0.5,
       max_tokens:
-        options.max_tokens ?? 2500,
+        options.max_tokens ??
+        2500,
     });
 
   const content =
@@ -821,6 +1038,10 @@ Rules:
 - Use mcq when a small set of clear options genuinely helps.
 - Use text when the answer needs a specific explanation.
 - MCQs must contain 3 to 5 choices.
+- If understanding a diagram, receipt, document, screenshot, photograph, chart, or other visual would materially improve the question, use an image-based question.
+- Image-based questions may use an existing attachment from the user's input.
+- If an image is required, return imageUrl, imageAlt, and optionally imageCaption.
+- Do not invent an image URL.
 - Keep the question concise.
 - Return JSON only.
 - Do not use markdown.
@@ -845,6 +1066,19 @@ For multiple choice:
     "question": "...",
     "stem": "...",
     "choices": ["...", "...", "..."]
+  }
+}
+
+For an image-based question:
+
+{
+  "question": {
+    "id": "adaptive-${questionNumber}",
+    "type": "text",
+    "question": "...",
+    "imageUrl": "...",
+    "imageAlt": "...",
+    "imageCaption": "..."
   }
 }
 `;
@@ -876,18 +1110,19 @@ Generate the next adaptive question now.
     attempt += 1
   ) {
     try {
-      const raw = await askGroq(
-        systemPrompt,
-        attempt === 0
-          ? userPrompt
-          : `${userPrompt}
+      const raw =
+        await askGroq(
+          systemPrompt,
+          attempt === 0
+            ? userPrompt
+            : `${userPrompt}
 
 Your previous response was unusable. Return one valid JSON object only. Do not include reasoning, markdown, or extra text.`,
-        {
-          temperature: 0.2,
-          max_tokens: 900,
-        }
-      );
+          {
+            temperature: 0.2,
+            max_tokens: 900,
+          }
+        );
 
       const parsed =
         extractJson(raw);
@@ -958,30 +1193,39 @@ Your previous response was unusable. Return one valid JSON object only. Do not i
   );
 }
 
-app.get("/", (req, res) => {
-  res.json({
-    success: true,
-    name: "Verlo API",
-    status: "online",
-    frontend: CLIENT_URL,
-    authentication:
-      "HttpOnly cookie",
-    adaptiveEngine: true,
-    emailVerification: true,
-  });
-});
+app.get(
+  "/",
+  (req, res) => {
+    res.json({
+      success: true,
+      name: "Verlo API",
+      status: "online",
+      frontend:
+        CLIENT_URL,
+      authentication:
+        "HttpOnly cookie",
+      adaptiveEngine: true,
+      emailVerification:
+        true,
+    });
+  }
+);
 
-app.get("/api/health", (req, res) => {
-  res.json({
-    success: true,
-    status: "online",
-    service: "Verlo API",
-    adaptiveEngine: true,
-    emailVerification: true,
-    timestamp:
-      new Date().toISOString(),
-  });
-});
+app.get(
+  "/api/health",
+  (req, res) => {
+    res.json({
+      success: true,
+      status: "online",
+      service: "Verlo API",
+      adaptiveEngine: true,
+      emailVerification:
+        true,
+      timestamp:
+        new Date().toISOString(),
+    });
+  }
+);
 
 app.post(
   "/api/auth/signup",
@@ -1021,7 +1265,9 @@ app.post(
       }
 
       const normalizedEmail =
-        email.trim().toLowerCase();
+        email
+          .trim()
+          .toLowerCase();
 
       const users =
         readJson(
@@ -1047,8 +1293,10 @@ app.post(
             success: false,
             error:
               "An unverified account with this email already exists. Request a new verification code.",
-            verificationRequired: true,
-            email: normalizedEmail,
+            verificationRequired:
+              true,
+            email:
+              normalizedEmail,
           });
         }
 
@@ -1072,7 +1320,8 @@ app.post(
           normalizedEmail.split(
             "@"
           )[0],
-        email: normalizedEmail,
+        email:
+          normalizedEmail,
         passwordHash,
         picture: null,
         provider: "local",
@@ -1121,7 +1370,8 @@ app.post(
             "Account created. Check your email for the verification code.",
           verificationRequired:
             true,
-          email: normalizedEmail,
+          email:
+            normalizedEmail,
         });
     } catch (error) {
       console.error(
@@ -1157,7 +1407,9 @@ app.post(
       }
 
       const normalizedEmail =
-        email.trim().toLowerCase();
+        email
+          .trim()
+          .toLowerCase();
 
       const users =
         readJson(
@@ -1195,7 +1447,8 @@ app.post(
       }
 
       if (
-        user.provider !== "google" &&
+        user.provider !==
+          "google" &&
         user.verified === false
       ) {
         return res.status(403).json({
@@ -1204,7 +1457,8 @@ app.post(
             "Please verify your email before logging in.",
           verificationRequired:
             true,
-          email: user.email,
+          email:
+            user.email,
         });
       }
 
@@ -1270,7 +1524,9 @@ app.post(
       }
 
       const normalizedEmail =
-        email.trim().toLowerCase();
+        email
+          .trim()
+          .toLowerCase();
 
       const cleanCode =
         String(code).trim();
@@ -1311,8 +1567,7 @@ app.post(
       if (
         user.provider ===
           "google" ||
-        user.verified ===
-          true
+        user.verified === true
       ) {
         const token =
           createToken(user);
@@ -1352,7 +1607,9 @@ app.post(
         );
 
       if (
-        Number.isNaN(expiry) ||
+        Number.isNaN(
+          expiry
+        ) ||
         Date.now() >
           expiry
       ) {
@@ -1471,7 +1728,9 @@ app.post(
       }
 
       const normalizedEmail =
-        email.trim().toLowerCase();
+        email
+          .trim()
+          .toLowerCase();
 
       const users =
         readJson(
@@ -1497,8 +1756,7 @@ app.post(
       if (
         user.provider ===
           "google" ||
-        user.verified ===
-          true
+        user.verified === true
       ) {
         return res.status(400).json({
           success: false,
@@ -1520,21 +1778,20 @@ app.post(
       ) {
         const remaining =
           Math.ceil(
-            (
-              VERIFICATION_RESEND_COOLDOWN_MS -
-              (
-                Date.now() -
-                lastSent
-              )
-            ) / 1000
+            (VERIFICATION_RESEND_COOLDOWN_MS -
+              (Date.now() -
+                lastSent)) /
+              1000
           );
 
-        return res.status(429).json({
-          success: false,
-          error: `Please wait ${remaining} seconds before requesting another code.`,
-          retryAfter:
-            remaining,
-        });
+        return res
+          .status(429)
+          .json({
+            success: false,
+            error: `Please wait ${remaining} seconds before requesting another code.`,
+            retryAfter:
+              remaining,
+          });
       }
 
       const code =
@@ -1773,7 +2030,8 @@ app.get(
           picture,
           provider:
             "google",
-          verified: true,
+          verified:
+            true,
           verificationCodeHash:
             null,
           verificationExpiresAt:
@@ -1913,6 +2171,7 @@ app.post(
         previousQuestions = [],
         questionNumber = 1,
         maxQuestions = 6,
+        attachments = [],
       } = req.body;
 
       if (!description.trim()) {
@@ -1949,12 +2208,45 @@ app.post(
           ? previousQuestions
           : [];
 
+      const attachmentText =
+        Array.isArray(
+          attachments
+        )
+          ? attachments
+              .map(
+                (item) =>
+                  `File: ${
+                    item.name ||
+                    "Unnamed file"
+                  }\nType: ${
+                    item.type ||
+                    "Unknown"
+                  }\nContent: ${
+                    item.text ||
+                    item.content ||
+                    "No extracted text"
+                  }`
+              )
+              .join("\n\n")
+          : "";
+
+      const enhancedContext =
+        [
+          context,
+          attachmentText
+            ? `Imported files:\n${attachmentText}`
+            : "",
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+
       const question =
         await generateAdaptiveQuestion(
           {
             title,
             description,
-            context,
+            context:
+              enhancedContext,
             previousAnswers:
               answers,
             previousQuestions:
@@ -2032,10 +2324,8 @@ ${JSON.stringify(
 )}
 `,
           {
-            temperature:
-              0.35,
-            max_tokens:
-              1200,
+            temperature: 0.35,
+            max_tokens: 1200,
           }
         );
 
@@ -2048,10 +2338,7 @@ ${JSON.stringify(
         )
           ? parsed.questions
               .map(
-                (
-                  item,
-                  index
-                ) =>
+                (item, index) =>
                   normaliseQuestion(
                     item,
                     index + 1
@@ -2092,6 +2379,7 @@ app.post(
         answers = {},
         questions = [],
         attachment = null,
+        attachments = [],
       } = req.body;
 
       if (!prompt?.trim()) {
@@ -2163,17 +2451,11 @@ app.post(
                   item.answer
               )
           : Object.entries(
-              parsedAnswers ||
-                {}
+              parsedAnswers || {}
             ).map(
-              ([
-                key,
-                value,
-              ]) => ({
-                question:
-                  key,
-                answer:
-                  value,
+              ([key, value]) => ({
+                question: key,
+                answer: value,
               })
             );
 
@@ -2182,7 +2464,7 @@ app.post(
           `
 You are VERLO's final decision-intelligence engine.
 
-Create a personalised action pathway from the user's situation and adaptive answers.
+Create a personalised, accessible action pathway from the user's situation and adaptive answers.
 
 Return JSON only.
 
@@ -2194,6 +2476,7 @@ Return JSON only.
     "financialExposure": "",
     "timeSensitivity": ""
   },
+  "summary": "",
   "nextSteps": [
     {
       "step": "",
@@ -2213,8 +2496,20 @@ Return JSON only.
     "subject": "",
     "body": ""
   },
-  "resources": [],
-  "referenceLinks": []
+  "resources": [
+    {
+      "title": "",
+      "description": "",
+      "url": ""
+    }
+  ],
+  "referenceLinks": [
+    {
+      "title": "",
+      "description": "",
+      "url": ""
+    }
+  ]
 }
 
 Rules:
@@ -2222,9 +2517,16 @@ Rules:
 - severityScore must be an integer from 1 to 10.
 - Do not invent facts.
 - Do not invent laws, organisations, phone numbers, or URLs.
+- Only provide a URL if it is known and genuinely relevant.
+- URLs must be complete URLs beginning with https:// or http://.
+- Prefer official government, regulator, ombudsman, tribunal, educational, or primary-source websites.
 - Use adaptive answers heavily.
 - Make the pathway specific.
+- Explain technical or complicated information in plain language.
+- Keep headings and recommendations easy to scan.
+- Make important deadlines and actions explicit.
 - If information is unknown, say it is unknown.
+- Do not make unsupported legal, financial, medical, or professional claims.
 `,
           `
 Title:
@@ -2246,18 +2548,18 @@ ${JSON.stringify(
   2
 )}
 
-Attachment:
+Imported files:
 ${JSON.stringify(
-  attachment,
+  attachments ||
+    attachment ||
+    [],
   null,
   2
 )}
 `,
           {
-            temperature:
-              0.3,
-            max_tokens:
-              4000,
+            temperature: 0.3,
+            max_tokens: 5000,
           }
         );
 
@@ -2300,18 +2602,77 @@ ${JSON.stringify(
           result.resources;
       }
 
+      result.resources =
+        result.resources
+          .filter(
+            (item) =>
+              item &&
+              typeof item ===
+                "object"
+          )
+          .map(
+            (item) => ({
+              title:
+                item.title ||
+                "Resource",
+              description:
+                item.description ||
+                "",
+              url:
+                typeof item.url ===
+                  "string" &&
+                /^https?:\/\//i.test(
+                  item.url
+                )
+                  ? item.url
+                  : "",
+            })
+          );
+
+      result.referenceLinks =
+        result.referenceLinks
+          .filter(
+            (item) =>
+              item &&
+              typeof item ===
+                "object"
+          )
+          .map(
+            (item) => ({
+              title:
+                item.title ||
+                "Reference",
+              description:
+                item.description ||
+                "",
+              url:
+                typeof item.url ===
+                  "string" &&
+                /^https?:\/\//i.test(
+                  item.url
+                )
+                  ? item.url
+                  : "",
+            })
+          );
+
+      if (!result.riskAssessment) {
+        result.riskAssessment = {
+          severityScore:
+            "N/A",
+          financialExposure:
+            "Not established",
+          timeSensitivity:
+            "Review required",
+        };
+      }
+
       if (
-        !result.riskAssessment
+        !result.summary
       ) {
-        result.riskAssessment =
-          {
-            severityScore:
-              "N/A",
-            financialExposure:
-              "Not established",
-            timeSensitivity:
-              "Review required",
-          };
+        result.summary =
+          result.situation ||
+          "Review the information and actions below.";
       }
 
       res.json({
@@ -2366,10 +2727,16 @@ You are VERLO AI Assistant.
 
 Help the user understand their existing situation.
 
+Use plain, accessible language.
+
 Do not invent facts.
 
 Situation:
-${currentSituation || context || "None provided"}
+${
+  currentSituation ||
+  context ||
+  "None provided"
+}
 
 Attachment:
 ${JSON.stringify(
@@ -2380,10 +2747,8 @@ ${JSON.stringify(
 `,
           userMessage,
           {
-            temperature:
-              0.55,
-            max_tokens:
-              1800,
+            temperature: 0.55,
+            max_tokens: 1800,
           }
         );
 
@@ -2391,7 +2756,8 @@ ${JSON.stringify(
         success: true,
         reply:
           response,
-        response,
+        response:
+          response,
       });
     } catch (error) {
       console.error(
