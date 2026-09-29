@@ -416,7 +416,6 @@ export default function App() {
       [key]: answer
     };
 
-    // Keep the latest answer in state before asking the engine for the next one.
     if (item.type === 'mcq') {
       setSelectedMcqAnswers(prev => ({ ...prev, [key]: answer }));
     } else {
@@ -484,8 +483,6 @@ export default function App() {
       if (!res.ok) {
         throw new Error(result.error || 'Failed to compute final diagnostic pathway.');
       }
-
-      // The updated server returns structured data. Keep a fallback for older responses.
       let finalData = result.data;
 
       if (!finalData && result.analysis) {
@@ -879,6 +876,16 @@ export default function App() {
                           <div 
                             key={cIndex}
                             onClick={() => setSelectedMcqAnswers({ ...selectedMcqAnswers, [currentAssessmentItem.id || activeAssessmentIndex]: choice })}
+
+
+
+
+
+
+
+
+
+                            // LUCKY NUMBER 888
                             style={{ 
                               padding: '1rem', 
                               borderRadius: '8px', 
@@ -1028,9 +1035,6 @@ export default function App() {
                   { id: 'resources', label: '🔗 Resources' }
                 ].map(tab => {
                   const isActive = activeTab === tab.id;
-
-
-                  // LUCKY NUMBER 888
                   return (
                     <button
                       key={tab.id}
