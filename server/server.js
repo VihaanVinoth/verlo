@@ -1,152 +1,94 @@
 import express from 'express';
 import cors from 'cors';
+import dotenv from 'dotenv';
 import Groq from 'groq-sdk';
+
+dotenv.config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const client = new Groq({
-  apiKey: process.env.GROQ_API_KEY, 
-});
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-const usersDB = new Map();
-const historyDB = new Map();
-
-app.post('/api/auth/signup', (req, res) => {
-  try {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required.' });
-    }
-    const normalizedEmail = email.trim().toLowerCase();
-    if (usersDB.has(normalizedEmail)) {
-      return res.status(409).json({ error: 'This email address is already registered. Please log in instead.' });
-    }
-
-    const newUser = { id: normalizedEmail, email: normalizedEmail, password };
-    usersDB.set(normalizedEmail, newUser);
-    res.json({ success: true, user: { id: newUser.id, email: newUser.email } });
-  } catch (err) {
-    console.error('Signup error:', err);
-    res.status(500).json({ error: 'Internal server error during signup.' });
-  }
-});
- 
-app.post('/api/auth/login', (req, res) => {
-  try {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required.' });
-    }
-    const normalizedEmail = email.trim().toLowerCase();
-    const user = usersDB.get(normalizedEmail);
-
-    if (!user || user.password !== password) {
-      return res.status(401).json({ error: 'Invalid email or password.' });
-    }
-
-    res.json({ success: true, user: { id: user.id, email: user.email } });
-  } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({ error: 'Internal server error during login.' });
-  }
-});
-
-app.get('/api/history/:userId', (req, res) => {
-  try {
-    const { userId } = req.params;
-    const userHistory = historyDB.get(userId) || [];
-    res.json({ success: true, history: userHistory });
-  } catch (err) {
-    console.error('Fetch history error:', err);
-    res.status(500).json({ error: 'Failed to fetch history.' });
-  }
-});
-
-app.post('/api/history/save', (req, res) => {
-  try {
-    const { userId, report } = req.body;
-    if (!userId || !report) {
-      return res.status(400).json({ error: 'UserId and report data are required.' });
-    }
-
-    const userHistory = historyDB.get(userId) || [];
-    const newEntry = {
-      ...report,
-      timestamp: new Date().toISOString()
-    };
-    
-    userHistory.unshift(newEntry); 
-    historyDB.set(userId, userHistory);
-
-    res.json({ success: true, history: userHistory });
-  } catch (err) {
-    console.error('Save history error:', err);
-    res.status(500).json({ error: 'Failed to save pathway.' });
-  }
-});
+const inMemoryHistory = {};
 
 app.post('/api/diagnose', async (req, res) => {
   try {
     const { title, description, context } = req.body;
 
-    if (!description || description.trim().length === 0) {
-      return res.status(400).json({ error: 'Situation description is required.' });
+    if (!description || description.trim().split(/\s+/).length < 2) {
+      return res.status(400).json({ error: 'Please provide a detailed description (at least a few words).' });
     }
 
-    const systemPrompt = `You are VERLO, an advanced ethical decision-intelligence system. 
-Analyze the user's situation and return a strictly valid JSON object (no markdown formatting blocks around it, just raw JSON) matching this exact schema:
+    const systemPrompt = `You are VERLO, an ethical decision-intelligence and strategic action engine. 
+Analyze the user's situation and return a STRICTLY VALID JSON object (no markdown formatting, no extra text outside the JSON) with the following structure:
 {
   "confidence": "High" | "Medium" | "Low",
   "riskAssessment": {
     "severityScore": number (1-10),
-    "financialExposure": string,
-    "timeSensitivity": string
+    "financialExposure": "string describing potential cost or loss",
+    "timeSensitivity": "string describing urgency"
   },
-  "situation": string (concise restatement of core problem),
+  "situation": "A concise, professional 1-2 sentence summary of the core issue.",
   "nextSteps": [
     {
-      "step": string,
-      "why": string,
-      "pitfallWarning": string
+      "step": "Action title",
+      "why": "Explanation of why this is necessary",
+      "pitfallWarning": "What to avoid during this step"
     }
   ],
   "options": [
     {
-      "title": string,
-      "bestFor": string
+      "title": "Alternative strategic choice",
+      "bestFor": "When this option makes sense"
     }
   ],
-  "verificationNeeded": [string],
+  "verificationNeeded": ["Item 1 to check/verify", "Item 2"],
   "draftTemplate": {
-    "recipient": string,
-    "subject": string,
-    "body": string
+    "recipient": "Target recipient (e.g., Customer Support, Landlord)",
+    "subject": "Clear, formal subject line",
+    "body": "Formal letter template body with placeholders like [Date] if needed."
   }
-}`;
+}
+Ensure all keys, quotes, and brackets are valid JSON. Do not include trailing commas or markdown code blocks.`;
 
-    const userPrompt = `Situation Title: ${title || 'Untitled'}
+    const userPrompt = `Title: ${title || 'Untitled Situation'}
 Description: ${description}
-Personal Context/Constraints: ${context || 'None provided'}`;
+Personal Context / Constraints: ${context || 'None provided'}`;
 
-    const completion = await client.chat.completions.create({
-      model: 'openai/gpt-oss-120b', 
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      temperature: 0.3,
-      response_format: { type: "json_object" }
+      temperature: 0.2,
+      response_format: { type: 'json_object' }
     });
 
-    const rawContent = completion.choices[0].message.content;
-    const parsedData = JSON.parse(rawContent);
+    let rawContent = completion.choices[0]?.message?.content;
+    if (!rawContent) {
+      throw new Error('Empty response received from Groq LLM.');
+    }
+
+    rawContent = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
+
+    let parsedData;
+    try {
+      parsedData = JSON.parse(rawContent);
+    } catch (parseError) {
+      console.error('JSON Parse Error. Raw content was:', rawContent);
+      return res.status(500).json({ 
+        error: 'Engine generated malformed JSON. Please try submitting again.',
+        details: parseError.message 
+      });
+    }
 
     res.json({ success: true, data: parsedData });
-  } catch (error) {
-    console.error('Diagnosis error:', error);
-    res.status(500).json({ error: 'Failed to compute tailored decision pathway.' });
+  } catch (err) {
+    console.error('Diagnosis error:', err);
+    res.status(500).json({ error: err.message || 'Internal server error during analysis.' });
   }
 });
 
@@ -154,26 +96,64 @@ app.post('/api/chat', async (req, res) => {
   try {
     const { question, currentSituation } = req.body;
     if (!question) {
-      return res.status(400).json({ error: 'Question is required.' });
+      return res.status(400).json({ error: 'Question is required' });
     }
 
-    const completion = await client.chat.completions.create({
-      model: 'openai/gpt-oss-120b',
+    const chatCompletion = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
       messages: [
         { 
           role: 'system', 
-          content: 'You are VERLO AI, an expert strategic assistant helping a user navigate their analyzed dispute or situation. Provide sharp, concise, actionable advice.' 
+          content: `You are VERLO AI, an expert decision-intelligence assistant. You are helping a user navigate this situation: "${currentSituation}". Provide concise, highly actionable, and empathetic guidance using clear Markdown formatting.` 
         },
-        { role: 'user', content: `Context Situation: ${currentSituation}\n\nUser Question: ${question}` }
+        { role: 'user', content: question }
       ],
-      temperature: 0.5,
+      temperature: 0.4
     });
 
-    res.json({ success: true, reply: completion.choices[0].message.content });
-  } catch (error) {
-    console.error('Chat error:', error);
-    res.status(500).json({ error: 'Failed to generate chat response.' });
+    const reply = chatCompletion.choices[0]?.message?.content || 'No response generated.';
+    res.json({ success: true, reply });
+  } catch (err) {
+    console.error('Chat error:', err);
+    res.status(500).json({ error: err.message || 'Failed to generate chat response.' });
   }
+});
+
+app.post('/api/auth/signup', (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+  const user = { id: email, email };
+  res.json({ success: true, user });
+});
+
+app.post('/api/auth/login', (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+  const user = { id: email, email };
+  res.json({ success: true, user });
+});
+
+app.get('/api/history/:userId', (req, res) => {
+  const { userId } = req.params;
+  const history = inMemoryHistory[userId] || [];
+  res.json({ success: true, history });
+});
+
+app.post('/api/history/save', (req, res) => {
+  const { userId, report } = req.body;
+  if (!userId || !report) {
+    return res.status(400).json({ error: 'userId and report are required' });
+  }
+  if (!inMemoryHistory[userId]) {
+    inMemoryHistory[userId] = [];
+  }
+  const newEntry = { ...report, timestamp: new Date().toISOString() };
+  inMemoryHistory[userId].unshift(newEntry);
+  res.json({ success: true, history: inMemoryHistory[userId] });
 });
 
 const PORT = process.env.PORT || 5001;
