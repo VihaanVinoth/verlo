@@ -22,7 +22,6 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const DB_PATH = path.resolve(__dirname, 'verlo.db');
 let db = null;
 
-// Helper to persist sql.js database to disk
 function saveDatabase() {
   if (db) {
     const data = db.export();
@@ -262,10 +261,10 @@ Context: ${context || 'None provided'}`;
 
     const chatCompletion = await groq.chat.completions.create({
       messages: [
-        { role: 'system', content: systemPrompt },
+        { role: 'system', content: systemPrompt }, 
         { role: 'user', content: userPrompt }
       ],
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-120b',
       temperature: 0.2,
       max_tokens: 1500,
       response_format: { type: 'json_object' }
@@ -319,7 +318,7 @@ app.post('/api/chat', async (req, res) => {
         },
         { role: 'user', content: question }
       ],
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-120b',
       temperature: 0.4,
       max_tokens: 1000
     });
