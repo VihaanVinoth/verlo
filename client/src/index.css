@@ -20,8 +20,13 @@
   box-sizing: border-box;
 }
 
-html {
+html,
+body,
+#root {
   min-height: 100%;
+}
+
+html {
   background: var(--bg-primary);
 }
 
@@ -31,16 +36,17 @@ body {
   min-height: 100vh;
   background: var(--bg-primary);
   color: var(--text-main);
-  font-family:
-    Inter,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   line-height: 1.5;
 }
 
-body,
+button,
+input,
+textarea,
+select {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
 button,
 input,
 textarea {
@@ -85,6 +91,7 @@ a {
       transparent 38%
     ),
     var(--bg-primary);
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 .verlo-nav {
@@ -929,7 +936,11 @@ a {
   border: 1px solid var(--border-accent);
   border-radius: 10px;
   background:
-    linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.025)),
+    linear-gradient(
+      135deg,
+      rgba(16, 185, 129, 0.1),
+      rgba(16, 185, 129, 0.025)
+    ),
     var(--bg-card);
 }
 
