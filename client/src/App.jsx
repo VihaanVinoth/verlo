@@ -32,103 +32,56 @@ export default function App() {
     adaptiveQuestions: [],
   });
 
-  const [selectedMcqAnswers, setSelectedMcqAnswers] =
-    useState({});
+  const [selectedMcqAnswers, setSelectedMcqAnswers] = useState({});
+  const [adaptiveTextAnswers, setAdaptiveTextAnswers] = useState({});
+  const [activeAssessmentIndex, setActiveAssessmentIndex] = useState(0);
 
-  const [adaptiveTextAnswers, setAdaptiveTextAnswers] =
-    useState({});
+  const [isAdaptiveLoading, setIsAdaptiveLoading] = useState(false);
+  const [adaptiveQuestionCount, setAdaptiveQuestionCount] = useState(0);
 
-  const [activeAssessmentIndex, setActiveAssessmentIndex] =
-    useState(0);
+  const [assessmentAttachment, setAssessmentAttachment] = useState(null);
+  const [chatAttachment, setChatAttachment] = useState(null);
 
-  const [isAdaptiveLoading, setIsAdaptiveLoading] =
-    useState(false);
+  const [analysisData, setAnalysisData] = useState(null);
+  const [activeTab, setActiveTab] = useState("overview");
 
-  const [adaptiveQuestionCount, setAdaptiveQuestionCount] =
-    useState(0);
+  const [processingStage, setProcessingStage] = useState(0);
+  const [error, setError] = useState(null);
 
-  const [assessmentAttachment, setAssessmentAttachment] =
-    useState(null);
+  const [copied, setCopied] = useState(false);
+  const [copyCount, setCopyCount] = useState(0);
 
-  const [chatAttachment, setChatAttachment] =
-    useState(null);
+  const [customAlert, setCustomAlert] = useState(null);
+  const [alertExiting, setAlertExiting] = useState(false);
 
-  const [analysisData, setAnalysisData] =
-    useState(null);
+  const [chatQuestion, setChatQuestion] = useState("");
+  const [chatHistory, setChatHistory] = useState([]);
+  const [isChatLoading, setIsChatLoading] = useState(false);
 
-  const [activeTab, setActiveTab] =
-    useState("overview");
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem("verlo_user");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
 
-  const [processingStage, setProcessingStage] =
-    useState(0);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState("login");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authError, setAuthError] = useState(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
 
-  const [error, setError] =
-    useState(null);
-
-  const [copied, setCopied] =
-    useState(false);
-
-  const [copyCount, setCopyCount] =
-    useState(0);
-
-  const [customAlert, setCustomAlert] =
-    useState(null);
-
-  const [alertExiting, setAlertExiting] =
-    useState(false);
-
-  const [chatQuestion, setChatQuestion] =
-    useState("");
-
-  const [chatHistory, setChatHistory] =
-    useState([]);
-
-  const [isChatLoading, setIsChatLoading] =
-    useState(false);
-
-  const [currentUser, setCurrentUser] =
-    useState(() => {
-      try {
-        const saved =
-          localStorage.getItem("verlo_user");
-
-        return saved
-          ? JSON.parse(saved)
-          : null;
-      } catch {
-        return null;
-      }
-    });
-
-  const [showAuthModal, setShowAuthModal] =
-    useState(false);
-
-  const [authMode, setAuthMode] =
-    useState("login");
-
-  const [authEmail, setAuthEmail] =
-    useState("");
-
-  const [authPassword, setAuthPassword] =
-    useState("");
-
-  const [authError, setAuthError] =
-    useState(null);
-
-  const [userHistory, setUserHistory] =
-    useState([]);
-
-  const [showHistoryDrawer, setShowHistoryDrawer] =
-    useState(false);
+  const [userHistory, setUserHistory] = useState([]);
+  const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
 
   const wordCount = description.trim()
     ? description.trim().split(/\s+/).length
     : 0;
 
-  const triggerCustomAlert = (
-    message,
-    type = "success",
-  ) => {
+  const triggerCustomAlert = (message, type = "success") => {
     setCustomAlert({
       message,
       type,
@@ -150,8 +103,7 @@ export default function App() {
    * Restore the account session when VERLO starts.
    */
   useEffect(() => {
-    const token =
-      localStorage.getItem("verlo_token");
+    const token = localStorage.getItem("verlo_token");
 
     if (!token) return;
 
@@ -165,8 +117,7 @@ export default function App() {
 
         if (!res.ok) {
           throw new Error(
-            data.error ||
-              "Your session has expired.",
+            data.error || "Your session has expired.",
           );
         }
 
@@ -183,32 +134,26 @@ export default function App() {
         }
       })
       .catch(() => {
-        localStorage.removeItem(
-          "verlo_token",
-        );
-
-        localStorage.removeItem(
-          "verlo_user",
-        );
-
+        localStorage.removeItem("verlo_token");
+        localStorage.removeItem("verlo_user");
         setCurrentUser(null);
       });
   }, []);
 
+  /*
+   * Complete Google OAuth exchange after the backend
+   * redirects back to the frontend.
+   */
   useEffect(() => {
-    const params =
-      new URLSearchParams(
-        window.location.search,
-      );
+    const params = new URLSearchParams(
+      window.location.search,
+    );
 
-    const authCode =
-      params.get("auth_code");
+    const authCode = params.get("auth_code");
+    const authErrorFromUrl = params.get("auth_error");
 
-    const authError =
-      params.get("auth_error");
-
-    if (authError) {
-      setAuthError(authError);
+    if (authErrorFromUrl) {
+      setAuthError(authErrorFromUrl);
       setAuthMode("login");
       setShowAuthModal(true);
 
@@ -223,75 +168,79 @@ export default function App() {
 
     if (!authCode) return;
 
-    const completeGoogleLogin =
-      async () => {
-        try {
-          const res = await fetch(
-            `${API_URL}/api/auth/google/exchange`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type":
-                  "application/json",
-              },
-              body: JSON.stringify({
-                code: authCode,
-              }),
+    const completeGoogleLogin = async () => {
+      setIsAuthLoading(true);
+
+      try {
+        const res = await fetch(
+          `${API_URL}/api/auth/google/exchange`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
             },
-          );
+            body: JSON.stringify({
+              code: authCode,
+            }),
+          },
+        );
 
-          const data =
-            await res.json();
+        const data = await res.json();
 
-          if (!res.ok) {
-            throw new Error(
-              data.error ||
-                "Google login failed.",
-            );
-          }
-
-          localStorage.setItem(
-            "verlo_token",
-            data.token,
-          );
-
-          localStorage.setItem(
-            "verlo_user",
-            JSON.stringify(data.user),
-          );
-
-          setCurrentUser(data.user);
-          setShowAuthModal(false);
-          setAuthError(null);
-
-          triggerCustomAlert(
-            data.user.name
-              ? `Welcome, ${data.user.name}!`
-              : "Logged in with Google successfully!",
-          );
-        } catch (err) {
-          setAuthError(
-            err.message ||
-              "Google login failed.",
-          );
-
-          setAuthMode("login");
-          setShowAuthModal(true);
-        } finally {
-          window.history.replaceState(
-            {},
-            document.title,
-            window.location.pathname,
+        if (!res.ok) {
+          throw new Error(
+            data.error || "Google login failed.",
           );
         }
-      };
+
+        if (!data.token || !data.user) {
+          throw new Error(
+            "Google authentication returned an invalid response.",
+          );
+        }
+
+        localStorage.setItem(
+          "verlo_token",
+          data.token,
+        );
+
+        localStorage.setItem(
+          "verlo_user",
+          JSON.stringify(data.user),
+        );
+
+        setCurrentUser(data.user);
+        setShowAuthModal(false);
+        setAuthError(null);
+
+        triggerCustomAlert(
+          data.user.name
+            ? `Welcome, ${data.user.name}!`
+            : "Logged in with Google successfully!",
+        );
+      } catch (err) {
+        setAuthError(
+          err.message || "Google login failed.",
+        );
+
+        setAuthMode("login");
+        setShowAuthModal(true);
+      } finally {
+        setIsAuthLoading(false);
+
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname,
+        );
+      }
+    };
 
     completeGoogleLogin();
   }, []);
 
   /*
-   * Load account history using the authenticated
-   * JWT rather than trusting a user ID from the browser.
+   * Load account history using the authenticated JWT.
    */
   useEffect(() => {
     if (!currentUser) {
@@ -304,10 +253,7 @@ export default function App() {
       JSON.stringify(currentUser),
     );
 
-    const token =
-      localStorage.getItem(
-        "verlo_token",
-      );
+    const token = localStorage.getItem("verlo_token");
 
     if (!token) {
       setUserHistory([]);
@@ -324,17 +270,14 @@ export default function App() {
 
         if (!res.ok) {
           throw new Error(
-            data.error ||
-              "Could not load history.",
+            data.error || "Could not load history.",
           );
         }
 
         return data;
       })
       .then((data) => {
-        setUserHistory(
-          data.history || [],
-        );
+        setUserHistory(data.history || []);
       })
       .catch((err) => {
         console.error(
@@ -344,12 +287,10 @@ export default function App() {
       });
   }, [currentUser]);
 
-  const renderMarkdownToHTML = (
-    content,
-  ) => {
+  const renderMarkdownToHTML = (content) => {
     if (!content) return "";
 
-    let html = content
+    let html = String(content)
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
@@ -377,12 +318,10 @@ export default function App() {
         line.trim().startsWith("- ") ||
         line.trim().startsWith("* ")
       ) {
-        const item =
-          line.trim().substring(2);
+        const item = line.trim().substring(2);
 
         if (!inList) {
           inList = true;
-
           return `<ul class="markdown-list"><li>${item}</li>`;
         }
 
@@ -394,9 +333,7 @@ export default function App() {
         return `</ul><p>${line}</p>`;
       }
 
-      return line.trim()
-        ? `<p>${line}</p>`
-        : "";
+      return line.trim() ? `<p>${line}</p>` : "";
     });
 
     if (inList) {
@@ -423,6 +360,7 @@ export default function App() {
    */
   const handleGoogleLogin = () => {
     setAuthError(null);
+    setIsAuthLoading(true);
 
     window.location.href =
       `${API_URL}/api/auth/google`;
@@ -431,11 +369,11 @@ export default function App() {
   /*
    * Email/password login and signup.
    */
-  const handleAuthSubmit = async (
-    e,
-  ) => {
+  const handleAuthSubmit = async (e) => {
     e.preventDefault();
+
     setAuthError(null);
+    setIsAuthLoading(true);
 
     const endpoint =
       authMode === "login"
@@ -448,8 +386,7 @@ export default function App() {
         {
           method: "POST",
           headers: {
-            "Content-Type":
-              "application/json",
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             email: authEmail.trim(),
@@ -458,8 +395,7 @@ export default function App() {
         },
       );
 
-      const data =
-        await res.json();
+      const data = await res.json();
 
       if (!res.ok) {
         if (
@@ -478,8 +414,7 @@ export default function App() {
         }
 
         throw new Error(
-          data.error ||
-            "Authentication failed.",
+          data.error || "Authentication failed.",
         );
       }
 
@@ -512,22 +447,18 @@ export default function App() {
       );
     } catch (err) {
       setAuthError(
-        err.message ||
-          "Authentication failed.",
+        err.message || "Authentication failed.",
       );
+    } finally {
+      setIsAuthLoading(false);
     }
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
 
-    localStorage.removeItem(
-      "verlo_user",
-    );
-
-    localStorage.removeItem(
-      "verlo_token",
-    );
+    localStorage.removeItem("verlo_user");
+    localStorage.removeItem("verlo_token");
 
     setUserHistory([]);
     setShowHistoryDrawer(false);
@@ -538,9 +469,7 @@ export default function App() {
     );
   };
 
-  const handleSaveToAccount = async (
-    resultData,
-  ) => {
+  const handleSaveToAccount = async (resultData) => {
     if (!currentUser) {
       setAuthMode("login");
       setAuthError(null);
@@ -548,10 +477,9 @@ export default function App() {
       return;
     }
 
-    const token =
-      localStorage.getItem(
-        "verlo_token",
-      );
+    const token = localStorage.getItem(
+      "verlo_token",
+    );
 
     if (!token) {
       setAuthMode("login");
@@ -568,16 +496,12 @@ export default function App() {
         {
           method: "POST",
           headers: {
-            "Content-Type":
-              "application/json",
-            Authorization:
-              `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             report: {
-              title:
-                title ||
-                "Untitled Report",
+              title: title || "Untitled Report",
               description,
               result: resultData,
             },
@@ -585,19 +509,15 @@ export default function App() {
         },
       );
 
-      const data =
-        await res.json();
+      const data = await res.json();
 
       if (!res.ok) {
         throw new Error(
-          data.error ||
-            "Could not save pathway.",
+          data.error || "Could not save pathway.",
         );
       }
 
-      setUserHistory(
-        data.history || [],
-      );
+      setUserHistory(data.history || []);
 
       triggerCustomAlert(
         "Pathway saved successfully to your account history!",
@@ -615,16 +535,17 @@ export default function App() {
     }
   };
 
+  /*
+   * This currently stores file metadata only.
+   * It does not upload the actual file contents.
+   */
   const handleSecureFileUpload = async (
     file,
     target,
   ) => {
     if (!file) return;
 
-    if (
-      file.size >
-      15 * 1024 * 1024
-    ) {
+    if (file.size > 15 * 1024 * 1024) {
       triggerCustomAlert(
         "File exceeds maximum size limit (15MB).",
         "error",
@@ -635,12 +556,11 @@ export default function App() {
 
     try {
       triggerCustomAlert(
-        "Encrypting and securing file in sandbox DB...",
+        "Attaching file...",
       );
 
-      await new Promise(
-        (resolve) =>
-          setTimeout(resolve, 800),
+      await new Promise((resolve) =>
+        setTimeout(resolve, 500),
       );
 
       const fileMeta = {
@@ -653,46 +573,37 @@ export default function App() {
           "application/octet-stream",
         uploadedAt:
           new Date().toISOString(),
-        sandboxId: `db_vault_${Math.random()
-          .toString(36)
-          .substring(2, 9)}`,
       };
 
       if (target === "assessment") {
-        setAssessmentAttachment(
-          fileMeta,
-        );
+        setAssessmentAttachment(fileMeta);
 
         triggerCustomAlert(
-          `File "${file.name}" securely attached to assessment context.`,
+          `File "${file.name}" attached to assessment context.`,
         );
       }
 
       if (target === "chat") {
-        setChatAttachment(
-          fileMeta,
-        );
+        setChatAttachment(fileMeta);
 
         triggerCustomAlert(
-          `File "${file.name}" securely attached to chat prompt.`,
+          `File "${file.name}" attached to chat prompt.`,
         );
       }
     } catch {
       triggerCustomAlert(
-        "Failed to securely upload file.",
+        "Failed to attach file.",
         "error",
       );
     }
   };
 
-  const removeAttachment = (
-    target,
-  ) => {
+  const removeAttachment = (target) => {
     if (target === "assessment") {
       setAssessmentAttachment(null);
 
       triggerCustomAlert(
-        "Assessment attachment removed from vault.",
+        "Assessment attachment removed.",
       );
     }
 
@@ -700,7 +611,7 @@ export default function App() {
       setChatAttachment(null);
 
       triggerCustomAlert(
-        "Chat attachment removed from vault.",
+        "Chat attachment removed.",
       );
     }
   };
@@ -716,42 +627,38 @@ export default function App() {
       return [];
     }
 
-    return source.map(
-      (item, index) => ({
-        type:
-          item.type === "mcq"
-            ? "mcq"
-            : "text",
+    return source.map((item, index) => ({
+      type:
+        item.type === "mcq"
+          ? "mcq"
+          : "text",
 
-        ...item,
+      ...item,
 
-        id:
-          item.id ||
-          item.questionId ||
-          `adaptive-${index}`,
+      id:
+        item.id ||
+        item.questionId ||
+        `adaptive-${index}`,
 
-        question:
-          item.question ||
-          item.text ||
-          item.prompt ||
-          item.stem ||
-          "Please provide more information.",
+      question:
+        item.question ||
+        item.text ||
+        item.prompt ||
+        item.stem ||
+        "Please provide more information.",
 
-        stem:
-          item.stem ||
-          item.question ||
-          item.text ||
-          item.prompt ||
-          "Please choose an option.",
+      stem:
+        item.stem ||
+        item.question ||
+        item.text ||
+        item.prompt ||
+        "Please choose an option.",
 
-        choices:
-          Array.isArray(
-            item.choices,
-          )
-            ? item.choices
-            : [],
-      }),
-    );
+      choices:
+        Array.isArray(item.choices)
+          ? item.choices
+          : [],
+    }));
   };
 
   const assessmentItems =
@@ -771,9 +678,7 @@ export default function App() {
   });
 
   const requestAdaptiveQuestion =
-    async (
-      previousAnswers = {},
-    ) => {
+    async (previousAnswers = {}) => {
       if (
         isAdaptiveLoading ||
         adaptiveQuestionCount >=
@@ -794,8 +699,7 @@ export default function App() {
           {
             method: "POST",
             headers: {
-              "Content-Type":
-                "application/json",
+              "Content-Type": "application/json",
             },
             body: JSON.stringify({
               title,
@@ -809,8 +713,7 @@ export default function App() {
           },
         );
 
-        const result =
-          await res.json();
+        const result = await res.json();
 
         if (!res.ok) {
           throw new Error(
@@ -831,8 +734,7 @@ export default function App() {
         ];
 
         setAssessmentData({
-          adaptiveQuestions:
-            questions,
+          adaptiveQuestions: questions,
         });
 
         setAdaptiveQuestionCount(
@@ -858,9 +760,7 @@ export default function App() {
       }
     };
 
-  const handleInitialSubmit = async (
-    e,
-  ) => {
+  const handleInitialSubmit = async (e) => {
     e.preventDefault();
 
     if (wordCount < MIN_WORDS) {
@@ -893,16 +793,13 @@ export default function App() {
         currentStage <
         processingSteps.length
       ) {
-        setProcessingStage(
-          currentStage,
-        );
+        setProcessingStage(currentStage);
       }
     }, 550);
 
     try {
-      await new Promise(
-        (resolve) =>
-          setTimeout(resolve, 1800),
+      await new Promise((resolve) =>
+        setTimeout(resolve, 1800),
       );
 
       const res = await fetch(
@@ -910,8 +807,7 @@ export default function App() {
         {
           method: "POST",
           headers: {
-            "Content-Type":
-              "application/json",
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             title,
@@ -925,8 +821,7 @@ export default function App() {
         },
       );
 
-      const result =
-        await res.json();
+      const result = await res.json();
 
       if (!res.ok) {
         throw new Error(
@@ -975,10 +870,8 @@ export default function App() {
       activeAssessmentIndex;
 
     return item.type === "mcq"
-      ? selectedMcqAnswers[key] ||
-          ""
-      : adaptiveTextAnswers[key] ||
-          "";
+      ? selectedMcqAnswers[key] || ""
+      : adaptiveTextAnswers[key] || "";
   };
 
   const handleAssessmentNext =
@@ -1052,9 +945,7 @@ export default function App() {
   const handleAssessmentPrev = () => {
     if (isAdaptiveLoading) return;
 
-    if (
-      activeAssessmentIndex > 0
-    ) {
+    if (activeAssessmentIndex > 0) {
       setActiveAssessmentIndex(
         (prev) => prev - 1,
       );
@@ -1064,9 +955,7 @@ export default function App() {
   };
 
   const handleFinalAssessmentSubmit =
-    async (
-      answersOverride = null,
-    ) => {
+    async (answersOverride = null) => {
       setStep("processing");
       setProcessingStage(0);
 
@@ -1076,21 +965,16 @@ export default function App() {
 
       let currentStage = 0;
 
-      const interval = setInterval(
-        () => {
-          currentStage += 1;
+      const interval = setInterval(() => {
+        currentStage += 1;
 
-          if (
-            currentStage <
-            processingSteps.length
-          ) {
-            setProcessingStage(
-              currentStage,
-            );
-          }
-        },
-        700,
-      );
+        if (
+          currentStage <
+          processingSteps.length
+        ) {
+          setProcessingStage(currentStage);
+        }
+      }, 700);
 
       try {
         const [res] =
@@ -1105,13 +989,10 @@ export default function App() {
                 },
                 body: JSON.stringify({
                   title,
-                  prompt:
-                    description,
+                  prompt: description,
                   category:
-                    title ||
-                    "General",
-                  context:
-                    userContext,
+                    title || "General",
+                  context: userContext,
                   answers:
                     JSON.stringify(
                       finalAnswers,
@@ -1122,18 +1003,16 @@ export default function App() {
               },
             ),
 
-            new Promise(
-              (resolve) =>
-                setTimeout(
-                  resolve,
-                  processingSteps.length *
-                    700,
-                ),
+            new Promise((resolve) =>
+              setTimeout(
+                resolve,
+                processingSteps.length *
+                  700,
+              ),
             ),
           ]);
 
-        const result =
-          await res.json();
+        const result = await res.json();
 
         if (!res.ok) {
           throw new Error(
@@ -1164,8 +1043,7 @@ export default function App() {
                 "Moderate",
 
               riskAssessment: {
-                severityScore:
-                  "N/A",
+                severityScore: "N/A",
                 financialExposure:
                   "Not established",
                 timeSensitivity:
@@ -1173,12 +1051,10 @@ export default function App() {
               },
 
               nextSteps: [],
-
               personalizedPanels: [],
-
               draftTemplate: null,
-
               resources: [],
+              referenceLinks: [],
             };
           }
         }
@@ -1189,10 +1065,22 @@ export default function App() {
           );
         }
 
-        setAnalysisData(
-          finalData,
-        );
+        /*
+         * Support both the old "resources"
+         * property and the newer "referenceLinks"
+         * property.
+         */
+        if (
+          !finalData.referenceLinks &&
+          Array.isArray(
+            finalData.resources,
+          )
+        ) {
+          finalData.referenceLinks =
+            finalData.resources;
+        }
 
+        setAnalysisData(finalData);
         setChatHistory([]);
         setActiveTab("overview");
         setStep("results");
@@ -1241,9 +1129,7 @@ export default function App() {
     );
   };
 
-  const handleChatSubmit = async (
-    e,
-  ) => {
+  const handleChatSubmit = async (e) => {
     e.preventDefault();
 
     if (
@@ -1275,9 +1161,7 @@ export default function App() {
       },
     ];
 
-    setChatHistory(
-      newHistory,
-    );
+    setChatHistory(newHistory);
 
     try {
       const res = await fetch(
@@ -1289,19 +1173,16 @@ export default function App() {
               "application/json",
           },
           body: JSON.stringify({
-            question:
-              questionText,
+            question: questionText,
             currentSituation:
-              description ||
-              title,
+              description || title,
             attachment:
               currentAttachment,
           }),
         },
       );
 
-      const data =
-        await res.json();
+      const data = await res.json();
 
       if (!res.ok) {
         throw new Error(
@@ -1376,6 +1257,7 @@ export default function App() {
         {currentUser ? (
           <div className="user-nav">
             <button
+              type="button"
               onClick={() =>
                 setShowHistoryDrawer(
                   !showHistoryDrawer,
@@ -1402,6 +1284,7 @@ export default function App() {
             </span>
 
             <button
+              type="button"
               className="logout-button"
               onClick={
                 handleLogout
@@ -1412,6 +1295,7 @@ export default function App() {
           </div>
         ) : (
           <button
+            type="button"
             className="login-button"
             onClick={() => {
               setAuthMode("login");
@@ -1462,8 +1346,7 @@ export default function App() {
                   setStep("input")
                 }
               >
-                Launch Decision Engine
-                →
+                Launch Decision Engine →
               </button>
 
               <div className="example-section">
@@ -1718,7 +1601,7 @@ export default function App() {
                       hidden
                       onChange={(e) =>
                         handleSecureFileUpload(
-                          e.target.files[0],
+                          e.target.files?.[0],
                           "assessment",
                         )
                       }
@@ -1726,10 +1609,9 @@ export default function App() {
                   </label>
 
                   <span className="file-note">
-                    Stored in safe
-                    encrypted DB
-                    sandbox; removable
-                    anytime.
+                    Attached locally for
+                    this assessment.
+                    Maximum 15MB.
                   </span>
 
                   {assessmentAttachment && (
@@ -1903,9 +1785,7 @@ export default function App() {
                                   )}
                                 </span>
 
-                                {
-                                  choice
-                                }
+                                {choice}
                               </button>
                             );
                           },
@@ -1951,7 +1831,6 @@ export default function App() {
                             !isAdaptiveLoading
                           ) {
                             e.preventDefault();
-
                             handleAssessmentNext();
                           }
                         }}
@@ -2019,6 +1898,7 @@ export default function App() {
                     >
                       <div className="step-content">
                         <span className="step-dot" />
+
                         <span>
                           {text}
                         </span>
@@ -2048,9 +1928,7 @@ export default function App() {
                     <button
                       className="secondary-button"
                       onClick={() =>
-                        setStep(
-                          "input",
-                        )
+                        setStep("input")
                       }
                     >
                       ← New Situation
@@ -2071,9 +1949,7 @@ export default function App() {
                   <button
                     className="secondary-button"
                     onClick={() =>
-                      setStep(
-                        "landing",
-                      )
+                      setStep("landing")
                     }
                   >
                     Start Over
@@ -2259,8 +2135,7 @@ export default function App() {
 
                                 {msg.attachment && (
                                   <small>
-                                    📎
-                                    Attached
+                                    📎 Attached
                                     file:{" "}
                                     {
                                       msg
@@ -2303,6 +2178,7 @@ export default function App() {
                           </span>
 
                           <button
+                            type="button"
                             onClick={() =>
                               removeAttachment(
                                 "chat",
@@ -2350,7 +2226,7 @@ export default function App() {
                             ) =>
                               handleSecureFileUpload(
                                 e.target
-                                  .files[0],
+                                  .files?.[0],
                                 "chat",
                               )
                             }
@@ -2537,9 +2413,10 @@ ${analysisData.draftTemplate.body}`}
                       Resources & Links
                     </h3>
 
-                    {!analysisData
-                      .referenceLinks
-                      ?.length ? (
+                    {!(
+                      analysisData.referenceLinks ||
+                      analysisData.resources
+                    )?.length ? (
                       <p>
                         No external links
                         provided for
@@ -2547,7 +2424,11 @@ ${analysisData.draftTemplate.body}`}
                       </p>
                     ) : (
                       <div className="resource-list">
-                        {analysisData.referenceLinks.map(
+                        {(
+                          analysisData.referenceLinks ||
+                          analysisData.resources ||
+                          []
+                        ).map(
                           (
                             link,
                             index,
@@ -2614,6 +2495,7 @@ ${analysisData.draftTemplate.body}`}
             </h3>
 
             <button
+              type="button"
               onClick={() =>
                 setShowHistoryDrawer(
                   false,
@@ -2636,6 +2518,7 @@ ${analysisData.draftTemplate.body}`}
               {userHistory.map(
                 (item, index) => (
                   <button
+                    type="button"
                     className="history-item"
                     key={index}
                     onClick={() => {
@@ -2694,11 +2577,13 @@ ${analysisData.draftTemplate.body}`}
 
               <button
                 type="button"
-                onClick={() =>
-                  setShowAuthModal(
-                    false,
-                  )
-                }
+                onClick={() => {
+                  if (!isAuthLoading) {
+                    setShowAuthModal(
+                      false,
+                    );
+                  }
+                }}
               >
                 ✕
               </button>
@@ -2725,26 +2610,33 @@ ${analysisData.draftTemplate.body}`}
                   fill="#4285F4"
                   d="M21.35 12.27c0-.79-.07-1.55-.22-2.27H12v4.3h5.23a4.47 4.47 0 0 1-1.94 2.94v2.45h3.14c1.84-1.69 2.92-4.18 2.92-7.42z"
                 />
+
                 <path
                   fill="#34A853"
                   d="M12 21.7c2.63 0 4.84-.87 6.45-2.35l-3.14-2.45c-.87.58-1.98.92-3.31.92-2.54 0-4.69-1.72-5.46-4.03H3.3v2.53A9.75 9.75 0 0 0 12 21.7z"
                 />
+
                 <path
                   fill="#FBBC05"
                   d="M6.54 13.79A5.86 5.86 0 0 1 6.23 12c0-.62.11-1.22.31-1.79V7.68H3.3A9.73 9.73 0 0 0 2.25 12c0 1.57.38 3.05 1.05 4.32l3.24-2.53z"
                 />
+
                 <path
                   fill="#EA4335"
                   d="M12 6.18c1.43 0 2.71.49 3.72 1.45l2.79-2.79C16.84 3.29 14.63 2.3 12 2.3a9.75 9.75 0 0 0-8.7 5.38l3.24 2.53c.77-2.31 2.92-4.03 5.46-4.03z"
                 />
               </svg>
-              <span>Continue with Google</span>
+
+              <span>
+                {isAuthLoading
+                  ? "Connecting to Google..."
+                  : "Continue with Google"}
+              </span>
             </button>
 
             <div className="auth-divider">
               <span>
-                or continue with
-                email
+                or continue with email
               </span>
             </div>
 
@@ -2761,15 +2653,16 @@ ${analysisData.draftTemplate.body}`}
                 <input
                   type="email"
                   className="form-input"
-                  value={
-                    authEmail
-                  }
+                  value={authEmail}
                   onChange={(e) =>
                     setAuthEmail(
                       e.target.value,
                     )
                   }
                   required
+                  disabled={
+                    isAuthLoading
+                  }
                 />
               </div>
 
@@ -2781,26 +2674,31 @@ ${analysisData.draftTemplate.body}`}
                 <input
                   type="password"
                   className="form-input"
-                  value={
-                    authPassword
-                  }
+                  value={authPassword}
                   onChange={(e) =>
                     setAuthPassword(
                       e.target.value,
                     )
                   }
                   required
+                  disabled={
+                    isAuthLoading
+                  }
                 />
               </div>
 
               <button
                 type="submit"
                 className="btn-primary full-width"
+                disabled={
+                  isAuthLoading
+                }
               >
-                {authMode ===
-                "login"
-                  ? "Log In"
-                  : "Sign Up"}
+                {isAuthLoading
+                  ? "Please wait..."
+                  : authMode === "login"
+                    ? "Log In"
+                    : "Sign Up"}
               </button>
             </form>
 
@@ -2812,6 +2710,9 @@ ${analysisData.draftTemplate.body}`}
                   account?{" "}
                   <button
                     type="button"
+                    disabled={
+                      isAuthLoading
+                    }
                     onClick={() => {
                       setAuthMode(
                         "signup",
@@ -2831,6 +2732,9 @@ ${analysisData.draftTemplate.body}`}
                   account?{" "}
                   <button
                     type="button"
+                    disabled={
+                      isAuthLoading
+                    }
                     onClick={() => {
                       setAuthMode(
                         "login",
