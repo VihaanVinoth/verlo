@@ -12,126 +12,58 @@ import Groq from "groq-sdk";
 
 dotenv.config();
 
+/* =========================================================
+   PATHS
+========================================================= */
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const app = express();
+/* =========================================================
+   CONFIG
+========================================================= */
 
 const PORT = Number(process.env.PORT || 5001);
 
 const CLIENT_URL =
   process.env.CLIENT_URL || "http://localhost:5173";
 
-const API_URL =
-  process.env.API_URL || `http://127.0.0.1:${PORT}`;
+const GOOGLE_CLIENT_ID =
+  process.env.GOOGLE_CLIENT_ID;
 
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const GOOGLE_CLIENT_SECRET =
+  process.env.GOOGLE_CLIENT_SECRET;
 
 const GOOGLE_REDIRECT_URI =
   process.env.GOOGLE_REDIRECT_URI ||
   `http://127.0.0.1:${PORT}/api/auth/google/callback`;
 
-const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_SECRET =
+  process.env.JWT_SECRET;
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
-
-if (!JWT_SECRET) {
-  console.warn(
-    "[VERLO] WARNING: JWT_SECRET is not configured."
-  );
-}
-
-if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
-  console.warn(
-    "[VERLO] WARNING: Google OAuth credentials are not configured."
-  );
-}
-
-if (!GROQ_API_KEY) {
-  console.warn(
-    "[VERLO] WARNING: GROQ_API_KEY is not configured."
-  );
-}
+const GROQ_API_KEY =
+  process.env.GROQ_API_KEY;
 
 /* =========================================================
-   DIRECTORIES / FILES
+   APP
 ========================================================= */
 
-const DATA_DIR = path.join(__dirname, "data");
-
-const USERS_FILE = path.join(
-  DATA_DIR,
-  "users.json"
-);
-
-const HISTORY_FILE = path.join(
-  DATA_DIR,
-  "history.json"
-);
-
-await fs.mkdir(DATA_DIR, {
-  recursive: true,
-});
-
-async function ensureJSONFile(file, fallback) {
-  try {
-    await fs.access(file);
-  } catch {
-    await fs.writeFile(
-      file,
-      JSON.stringify(fallback, null, 2),
-      "utf8"
-    );
-  }
-}
-
-await ensureJSONFile(USERS_FILE, []);
-await ensureJSONFile(HISTORY_FILE, []);
+const app = express();
 
 /* =========================================================
-   JSON HELPERS
-========================================================= */
-
-async function readJSON(file) {
-  try {
-    const contents = await fs.readFile(
-      file,
-      "utf8"
-    );
-
-    return JSON.parse(contents);
-  } catch (error) {
-    console.error(
-      `[VERLO] Failed reading ${file}:`,
-      error
-    );
-
-    return [];
-  }
-}
-
-async function writeJSON(file, data) {
-  await fs.writeFile(
-    file,
-    JSON.stringify(data, null, 2),
-    "utf8"
-  );
-}
-
-/* =========================================================
-   MIDDLEWARE
+   CORS
 ========================================================= */
 
 const allowedOrigins = [
-  CLIENT_URL,
   "http://localhost:5173",
   "http://127.0.0.1:5173",
+  CLIENT_URL,
 ].filter(Boolean);
 
 app.use(
   cors({
     origin(origin, callback) {
+      // Requests such as curl/server-to-server don't have an origin.
       if (!origin) {
         return callback(null, true);
       }
@@ -140,14 +72,17 @@ app.use(
         return callback(null, true);
       }
 
-      /*
-       * Useful for deployed frontends.
-       * For production, replace this with your exact
-       * frontend URL if desired.
-       */
+      // Allow localhost Vite ports during development.
       if (
         process.env.NODE_ENV !== "production" &&
         /^http:\/\/localhost:\d+$/.test(origin)
+      ) {
+        return callback(null, true);
+      }
+
+      if (
+        process.env.NODE_ENV !== "production" &&
+        /^http:\/\/127\.0\.0\.1:\d+$/.test(origin)
       ) {
         return callback(null, true);
       }
@@ -156,11 +91,17 @@ app.use(
         new Error("CORS origin not allowed.")
       );
     },
+
     credentials: true,
   })
 );
 
-app.use(express.json({ limit: "10mb" }));
+app.use(
+  express.json({
+    limit: "10mb",
+  })
+);
+
 app.use(
   express.urlencoded({
     extended: true,
@@ -168,40 +109,155 @@ app.use(
 );
 
 /* =========================================================
+   DATA FILES
+========================================================= */
+
+const DATA_DIR =
+  path.join(__dirname, "data");
+
+const USERS_FILE =
+  path.join(
+    DATA_DIR,
+    "users.json"
+  );
+
+const HISTORY_FILE =
+  path.join(
+    DATA_DIR,
+    "history.json"
+  );
+
+await fs.mkdir(DATA_DIR, {
+  recursive: true,
+});
+
+/* =========================================================
+   FILE HELPERS
+========================================================= */
+
+async function ensureJSONFile(
+  file,
+  fallback
+) {
+  try {
+    await fs.access(file);
+  } catch {
+    await fs.writeFile(
+      file,
+      JSON.stringify(
+        fallback,
+        null,
+        2
+      ),
+      "utf8"
+    );
+  }
+}
+
+async function readJSON(file) {
+  try {
+    const contents =
+      await fs.readFile(
+        file,
+        "utf8"
+      );
+
+    return JSON.parse(contents);
+  } catch (error) {
+    console.error(
+      `[VERLO] Failed to read ${file}:`,
+      error
+    );
+
+    return [];
+  }
+}
+
+async function writeJSON(
+  file,
+  data
+) {
+  await fs.writeFile(
+    file,
+    JSON.stringify(
+      data,
+      null,
+      2
+    ),
+    "utf8"
+  );
+}
+
+await ensureJSONFile(
+  USERS_FILE,
+  []
+);
+
+await ensureJSONFile(
+  HISTORY_FILE,
+  []
+);
+
+/* =========================================================
    GOOGLE OAUTH
 ========================================================= */
 
-const googleClient = new OAuth2Client(
-  GOOGLE_CLIENT_ID,
-  GOOGLE_CLIENT_SECRET,
-  GOOGLE_REDIRECT_URI
-);
+const googleClient =
+  new OAuth2Client(
+    GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET,
+    GOOGLE_REDIRECT_URI
+  );
 
-/*
- * Temporary one-time authentication codes.
- *
- * Google -> server
- * server -> temporary code
- * frontend -> server
- * server -> JWT
- *
- * These expire after 60 seconds and can only be used once.
- */
-const googleAuthCodes = new Map();
+/* =========================================================
+   GROQ
+========================================================= */
 
-/* Clean expired OAuth codes every minute. */
-setInterval(() => {
-  const now = Date.now();
+const groq = GROQ_API_KEY
+  ? new Groq({
+      apiKey: GROQ_API_KEY,
+    })
+  : null;
 
-  for (const [
-    code,
-    value,
-  ] of googleAuthCodes.entries()) {
-    if (value.expiresAt <= now) {
-      googleAuthCodes.delete(code);
-    }
-  }
-}, 60_000);
+/* =========================================================
+   STARTUP WARNINGS
+========================================================= */
+
+if (!JWT_SECRET) {
+  console.warn(
+    "[VERLO] WARNING: JWT_SECRET is missing."
+  );
+}
+
+if (
+  !GOOGLE_CLIENT_ID ||
+  !GOOGLE_CLIENT_SECRET
+) {
+  console.warn(
+    "[VERLO] WARNING: Google OAuth credentials are missing."
+  );
+}
+
+if (!GROQ_API_KEY) {
+  console.warn(
+    "[VERLO] WARNING: GROQ_API_KEY is missing."
+  );
+}
+
+/* =========================================================
+   PUBLIC USER
+========================================================= */
+
+function publicUser(user) {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    picture: user.picture || null,
+    provider:
+      user.provider || "local",
+  };
+}
 
 /* =========================================================
    JWT
@@ -226,64 +282,227 @@ function createJWT(user) {
   );
 }
 
+/* =========================================================
+   GET BEARER TOKEN
+========================================================= */
+
 function getTokenFromRequest(req) {
-  const header =
+  const authorization =
     req.headers.authorization || "";
 
-  if (!header.startsWith("Bearer ")) {
+  if (
+    authorization.startsWith(
+      "Bearer "
+    )
+  ) {
+    return authorization.substring(7);
+  }
+
+  return null;
+}
+
+/* =========================================================
+   GET COOKIE
+========================================================= */
+
+function getCookie(
+  req,
+  name
+) {
+  const cookieHeader =
+    req.headers.cookie;
+
+  if (!cookieHeader) {
     return null;
   }
 
-  return header.substring(7);
+  const cookies =
+    cookieHeader.split(";");
+
+  for (const cookie of cookies) {
+    const separator =
+      cookie.indexOf("=");
+
+    if (separator === -1) {
+      continue;
+    }
+
+    const key =
+      cookie
+        .slice(0, separator)
+        .trim();
+
+    if (key !== name) {
+      continue;
+    }
+
+    const value =
+      cookie
+        .slice(separator + 1)
+        .trim();
+
+    try {
+      return decodeURIComponent(
+        value
+      );
+    } catch {
+      return value;
+    }
+  }
+
+  return null;
 }
 
-function authenticate(req, res, next) {
+/* =========================================================
+   AUTHENTICATION MIDDLEWARE
+========================================================= */
+
+function authenticate(
+  req,
+  res,
+  next
+) {
   try {
-    const token =
+    /*
+     * First support the Authorization header.
+     */
+    let token =
       getTokenFromRequest(req);
+
+    /*
+     * If there isn't one, use the
+     * HttpOnly Google/local-login cookie.
+     */
+    if (!token) {
+      token =
+        getCookie(
+          req,
+          "verlo_token"
+        );
+    }
 
     if (!token) {
       return res.status(401).json({
         success: false,
-        error: "Authentication required.",
+        error:
+          "Authentication required.",
       });
     }
 
-    const decoded = jwt.verify(
-      token,
-      JWT_SECRET
-    );
+    if (!JWT_SECRET) {
+      return res.status(500).json({
+        success: false,
+        error:
+          "JWT_SECRET is not configured.",
+      });
+    }
+
+    const decoded =
+      jwt.verify(
+        token,
+        JWT_SECRET
+      );
 
     req.user = decoded;
 
     next();
-  } catch {
+  } catch (error) {
     return res.status(401).json({
       success: false,
-      error: "Invalid or expired authentication token.",
+      error:
+        "Invalid or expired authentication token.",
     });
   }
 }
 
 /* =========================================================
-   BASIC ROUTES
+   SET AUTH COOKIE
 ========================================================= */
 
-app.get("/", (req, res) => {
-  res.json({
-    success: true,
-    name: "Verlo API",
-    status: "online",
-  });
-});
+function setAuthCookie(
+  res,
+  token
+) {
+  const isProduction =
+    process.env.NODE_ENV ===
+    "production";
 
-app.get("/api/health", (req, res) => {
-  res.json({
-    success: true,
-    status: "online",
-    timestamp: new Date().toISOString(),
-  });
-});
+  const cookie = [
+    `verlo_token=${encodeURIComponent(
+      token
+    )}`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    "Max-Age=604800",
+  ];
+
+  /*
+   * Secure cookies only work over HTTPS.
+   * Localhost development is HTTP.
+   */
+  if (isProduction) {
+    cookie.push("Secure");
+  }
+
+  res.setHeader(
+    "Set-Cookie",
+    cookie.join("; ")
+  );
+}
+
+/* =========================================================
+   CLEAR AUTH COOKIE
+========================================================= */
+
+function clearAuthCookie(res) {
+  const cookie = [
+    "verlo_token=",
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    "Max-Age=0",
+  ];
+
+  if (
+    process.env.NODE_ENV ===
+    "production"
+  ) {
+    cookie.push("Secure");
+  }
+
+  res.setHeader(
+    "Set-Cookie",
+    cookie.join("; ")
+  );
+}
+
+/* =========================================================
+   HEALTH
+========================================================= */
+
+app.get(
+  "/",
+  (req, res) => {
+    res.json({
+      success: true,
+      name: "Verlo API",
+      status: "online",
+    });
+  }
+);
+
+app.get(
+  "/api/health",
+  (req, res) => {
+    res.json({
+      success: true,
+      status: "online",
+      timestamp:
+        new Date().toISOString(),
+    });
+  }
+);
 
 /* =========================================================
    SIGN UP
@@ -310,7 +529,10 @@ app.post(
         });
       }
 
-      if (password.length < 6) {
+      if (
+        String(password).length <
+        6
+      ) {
         return res.status(400).json({
           success: false,
           error:
@@ -324,7 +546,9 @@ app.post(
           .toLowerCase();
 
       let users =
-        await readJSON(USERS_FILE);
+        await readJSON(
+          USERS_FILE
+        );
 
       const existingUser =
         users.find(
@@ -349,14 +573,23 @@ app.post(
 
       const user = {
         id: randomUUID(),
+
         name:
           String(name || "")
             .trim() ||
-          normalizedEmail.split("@")[0],
-        email: normalizedEmail,
+          normalizedEmail.split(
+            "@"
+          )[0],
+
+        email:
+          normalizedEmail,
+
         passwordHash,
+
         provider: "local",
+
         picture: null,
+
         createdAt:
           new Date().toISOString(),
       };
@@ -371,18 +604,20 @@ app.post(
       const token =
         createJWT(user);
 
-      const publicUser = {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        picture: user.picture,
-        provider: user.provider,
-      };
+      /*
+       * Set the same HttpOnly cookie
+       * used by Google login.
+       */
+      setAuthCookie(
+        res,
+        token
+      );
 
       return res.status(201).json({
         success: true,
         token,
-        user: publicUser,
+        user:
+          publicUser(user),
       });
     } catch (error) {
       console.error(
@@ -429,7 +664,9 @@ app.post(
           .toLowerCase();
 
       const users =
-        await readJSON(USERS_FILE);
+        await readJSON(
+          USERS_FILE
+        );
 
       const user =
         users.find(
@@ -466,19 +703,16 @@ app.post(
       const token =
         createJWT(user);
 
-      const publicUser = {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        picture: user.picture || null,
-        provider:
-          user.provider || "local",
-      };
+      setAuthCookie(
+        res,
+        token
+      );
 
       return res.json({
         success: true,
         token,
-        user: publicUser,
+        user:
+          publicUser(user),
       });
     } catch (error) {
       console.error(
@@ -496,6 +730,21 @@ app.post(
 );
 
 /* =========================================================
+   LOGOUT
+========================================================= */
+
+app.post(
+  "/api/auth/logout",
+  (req, res) => {
+    clearAuthCookie(res);
+
+    return res.json({
+      success: true,
+    });
+  }
+);
+
+/* =========================================================
    CURRENT USER
 ========================================================= */
 
@@ -505,32 +754,31 @@ app.get(
   async (req, res) => {
     try {
       const users =
-        await readJSON(USERS_FILE);
+        await readJSON(
+          USERS_FILE
+        );
 
       const user =
         users.find(
           (item) =>
-            item.id === req.user.id
+            item.id ===
+            req.user.id
         );
 
       if (!user) {
+        clearAuthCookie(res);
+
         return res.status(404).json({
           success: false,
-          error: "User not found.",
+          error:
+            "User not found.",
         });
       }
 
       return res.json({
         success: true,
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          picture:
-            user.picture || null,
-          provider:
-            user.provider || "local",
-        },
+        user:
+          publicUser(user),
       });
     } catch (error) {
       console.error(
@@ -548,7 +796,7 @@ app.get(
 );
 
 /* =========================================================
-   START GOOGLE LOGIN
+   GOOGLE LOGIN
 ========================================================= */
 
 app.get(
@@ -560,27 +808,41 @@ app.get(
         !GOOGLE_CLIENT_SECRET
       ) {
         return res.status(500).send(
-          "Google OAuth is not configured on the server."
+          "Google OAuth is not configured."
         );
       }
 
       const authorizationUrl =
-        googleClient.generateAuthUrl({
-          access_type: "offline",
-          scope: [
-            "openid",
-            "email",
-            "profile",
-          ],
-          prompt: "select_account",
-        });
+        googleClient.generateAuthUrl(
+          {
+            access_type: "offline",
+
+            scope: [
+              "openid",
+              "email",
+              "profile",
+            ],
+
+            prompt:
+              "select_account",
+          }
+        );
+
+      console.log(
+        "[VERLO] Starting Google login."
+      );
+
+      console.log(
+        "[VERLO] Google redirect URI:",
+        GOOGLE_REDIRECT_URI
+      );
 
       return res.redirect(
         authorizationUrl
       );
     } catch (error) {
       console.error(
-        "[VERLO] Could not start Google login:",
+        "[VERLO] Google login start failed:",
         error
       );
 
@@ -611,22 +873,28 @@ app.get(
         );
 
         return res.redirect(
-          `${CLIENT_URL}/auth/callback?error=${encodeURIComponent(
-            error
-          )}`
+          `${CLIENT_URL}/?auth_error=google_cancelled`
         );
       }
 
       if (!code) {
+        console.error(
+          "[VERLO] Google callback contained no code."
+        );
+
         return res.redirect(
-          `${CLIENT_URL}/auth/callback?error=missing_google_code`
+          `${CLIENT_URL}/?auth_error=missing_code`
         );
       }
 
       console.log(
-        "[VERLO] Received Google callback."
+        "[VERLO] Google callback received."
       );
 
+      /*
+       * Exchange Google's authorization
+       * code for Google's tokens.
+       */
       const { tokens } =
         await googleClient.getToken(
           code
@@ -638,13 +906,19 @@ app.get(
         );
       }
 
+      /*
+       * Verify the ID token.
+       */
       const ticket =
-        await googleClient.verifyIdToken({
-          idToken:
-            tokens.id_token,
-          audience:
-            GOOGLE_CLIENT_ID,
-        });
+        await googleClient.verifyIdToken(
+          {
+            idToken:
+              tokens.id_token,
+
+            audience:
+              GOOGLE_CLIENT_ID,
+          }
+        );
 
       const payload =
         ticket.getPayload();
@@ -654,7 +928,7 @@ app.get(
         !payload.email
       ) {
         throw new Error(
-          "Google account information could not be read."
+          "Google account information was missing."
         );
       }
 
@@ -664,34 +938,57 @@ app.get(
           .toLowerCase();
 
       let users =
-        await readJSON(USERS_FILE);
+        await readJSON(
+          USERS_FILE
+        );
 
+      /*
+       * Find an existing account.
+       */
       let user =
         users.find(
           (item) =>
-            item.email === email
+            item.email ===
+            email
         );
 
+      /*
+       * Create the account if necessary.
+       */
       if (!user) {
         user = {
           id: randomUUID(),
+
           name:
             payload.name ||
-            email.split("@")[0],
+            email.split(
+              "@"
+            )[0],
+
           email,
+
           passwordHash: null,
+
           provider: "google",
+
           picture:
             payload.picture ||
             null,
+
           googleId:
-            payload.sub || null,
+            payload.sub ||
+            null,
+
           createdAt:
             new Date().toISOString(),
         };
 
         users.push(user);
       } else {
+        /*
+         * Update Google profile
+         * information.
+         */
         user.name =
           payload.name ||
           user.name;
@@ -707,15 +1004,15 @@ app.get(
           null;
 
         user.provider =
-          user.provider ||
           "google";
 
-        users = users.map(
-          (item) =>
-            item.id === user.id
-              ? user
-              : item
-        );
+        users =
+          users.map(
+            (item) =>
+              item.id === user.id
+                ? user
+                : item
+          );
       }
 
       await writeJSON(
@@ -723,148 +1020,58 @@ app.get(
         users
       );
 
+      /*
+       * Create Verlo's JWT.
+       */
       const token =
         createJWT(user);
 
       /*
-       * Create a temporary one-time code.
-       * The frontend exchanges this for the JWT.
+       * Store JWT in HttpOnly cookie.
+       *
+       * THIS IS THE IMPORTANT PART.
+       *
+       * There is NO auth_code.
+       * There is NO token in the URL.
        */
-      const authCode =
-        randomUUID();
-
-      googleAuthCodes.set(
-        authCode,
-        {
-          token,
-          user: {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            picture:
-              user.picture ||
-              null,
-            provider:
-              user.provider ||
-              "google",
-          },
-          expiresAt:
-            Date.now() +
-            60 * 1000,
-        }
+      setAuthCookie(
+        res,
+        token
       );
 
       console.log(
-        "[VERLO] Google login successful."
+        "[VERLO] Google authentication successful."
       );
-
-      /*
-       * IMPORTANT:
-       *
-       * Do NOT redirect to:
-       *
-       * /?auth_code=...
-       *
-       * Instead use the dedicated callback page.
-       */
-      const callbackURL =
-        `${CLIENT_URL}/auth/callback?auth_code=${encodeURIComponent(
-          authCode
-        )}`;
 
       console.log(
-        "[VERLO] Redirecting to:",
-        callbackURL
+        "[VERLO] Redirecting directly to:",
+        CLIENT_URL
       );
-
-      return res.redirect(
-        callbackURL
-      );
-    } catch (error) {
-      console.error(
-        "[VERLO] Google callback failed:",
-        error
-      );
-
-      return res.redirect(
-        `${CLIENT_URL}/auth/callback?error=google_auth_failed`
-      );
-    }
-  }
-);
-
-/* =========================================================
-   GOOGLE CODE EXCHANGE
-========================================================= */
-
-app.post(
-  "/api/auth/google/exchange",
-  async (req, res) => {
-    try {
-      const { code } =
-        req.body;
-
-      if (!code) {
-        return res.status(400).json({
-          success: false,
-          error:
-            "Authentication code is required.",
-        });
-      }
-
-      const stored =
-        googleAuthCodes.get(
-          code
-        );
-
-      if (!stored) {
-        return res.status(400).json({
-          success: false,
-          error:
-            "Authentication code is invalid or has already been used.",
-        });
-      }
-
-      if (
-        Date.now() >
-        stored.expiresAt
-      ) {
-        googleAuthCodes.delete(
-          code
-        );
-
-        return res.status(400).json({
-          success: false,
-          error:
-            "Authentication code has expired.",
-        });
-      }
 
       /*
-       * Delete BEFORE returning.
-       *
-       * This makes the code genuinely one-time-use.
+       * Straight back to the homepage.
        */
-      googleAuthCodes.delete(
-        code
+      return res.redirect(
+        `${CLIENT_URL}/`
       );
-
-      return res.json({
-        success: true,
-        token: stored.token,
-        user: stored.user,
-      });
     } catch (error) {
       console.error(
-        "[VERLO] Google exchange failed:",
-        error
+        "======================================"
       );
 
-      return res.status(500).json({
-        success: false,
-        error:
-          "Google authentication exchange failed.",
-      });
+      console.error(
+        "[VERLO] GOOGLE CALLBACK FAILED"
+      );
+
+      console.error(error);
+
+      console.error(
+        "======================================"
+      );
+
+      return res.redirect(
+        `${CLIENT_URL}/?auth_error=google_failed`
+      );
     }
   }
 );
@@ -892,11 +1099,12 @@ app.get(
 
       return res.json({
         success: true,
-        history: userHistory,
+        history:
+          userHistory,
       });
     } catch (error) {
       console.error(
-        "[VERLO] History error:",
+        "[VERLO] History load error:",
         error
       );
 
@@ -934,9 +1142,15 @@ app.post(
 
       const item = {
         id: randomUUID(),
-        userId: req.user.id,
+
+        userId:
+          req.user.id,
+
         prompt,
-        result: result || null,
+
+        result:
+          result || null,
+
         createdAt:
           new Date().toISOString(),
       };
@@ -944,14 +1158,17 @@ app.post(
       history.unshift(item);
 
       /*
-       * Keep the file from growing forever.
+       * Keep history at a sensible size.
        */
-      const limited =
-        history.slice(0, 2000);
+      const limitedHistory =
+        history.slice(
+          0,
+          2000
+        );
 
       await writeJSON(
         HISTORY_FILE,
-        limited
+        limitedHistory
       );
 
       return res.json({
@@ -960,7 +1177,7 @@ app.post(
       });
     } catch (error) {
       console.error(
-        "[VERLO] Save history error:",
+        "[VERLO] History save error:",
         error
       );
 
@@ -974,14 +1191,8 @@ app.post(
 );
 
 /* =========================================================
-   GROQ
+   GROQ HELPER
 ========================================================= */
-
-const groq = GROQ_API_KEY
-  ? new Groq({
-      apiKey: GROQ_API_KEY,
-    })
-  : null;
 
 async function askGroq(
   messages,
@@ -999,10 +1210,13 @@ async function askGroq(
         model:
           options.model ||
           "llama-3.3-70b-versatile",
+
         messages,
+
         temperature:
           options.temperature ??
           0.7,
+
         max_tokens:
           options.max_tokens ||
           2500,
@@ -1010,7 +1224,8 @@ async function askGroq(
     );
 
   return (
-    completion.choices?.[0]
+    completion
+      .choices?.[0]
       ?.message?.content || ""
   );
 }
@@ -1038,7 +1253,7 @@ app.post(
       }
 
       const previousAnswers =
-        answers.length
+        answers.length > 0
           ? JSON.stringify(
               answers,
               null,
@@ -1046,44 +1261,46 @@ app.post(
             )
           : "No previous answers.";
 
-      const system = `
+      const response =
+        await askGroq(
+          [
+            {
+              role: "system",
+
+              content: `
 You are Verlo, an adaptive guidance assistant.
 
-Your job is to ask ONE useful follow-up question
-that helps understand what the user actually needs.
+Your job is to ask exactly ONE useful follow-up question.
 
 The question must:
-- be directly related to the user's prompt
-- build on previous answers
-- not repeat an earlier question
-- be simple and natural
-- be useful for producing a personalised final answer
-- contain no unnecessary explanation
+- directly relate to the user's original prompt
+- use the previous answers
+- avoid repeating earlier questions
+- help personalise the final response
+- be natural and easy to understand
+- not contain unnecessary explanation
 
 Return ONLY valid JSON:
 
 {
   "question": "..."
 }
-`;
-
-      const response =
-        await askGroq(
-          [
-            {
-              role: "system",
-              content: system,
+`,
             },
+
             {
               role: "user",
+
               content: `
 Original prompt:
+
 ${prompt}
 
 Previous answers:
+
 ${previousAnswers}
 
-This is adaptive question ${questionNumber}.
+This is adaptive question number ${questionNumber}.
 
 Generate the next question.
 `,
@@ -1099,7 +1316,9 @@ Generate the next question.
 
       try {
         parsed =
-          JSON.parse(response);
+          JSON.parse(
+            response
+          );
       } catch {
         const match =
           response.match(
@@ -1164,13 +1383,19 @@ app.post(
         });
       }
 
-      const system = `
+      const response =
+        await askGroq(
+          [
+            {
+              role: "system",
+
+              content: `
 You are Verlo.
 
 Create a personalised, practical and clear response
-based on the user's original request and their answers.
+based on the user's original request and answers.
 
-Return valid JSON with this structure:
+Return valid JSON:
 
 {
   "title": "short title",
@@ -1194,18 +1419,14 @@ Return valid JSON with this structure:
 }
 
 Do not invent fake URLs.
-If useful resources are not known, return an empty resources array.
-`;
-
-      const response =
-        await askGroq(
-          [
-            {
-              role: "system",
-              content: system,
+If useful resources are not known,
+return an empty resources array.
+`,
             },
+
             {
               role: "user",
+
               content: `
 Original request:
 
@@ -1231,7 +1452,9 @@ ${JSON.stringify(
 
       try {
         parsed =
-          JSON.parse(response);
+          JSON.parse(
+            response
+          );
       } catch {
         const match =
           response.match(
@@ -1248,7 +1471,7 @@ ${JSON.stringify(
 
       if (!parsed) {
         throw new Error(
-          "The AI returned invalid JSON."
+          "AI returned invalid JSON."
         );
       }
 
@@ -1258,7 +1481,7 @@ ${JSON.stringify(
       });
     } catch (error) {
       console.error(
-        "[VERLO] Analyze error:",
+        "[VERLO] Analyse error:",
         error
       );
 
@@ -1297,25 +1520,30 @@ app.post(
           [
             {
               role: "system",
+
               content: `
 You are Verlo's helpful assistant.
 
-Answer clearly and naturally.
-Use the provided context when relevant.
-Do not pretend to have performed actions you did not perform.
+Answer naturally and clearly.
+Use the provided context when useful.
+Do not claim to have done something you did not do.
 `,
             },
+
             {
               role: "user",
+
               content: `
 Context:
+
 ${JSON.stringify(
   context || {},
   null,
   2
 )}
 
-User:
+User message:
+
 ${message}
 `,
             },
@@ -1367,7 +1595,8 @@ app.use(
     ) {
       return res.status(403).json({
         success: false,
-        error: "CORS origin not allowed.",
+        error:
+          "CORS origin not allowed.",
       });
     }
 
@@ -1380,7 +1609,7 @@ app.use(
 );
 
 /* =========================================================
-   START
+   START SERVER
 ========================================================= */
 
 app.listen(
@@ -1389,25 +1618,31 @@ app.listen(
   () => {
     console.log("");
     console.log(
-      "======================================"
+      "=========================================="
     );
     console.log(
-      "              VERLO API"
+      "              VERLO SERVER"
     );
     console.log(
-      "======================================"
+      "=========================================="
     );
     console.log(
       `API:             http://127.0.0.1:${PORT}`
     );
     console.log(
-      `Client:          ${CLIENT_URL}`
+      `Frontend:        ${CLIENT_URL}`
     );
     console.log(
       `Google callback: ${GOOGLE_REDIRECT_URI}`
     );
     console.log(
-      "======================================"
+      "OAuth mode:      HttpOnly cookie"
+    );
+    console.log(
+      "Auth code:       DISABLED"
+    );
+    console.log(
+      "=========================================="
     );
     console.log("");
   }
