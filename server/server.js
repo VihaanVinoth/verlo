@@ -44,7 +44,7 @@ app.get('/api/health', (req, res) => {
 
 app.post('/api/analyze', upload.array('files'), async (req, res) => {
   try {
-    const { prompt, category } = req.body;
+    const { prompt, category, answers } = req.body;
     
     const files = req.files ? req.files.map(file => ({
       name: file.originalname,
@@ -52,18 +52,30 @@ app.post('/api/analyze', upload.array('files'), async (req, res) => {
       path: file.path
     })) : [];
 
+
+    let parsedAnswers = {};
+    try {
+      parsedAnswers = typeof answers === 'string' ? JSON.parse(answers) : (answers || {});
+    } catch (e) {
+      parsedAnswers = answers;
+    }
+
+    const adaptiveContext = Object.keys(parsedAnswers).length > 0 
+      ? `\n\nAdaptive Questionnaire Responses:\n${JSON.stringify(parsedAnswers, null, 2)}` 
+      : '';
+
     const chatCompletion = await groq.chat.completions.create({
       messages: [
         {
           role: 'system',
-          content: 'You are Verlo, an advanced legal decision and rights engine AI assistant. Provide objective structural analysis, clear liability assessment, and a practical next-steps breakdown.'
+          content: 'You are Verlo, an advanced legal decision and rights engine AI assistant. Provide objective structural analysis, clear liability assessment, and a practical next-steps breakdown based on the situation, uploaded documents, and adaptive questionnaire responses.'
         },
         {
           role: 'user',
-          content: `Category: ${category || 'General'}\n\nSituation/Query: ${prompt}`
+          content: `Category: ${category || 'General'}\n\nSituation/Query: ${prompt}${adaptiveContext}`
         }
       ],
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-120b',
       temperature: 0.3,
     });
 
@@ -76,7 +88,7 @@ app.post('/api/analyze', upload.array('files'), async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Groq AI Error:', error);
+    console.error('AI Error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
