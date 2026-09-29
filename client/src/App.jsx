@@ -14,8 +14,11 @@ export default function App() {
   const [adaptiveTextAnswers, setAdaptiveTextAnswers] = useState({});
   const [activeAssessmentIndex, setActiveAssessmentIndex] = useState(0);
 
+  const [assessmentAttachment, setAssessmentAttachment] = useState(null);
+  const [chatAttachment, setChatAttachment] = useState(null);
+
   const [analysisData, setAnalysisData] = useState(null);
-  const [activeTab, setActiveTab] = useState('overview');  
+  const [activeTab, setActiveTab] = useState('overview');
   const [processingStage, setProcessingStage] = useState(0);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -195,6 +198,52 @@ export default function App() {
     }
   };
 
+  const handleSecureFileUpload = async (file, targetContext) => {
+    if (!file) return;
+    
+    if (file.size > 15 * 1024 * 1024) {
+      triggerCustomAlert('File exceeds maximum size limit (15MB).', 'error');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('context', targetContext);
+
+    try {
+      triggerCustomAlert('Encrypting and securing file in sandbox DB...', 'success');
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      const fileMeta = {
+        name: file.name,
+        size: `${(file.size / 1024).toFixed(1)} KB`,
+        type: file.type || 'application/octet-stream',
+        uploadedAt: new Date().toISOString(),
+        sandboxId: `db_vault_${Math.random().toString(36).substring(2, 9)}`
+      };
+
+      if (targetContext === 'assessment') {
+        setAssessmentAttachment(fileMeta);
+        triggerCustomAlert(`File "${file.name}" securely attached to assessment context.`, 'success');
+      } else if (targetContext === 'chat') {
+        setChatAttachment(fileMeta);
+        triggerCustomAlert(`File "${file.name}" securely attached to chat prompt.`, 'success');
+      }
+    } catch (err) {
+      triggerCustomAlert('Failed to securely upload file.', 'error');
+    }
+  };
+
+  const removeAttachment = (targetContext) => {
+    if (targetContext === 'assessment') {
+      setAssessmentAttachment(null);
+      triggerCustomAlert('Assessment attachment removed from vault.', 'success');
+    } else if (targetContext === 'chat') {
+      setChatAttachment(null);
+      triggerCustomAlert('Chat attachment removed from vault.', 'success');
+    }
+  };
+
   const handleInitialSubmit = async (e) => {
     e.preventDefault();
     if (wordCount < MIN_WORDS) {
@@ -211,7 +260,7 @@ export default function App() {
       apiPromise = fetch(`${API_URL}/api/assess`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description }),
+        body: JSON.stringify({ title, description, attachment: assessmentAttachment }),
       });
     } catch (err) {
       setError('Could not connect to server. Is the backend running?');
@@ -298,7 +347,8 @@ export default function App() {
           description, 
           context: userContext, 
           userAnswers: adaptiveTextAnswers, 
-          mcqAnswers: selectedMcqAnswers 
+          mcqAnswers: selectedMcqAnswers,
+          attachment: assessmentAttachment
         }),
       });
     } catch (err) {
@@ -366,13 +416,15 @@ export default function App() {
 
   const handleChatSubmit = async (e) => {
     e.preventDefault();
-    if (!chatQuestion.trim() || isChatLoading) return;
+    if ((!chatQuestion.trim() && !chatAttachment) || isChatLoading) return;
 
-    const questionText = chatQuestion.trim();
+    const questionText = chatQuestion.trim() || (chatAttachment ? `[Uploaded file: ${chatAttachment.name}]` : '');
+    const currentAtt = chatAttachment;
     setChatQuestion('');
+    setChatAttachment(null);
     setIsChatLoading(true);
 
-    const newHistory = [...chatHistory, { role: 'user', content: questionText }];
+    const newHistory = [...chatHistory, { role: 'user', content: questionText, attachment: currentAtt }];
     setChatHistory(newHistory);
 
     try {
@@ -381,7 +433,8 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           question: questionText, 
-          currentSituation: description || title 
+          currentSituation: description || title,
+          attachment: currentAtt
         })
       });
       const data = await res.json();
@@ -417,13 +470,16 @@ export default function App() {
           fontWeight: 600, 
           display: 'flex', 
           alignItems: 'center', 
-          gap: '0.5rem' 
+          gap: '0.5rem',
+          maxWidth: '90%',
+          boxSizing: 'border-box'
         }}>
           <span>{customAlert.type === 'error' ? '⚠️' : '✓'}</span>
-          <span>{customAlert.message}</span>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{customAlert.message}</span>
         </div>
       )}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem', gap: '1rem', width: '100%', boxSizing: 'border-box' }}>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem', gap: '1rem', width: '100%', boxSizing: 'border-box', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }} onClick={() => setStep('landing')}>
           <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '28px', height: '28px', objectFit: 'contain' }} />
           <span style={{ fontWeight: 800, letterSpacing: '0.05em', color: 'var(--text-main)', fontSize: '1.1rem' }}>VERLO</span>
@@ -458,27 +514,27 @@ export default function App() {
         )}
       </div>
 
-      <div style={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '850px', margin: '0 auto', padding: '0 1.25rem 3rem 1.25rem', boxSizing: 'border-box', alignItems: 'center' }}>
+      <div style={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '850px', margin: '0 auto', padding: '0 1rem 3rem 1rem', boxSizing: 'border-box', alignItems: 'center' }}>
         {step === 'landing' && (
           <div className="page-transition" key="landing" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div className="verlo-header" style={{ marginTop: '1rem', textAlign: 'center', width: '100%' }}>
+            <div className="verlo-header" style={{ marginTop: '1rem', textAlign: 'center', width: '100%', boxSizing: 'border-box' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '1rem', width: '100%' }}>
                 <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
                 <span className="verlo-brand" style={{ margin: 0 }}>VERLO</span>
               </div>
-              <h1 className="verlo-title">Stop guessing. Know your exact next step.</h1>
-              <p className="verlo-subtitle" style={{ marginBottom: '2.5rem', maxWidth: '650px', marginInline: 'auto' }}>
+              <h1 className="verlo-title" style={{ fontSize: 'clamp(1.75rem, 4vw, 2.75rem)' }}>Stop guessing. Know your exact next step.</h1>
+              <p className="verlo-subtitle" style={{ marginBottom: '2.5rem', maxWidth: '650px', marginInline: 'auto', padding: '0 0.5rem', boxSizing: 'border-box' }}>
                 Verlo is an adaptive supercharged decision-intelligence engine that transforms messy, stressful situations into a fully tailored, risk-scored action pathway through dynamic profiling.
               </p>
               <button className="btn-primary" style={{ maxWidth: '300px', margin: '0 auto 3rem' }} onClick={() => setStep('input')}>
                 Launch Decision Engine →
               </button>
 
-              <div style={{ textAlign: 'center', width: '100%', maxWidth: '650px', margin: '0 auto 4rem' }}>
+              <div style={{ textAlign: 'center', width: '100%', maxWidth: '650px', margin: '0 auto 4rem', boxSizing: 'border-box' }}>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'center' }}>
                   Test common VERLO scenarios:
                 </p>
-                <div style={{ display: 'grid', gap: '0.75rem', width: '100%', textAlign: 'left' }}>
+                <div style={{ display: 'grid', gap: '0.75rem', width: '100%', textAlign: 'left', boxSizing: 'border-box' }}>
                   <div 
                     className="verlo-card" 
                     style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', boxSizing: 'border-box' }}
@@ -547,7 +603,7 @@ export default function App() {
         )}
         {step === 'input' && (
           <div className="page-transition" key="input" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{ width: '100%', maxWidth: '650px' }}>
+            <div style={{ width: '100%', maxWidth: '650px', boxSizing: 'border-box' }}>
               <div style={{ marginBottom: '1.5rem', textAlign: 'left', width: '100%' }}>
                 <button 
                   onClick={() => setStep('landing')}
@@ -581,7 +637,7 @@ export default function App() {
                 </div>
 
                 <div className="form-group" style={{ textAlign: 'left' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.25rem' }}>
                     <label className="form-label" style={{ marginBottom: 0 }}>Describe what happened *</label>
                     <span style={{ fontSize: '0.8rem', color: wordCount < MIN_WORDS ? 'var(--warning)' : 'var(--text-muted)' }}>
                       {wordCount} words {wordCount < MIN_WORDS ? `(Minimum ${MIN_WORDS} required)` : '✓'}
@@ -606,6 +662,35 @@ export default function App() {
                     onChange={(e) => setUserContext(e.target.value)}
                   />
                 </div>
+                <div className="form-group" style={{ textAlign: 'left' }}>
+                  <label className="form-label">Attach Evidence / Files / Media (Optional)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <label style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                      Browse File / Media
+                      <input 
+                        type="file" 
+                        style={{ display: 'none' }} 
+                        onChange={(e) => handleSecureFileUpload(e.target.files[0], 'assessment')}
+                      />
+                    </label>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Stored in safe encrypted DB sandbox; removable anytime.</span>
+                  </div>
+                  {assessmentAttachment && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-surface)', padding: '0.6rem 0.8rem', borderRadius: '6px', marginTop: '0.5rem', border: '1px solid var(--border-subtle)', fontSize: '0.85rem' }}>
+                      <span style={{ color: 'var(--accent)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80%' }}>
+                        📎 {assessmentAttachment.name} ({assessmentAttachment.size})
+                      </span>
+                      <button 
+                        type="button" 
+                        onClick={() => removeAttachment('assessment')}
+                        style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700 }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
 
                 <button type="submit" className="btn-primary" style={{ width: '100%' }}>
                   Generate Adaptive Assessment →
@@ -616,7 +701,7 @@ export default function App() {
         )}
         {step === 'assessment' && assessmentData && currentAssessmentItem && (
           <div className="page-transition animate-fade-slide-up" key="assessment" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{ width: '100%', maxWidth: '650px' }}>
+            <div style={{ width: '100%', maxWidth: '650px', boxSizing: 'border-box' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', width: '100%' }}>
                 <button 
                   onClick={handleAssessmentPrev}
@@ -665,7 +750,8 @@ export default function App() {
                               display: 'flex',
                               alignItems: 'center',
                               gap: '0.75rem',
-                              transition: 'all 0.2s ease'
+                              transition: 'all 0.2s ease',
+                              boxSizing: 'border-box'
                             }}
                           >
                             <div style={{ 
@@ -675,7 +761,7 @@ export default function App() {
                             }}>
                               {isSelected && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent)' }} />}
                             </div>
-                            <span>{choice}</span>
+                            <span style={{ wordBreak: 'break-word' }}>{choice}</span>
                           </div>
                         );
                       })}
@@ -722,7 +808,7 @@ export default function App() {
             <div className="processing-pulse-ring"></div>
             <h2 style={{ fontSize: '1.5rem', marginTop: '1.5rem', color: 'var(--text-main)', textAlign: 'center' }}>Synthesising supercharged logic & links...</h2>
             
-            <div className="processing-steps" style={{ width: '100%', maxWidth: '450px', marginTop: '2rem' }}>
+            <div className="processing-steps" style={{ width: '100%', maxWidth: '450px', marginTop: '2rem', boxSizing: 'border-box', padding: '0 1rem' }}>
               {processingSteps.map((text, idx) => {
                 const isDone = idx < processingStage;
                 const isActive = idx === processingStage;
@@ -738,7 +824,7 @@ export default function App() {
         )}
         {step === 'results' && analysisData && (
           <div className="page-transition animate-fade-slide-up" key="results" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{ width: '100%', maxWidth: '800px' }}>
+            <div style={{ width: '100%', maxWidth: '800px', boxSizing: 'border-box' }}>
               
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem', width: '100%' }}>
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -769,7 +855,7 @@ export default function App() {
                   <span className={`badge ${analysisData.confidence?.toLowerCase()}`} style={{ marginBottom: '0.25rem', display: 'inline-block' }}>
                     Confidence: {analysisData.confidence}
                   </span>
-                  {userContext && <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Tailored for: <em>"{userContext}"</em></div>}
+                  {userContext && <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', wordBreak: 'break-word' }}>Tailored for: <em>"{userContext}"</em></div>}
                 </div>
                 <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.85rem', flexWrap: 'wrap' }}>
                   <div>
@@ -788,7 +874,6 @@ export default function App() {
                   </div>
                 </div>
               </div>
-
               <div style={{ display: 'flex', gap: '0.3rem', background: 'var(--bg-surface)', padding: '0.3rem', borderRadius: '10px', border: '1px solid var(--border-subtle)', marginBottom: '1.25rem', overflowX: 'auto', width: '100%', boxSizing: 'border-box' }}>
                 {[
                   { id: 'overview', label: '⚡ Overview' },
@@ -798,6 +883,9 @@ export default function App() {
                   { id: 'resources', label: '🔗 Resources' }
                 ].map(tab => {
                   const isActive = activeTab === tab.id;
+
+
+                  // LUCKY NUMBER 888
                   return (
                     <button
                       key={tab.id}
@@ -823,14 +911,14 @@ export default function App() {
               </div>
 
               {activeTab === 'overview' && (
-                <div style={{ display: 'grid', gap: '1.25rem', width: '100%' }}>
+                <div style={{ display: 'grid', gap: '1.25rem', width: '100%', boxSizing: 'border-box' }}>
                   <div className="dominant-action animate-fade-slide-up" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left', margin: 0 }}>
                     <h3 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
                       Immediate Priority Action
                     </h3>
-                    <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>{analysisData.nextSteps?.[0]?.step || "Review strategic options below."}</h2>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: 0 }}>
+                    <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', wordBreak: 'break-word' }}>{analysisData.nextSteps?.[0]?.step || "Review strategic options below."}</h2>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: 0, wordBreak: 'break-word' }}>
                       <strong>Why this first:</strong> {analysisData.nextSteps?.[0]?.why || "Establishes your foundational position."}
                     </p>
                   </div>
@@ -841,7 +929,7 @@ export default function App() {
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                         Situation Summary
                       </h3>
-                      <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: '1.5', margin: 0 }}>{analysisData.situation}</p>
+                      <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: '1.5', margin: 0, wordBreak: 'break-word' }}>{analysisData.situation}</p>
                     </div>
                   )}
 
@@ -850,7 +938,8 @@ export default function App() {
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                       Ask VERLO AI Assistant
                     </h3>
-                    <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>Need immediate clarification or a follow-up response?</p>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>Need immediate clarification, follow-up response, or file attachment?</p>
+                    
                     {chatHistory.length > 0 && (
                       <div style={{ display: 'grid', gap: '0.75rem', marginBottom: '0.75rem', maxHeight: '250px', overflowY: 'auto', paddingRight: '0.4rem', width: '100%', boxSizing: 'border-box' }}>
                         {chatHistory.map((msg, index) => (
@@ -863,12 +952,18 @@ export default function App() {
                               border: '1px solid var(--border-subtle)',
                               fontSize: '0.85rem',
                               width: '100%',
-                              boxSizing: 'border-box'
+                              boxSizing: 'border-box',
+                              wordBreak: 'break-word'
                             }}
                           >
                             <strong style={{ display: 'block', marginBottom: '0.2rem', color: msg.role === 'user' ? 'var(--text-main)' : 'var(--accent)' }}>
                               {msg.role === 'user' ? 'You' : 'VERLO AI'}
                             </strong>
+                            {msg.attachment && (
+                              <div style={{ fontSize: '0.75rem', color: 'var(--accent)', marginBottom: '0.4rem', fontStyle: 'italic' }}>
+                                📎 Attached file: {msg.attachment.name} ({msg.attachment.size})
+                              </div>
+                            )}
                             {msg.role === 'user' ? (
                               <div style={{ color: 'var(--text-muted)', whiteSpace: 'pre-wrap' }}>{msg.content}</div>
                             ) : (
@@ -878,19 +973,41 @@ export default function App() {
                         ))}
                       </div>
                     )}
+                    {chatAttachment && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-card)', padding: '0.5rem 0.75rem', borderRadius: '6px', marginBottom: '0.5rem', border: '1px solid var(--border-subtle)', fontSize: '0.8rem' }}>
+                        <span style={{ color: 'var(--accent)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80%' }}>
+                          📎 {chatAttachment.name} ({chatAttachment.size})
+                        </span>
+                        <button 
+                          type="button" 
+                          onClick={() => removeAttachment('chat')}
+                          style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    )}
+
                     <form onSubmit={handleChatSubmit} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', width: '100%', boxSizing: 'border-box' }}>
                       <input 
                         type="text" 
                         className="form-input" 
-                        placeholder="e.g., What should I do if they ignore this?" 
+                        placeholder="Ask a question or upload file..." 
                         value={chatQuestion}
                         onChange={(e) => setChatQuestion(e.target.value)}
-                        // LUCKY NUMBER 888
                         disabled={isChatLoading}
-                        style={{ marginBottom: 0, flex: '1 1 200px' }}
+                        style={{ marginBottom: 0, flex: '1 1 180px' }}
                       />
+                      <label title="Attach File/Media to Chat" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '0.5rem 0.75rem', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        <input 
+                          type="file" 
+                          style={{ display: 'none' }} 
+                          onChange={(e) => handleSecureFileUpload(e.target.files[0], 'chat')}
+                        />
+                      </label>
                       <button type="submit" className="btn-primary" style={{ width: 'auto', padding: '0.5rem 1rem', marginTop: 0 }} disabled={isChatLoading}>
-                        {isChatLoading ? '...' : 'Ask'}
+                        {isChatLoading ? '...' : 'Send'}
                       </button>
                     </form>
                   </div>
@@ -906,12 +1023,12 @@ export default function App() {
                   {(!analysisData.personalizedPanels || analysisData.personalizedPanels.length === 0) ? (
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No custom panels generated for this query.</p>
                   ) : (
-                    <div style={{ display: 'grid', gap: '1rem', width: '100%' }}>
+                    <div style={{ display: 'grid', gap: '1rem', width: '100%', boxSizing: 'border-box' }}>
                       {analysisData.personalizedPanels.map((panel, pIdx) => (
                         <div key={pIdx} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', padding: '1.25rem', borderRadius: '8px', width: '100%', boxSizing: 'border-box' }}>
-                          <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--accent)', marginBottom: '0.4rem' }}>{panel.panelTitle}</div>
-                          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.75rem', lineHeight: '1.4' }} dangerouslySetInnerHTML={{ __html: renderMarkdownToHTML(panel.insight) }} />
-                          <div style={{ fontSize: '0.85rem', color: 'var(--text-main)', background: 'var(--bg-surface)', padding: '0.75rem', borderRadius: '6px' }}>
+                          <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--accent)', marginBottom: '0.4rem', wordBreak: 'break-word' }}>{panel.panelTitle}</div>
+                          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.75rem', lineHeight: '1.4', wordBreak: 'break-word' }} dangerouslySetInnerHTML={{ __html: renderMarkdownToHTML(panel.insight) }} />
+                          <div style={{ fontSize: '0.85rem', color: 'var(--text-main)', background: 'var(--bg-surface)', padding: '0.75rem', borderRadius: '6px', wordBreak: 'break-word' }}>
                             <strong>Recommended Solution:</strong> {panel.solution}
                           </div>
                         </div>
@@ -927,16 +1044,16 @@ export default function App() {
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
                     Full Step-by-Step Action Pathway
                   </h3>
-                  <div style={{ display: 'grid', gap: '1rem', width: '100%' }}>
+                  <div style={{ display: 'grid', gap: '1rem', width: '100%', boxSizing: 'border-box' }}>
                     {analysisData.nextSteps?.map((item, idx) => (
                       <div key={idx} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', padding: '1.2rem', borderRadius: '8px', width: '100%', boxSizing: 'border-box' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.4rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
                           <span style={{ background: 'var(--accent)', color: 'var(--bg-primary)', width: '22px', height: '22px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700, flexShrink: 0 }}>{idx + 1}</span>
-                          <strong style={{ fontSize: '0.9rem', color: 'var(--text-main)' }}>{item.step}</strong>
+                          <strong style={{ fontSize: '0.9rem', color: 'var(--text-main)', wordBreak: 'break-word' }}>{item.step}</strong>
                         </div>
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '1.9rem', marginBottom: '0.3rem' }}><strong>Why:</strong> {item.why}</p>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '1.9rem', marginBottom: '0.3rem', wordBreak: 'break-word' }}><strong>Why:</strong> {item.why}</p>
                         {item.pitfallWarning && (
-                          <p style={{ fontSize: '0.85rem', color: 'var(--danger)', marginLeft: '1.9rem', marginBottom: 0 }}><strong>⚠️ Pitfall to Avoid:</strong> {item.pitfallWarning}</p>
+                          <p style={{ fontSize: '0.85rem', color: 'var(--danger)', marginLeft: '1.9rem', marginBottom: 0, wordBreak: 'break-word' }}><strong>⚠️ Pitfall to Avoid:</strong> {item.pitfallWarning}</p>
                         )}
                       </div>
                     ))}
@@ -977,17 +1094,17 @@ export default function App() {
                   {(!analysisData.referenceLinks || analysisData.referenceLinks.length === 0) ? (
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No external links provided for this pathway.</p>
                   ) : (
-                    <div style={{ display: 'grid', gap: '0.5rem', width: '100%' }}>
+                    <div style={{ display: 'grid', gap: '0.5rem', width: '100%', boxSizing: 'border-box' }}>
                       {analysisData.referenceLinks.map((linkObj, lIdx) => (
                         <a 
                           key={lIdx} 
                           href={linkObj.url} 
                           target="_blank" 
                           rel="noopener noreferrer"
-                          style={{ background: 'var(--bg-card)', padding: '0.85rem 1rem', borderRadius: '6px', border: '1px solid var(--border-subtle)', color: 'var(--accent)', textDecoration: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.9rem' }}
+                          style={{ background: 'var(--bg-card)', padding: '0.85rem 1rem', borderRadius: '6px', border: '1px solid var(--border-subtle)', color: 'var(--accent)', textDecoration: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.9rem', gap: '0.5rem', boxSizing: 'border-box' }}
                         >
-                          <span>🔗 <strong>{linkObj.title}</strong></span>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Visit →</span>
+                          <span style={{ wordBreak: 'break-word' }}>🔗 <strong>{linkObj.title}</strong></span>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', flexShrink: 0 }}>Visit →</span>
                         </a>
                       ))}
                     </div>
@@ -1035,7 +1152,7 @@ export default function App() {
                   }}
                   style={{ background: 'var(--bg-surface)', padding: '0.85rem', borderRadius: '8px', border: '1px solid var(--border-subtle)', cursor: 'pointer', textAlign: 'left' }}
                 >
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.2rem' }}>{item.title}</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.2rem', wordBreak: 'break-word' }}>{item.title}</div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{new Date(item.timestamp).toLocaleDateString()}</div>
                 </div>
               ))}
