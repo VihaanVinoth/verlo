@@ -15,7 +15,7 @@ export default function App() {
   const [activeAssessmentIndex, setActiveAssessmentIndex] = useState(0);
 
   const [analysisData, setAnalysisData] = useState(null);
-  const [activeTab, setActiveTab] = useState('overview'); 
+  const [activeTab, setActiveTab] = useState('overview');  
   const [processingStage, setProcessingStage] = useState(0);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -258,6 +258,7 @@ export default function App() {
       setStep('input');
     }
   };
+
   const getAllAssessmentItems = () => {
     if (!assessmentData) return [];
     const mcqs = (assessmentData.mcqAssessment || []).map(item => ({ type: 'mcq', ...item }));
@@ -494,6 +495,7 @@ export default function App() {
                       <strong>Flight cancelled at gate</strong> &mdash; Airline refusing overnight hotel voucher.
                     </div>
                   </div>
+
                   <div 
                     className="verlo-card" 
                     style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', boxSizing: 'border-box' }}
@@ -506,6 +508,36 @@ export default function App() {
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
                     <div>
                       <strong>Unresolved billing dispute</strong> &mdash; Subscription charged post-cancellation.
+                    </div>
+                  </div>
+
+                  <div 
+                    className="verlo-card" 
+                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', boxSizing: 'border-box' }}
+                    onClick={() => handleExampleSelect(
+                      'Landlord withholding bond', 
+                      'My tenancy agreement ended 3 weeks ago and my landlord is refusing to release my full $2,000 security deposit, claiming minor carpet scuffs that were already present when I moved in as documented on my condition report.',
+                      'First-time renter moving into a new apartment'
+                    )}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                    <div>
+                      <strong>Landlord withholding bond</strong> &mdash; Disputing false wear-and-tear deductions.
+                    </div>
+                  </div>
+
+                  <div 
+                    className="verlo-card" 
+                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', boxSizing: 'border-box' }}
+                    onClick={() => handleExampleSelect(
+                      'Defective laptop warranty dispute', 
+                      'I purchased a high-end laptop 5 months ago that has suffered multiple motherboard failures. The manufacturer service center is claiming accidental liquid damage violation even though the machine has never been exposed to liquids.',
+                      'Student relying on laptop for coursework'
+                    )}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                    <div>
+                      <strong>Defective laptop warranty</strong> &mdash; Manufacturer denying warranty repair unfairly.
                     </div>
                   </div>
                 </div>
@@ -657,9 +689,15 @@ export default function App() {
                     <input 
                       type="text" 
                       className="form-input" 
-                      placeholder="Type your precise specification here..."
+                      placeholder="Type your precise specification here and press Enter..."
                       value={adaptiveTextAnswers[currentAssessmentItem.id || activeAssessmentIndex] || ''}
                       onChange={(e) => setAdaptiveTextAnswers({ ...adaptiveTextAnswers, [currentAssessmentItem.id || activeAssessmentIndex]: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAssessmentNext();
+                        }
+                      }}
                       style={{ fontSize: '1rem', padding: '0.85rem' }}
                       autoFocus
                     />
@@ -701,6 +739,7 @@ export default function App() {
         {step === 'results' && analysisData && (
           <div className="page-transition animate-fade-slide-up" key="results" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div style={{ width: '100%', maxWidth: '800px' }}>
+              
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem', width: '100%' }}>
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                   <button 
@@ -724,6 +763,7 @@ export default function App() {
                   Start Over
                 </button>
               </div>
+
               <div className="result-section animate-fade-slide-up" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', marginBottom: '1.25rem' }}>
                 <div>
                   <span className={`badge ${analysisData.confidence?.toLowerCase()}`} style={{ marginBottom: '0.25rem', display: 'inline-block' }}>
@@ -748,6 +788,7 @@ export default function App() {
                   </div>
                 </div>
               </div>
+
               <div style={{ display: 'flex', gap: '0.3rem', background: 'var(--bg-surface)', padding: '0.3rem', borderRadius: '10px', border: '1px solid var(--border-subtle)', marginBottom: '1.25rem', overflowX: 'auto', width: '100%', boxSizing: 'border-box' }}>
                 {[
                   { id: 'overview', label: '⚡ Overview' },
@@ -780,6 +821,7 @@ export default function App() {
                   );
                 })}
               </div>
+
               {activeTab === 'overview' && (
                 <div style={{ display: 'grid', gap: '1.25rem', width: '100%' }}>
                   <div className="dominant-action animate-fade-slide-up" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left', margin: 0 }}>
@@ -802,6 +844,7 @@ export default function App() {
                       <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: '1.5', margin: 0 }}>{analysisData.situation}</p>
                     </div>
                   )}
+
                   <div className="result-section animate-fade-slide-up" style={{ background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', textAlign: 'left', margin: 0 }}>
                     <h3 style={{ color: 'var(--text-main)', marginBottom: '0.5rem', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -842,6 +885,7 @@ export default function App() {
                         placeholder="e.g., What should I do if they ignore this?" 
                         value={chatQuestion}
                         onChange={(e) => setChatQuestion(e.target.value)}
+                        // LUCKY NUMBER 888
                         disabled={isChatLoading}
                         style={{ marginBottom: 0, flex: '1 1 200px' }}
                       />
@@ -852,6 +896,7 @@ export default function App() {
                   </div>
                 </div>
               )}
+
               {activeTab === 'panels' && (
                 <div className="result-section animate-fade-slide-up" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left', margin: 0 }}>
                   <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.05rem' }}>
@@ -875,6 +920,7 @@ export default function App() {
                   )}
                 </div>
               )}
+
               {activeTab === 'steps' && (
                 <div className="result-section animate-fade-slide-up" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left', margin: 0 }}>
                   <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.05rem' }}>
@@ -885,7 +931,6 @@ export default function App() {
                     {analysisData.nextSteps?.map((item, idx) => (
                       <div key={idx} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', padding: '1.2rem', borderRadius: '8px', width: '100%', boxSizing: 'border-box' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.4rem' }}>
-                          {/********LUCKY NUMBER 888********/}
                           <span style={{ background: 'var(--accent)', color: 'var(--bg-primary)', width: '22px', height: '22px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700, flexShrink: 0 }}>{idx + 1}</span>
                           <strong style={{ fontSize: '0.9rem', color: 'var(--text-main)' }}>{item.step}</strong>
                         </div>
@@ -898,6 +943,7 @@ export default function App() {
                   </div>
                 </div>
               )}
+
               {activeTab === 'letter' && (
                 <div className="result-section animate-fade-slide-up" style={{ background: 'rgba(16, 185, 129, 0.05)', borderColor: 'rgba(16, 185, 129, 0.3)', width: '100%', boxSizing: 'border-box', textAlign: 'left', margin: 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
@@ -921,6 +967,7 @@ export default function App() {
                   )}
                 </div>
               )}
+
               {activeTab === 'resources' && (
                 <div className="result-section animate-fade-slide-up" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left', margin: 0 }}>
                   <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.05rem' }}>
