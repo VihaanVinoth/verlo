@@ -1,42 +1,84 @@
-import React, { useState, useEffect } from 'react';
-import './index.css';
+import React, { useState, useEffect } from "react";
+import "./index.css";
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5001';
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:5001";
+
+const MAX_ADAPTIVE_QUESTIONS = 6;
 
 export default function App() {
-  const [step, setStep] = useState('landing');
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [userContext, setUserContext] = useState('');
-  
-  const [assessmentData, setAssessmentData] = useState(null);
+  const [step, setStep] = useState("landing");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [userContext, setUserContext] = useState("");
+
+  const [assessmentData, setAssessmentData] = useState({
+    adaptiveQuestions: [],
+  });
+
   const [selectedMcqAnswers, setSelectedMcqAnswers] = useState({});
   const [adaptiveTextAnswers, setAdaptiveTextAnswers] = useState({});
   const [activeAssessmentIndex, setActiveAssessmentIndex] = useState(0);
   const [isAdaptiveLoading, setIsAdaptiveLoading] = useState(false);
   const [adaptiveQuestionCount, setAdaptiveQuestionCount] = useState(0);
 
-  const MAX_ADAPTIVE_QUESTIONS = 6;
-
   const [assessmentAttachment, setAssessmentAttachment] = useState(null);
   const [chatAttachment, setChatAttachment] = useState(null);
 
   const [analysisData, setAnalysisData] = useState(null);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState("overview");
+
   const [processingStage, setProcessingStage] = useState(0);
   const [error, setError] = useState(null);
+
   const [copied, setCopied] = useState(false);
   const [copyCount, setCopyCount] = useState(0);
 
   const [customAlert, setCustomAlert] = useState(null);
   const [alertExiting, setAlertExiting] = useState(false);
 
-  const triggerCustomAlert = (message, type = 'success') => {
+  const [chatQuestion, setChatQuestion] = useState("");
+  const [chatHistory, setChatHistory] = useState([]);
+  const [isChatLoading, setIsChatLoading] = useState(false);
+
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem("verlo_user");
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState("login");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authError, setAuthError] = useState(null);
+
+  const [userHistory, setUserHistory] = useState([]);
+  const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
+
+  const processingSteps = [
+    "Deciphering core strategic goals...",
+    "Screening through moderation & safety filters...",
+    "Evaluating risk severity & exposure metrics...",
+    "Synthesising customised action pathway...",
+    "Finalising recommendations...",
+  ];
+
+  const wordCount = description.trim()
+    ? description.trim().split(/\s+/).length
+    : 0;
+
+  const MIN_WORDS = 5;
+
+  const triggerCustomAlert = (message, type = "success") => {
     setCustomAlert({ message, type });
     setAlertExiting(false);
-    
+
     setTimeout(() => {
       setAlertExiting(true);
+
       setTimeout(() => {
         setCustomAlert(null);
         setAlertExiting(false);
@@ -44,123 +86,150 @@ export default function App() {
     }, 3300);
   };
 
-  const [chatQuestion, setChatQuestion] = useState('');
-  const [chatHistory, setChatHistory] = useState([]);
-  const [isChatLoading, setIsChatLoading] = useState(false);
-
-  const [currentUser, setCurrentUser] = useState(() => {
-    try {
-      const savedUser = localStorage.getItem('verlo_user');
-      return savedUser ? JSON.parse(savedUser) : null;
-    } catch (e) {
-      return null;
-    }
-  });
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState('login');
-  const [authEmail, setAuthEmail] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
-  const [authError, setAuthError] = useState(null);
-  
-  const [userHistory, setUserHistory] = useState([]);
-  const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
-
-  const processingSteps = [
-    "Deciphering core strategic goals..",
-    "Screening through moderation & safety filters...",
-    "Evaluating risk severity & exposure metrics...",
-    "Synthesising customised action pathway...",
-    "Finalising recommendations..."
-  ];
-
-  const wordCount = description.trim() ? description.trim().split(/\s+/).length : 0;
-  const MIN_WORDS = 5;
-
   useEffect(() => {
     if (currentUser && (currentUser.id || currentUser.email)) {
-      localStorage.setItem('verlo_user', JSON.stringify(currentUser));
+      localStorage.setItem("verlo_user", JSON.stringify(currentUser));
+
       const identifier = currentUser.id || currentUser.email;
-      fetch(`${API_URL}/api/history/${identifier}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.history) setUserHistory(data.history);
+
+      fetch(`${API_URL}/api/history/${encodeURIComponent(identifier)}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.history) {
+            setUserHistory(data.history);
+          }
         })
-        .catch(err => console.error('Failed to load history', err));
+        .catch((err) => {
+          console.error("Failed to load history", err);
+        });
     } else {
-      localStorage.removeItem('verlo_user');
+      localStorage.removeItem("verlo_user");
       setUserHistory([]);
     }
   }, [currentUser]);
 
   const renderMarkdownToHTML = (content) => {
-    if (!content) return '';
+    if (!content) return "";
+
     let html = content
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
 
-    html = html.replace(/```([\s\S]*?)```/g, '<pre style="background:var(--bg-card); padding:0.75rem; border-radius:6px; overflow-x:auto; font-family:monospace; margin:0.5rem 0;"><code>$1</code></pre>');
-    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" style="color: var(--accent); text-decoration: underline;">$1</a>');
+    html = html.replace(
+      /```([\s\S]*?)```/g,
+      '<pre style="background:var(--bg-card); padding:0.75rem; border-radius:6px; overflow-x:auto; font-family:monospace; margin:0.5rem 0;"><code>$1</code></pre>',
+    );
 
-    const lines = html.split('\n');
+    html = html.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+
+    html = html.replace(
+      /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:var(--accent); text-decoration:underline;">$1</a>',
+    );
+
+    const lines = html.split("\n");
+
     let inList = false;
-    let processedLines = lines.map(line => {
-      if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
+
+    const processedLines = lines.map((line) => {
+      if (line.trim().startsWith("- ") || line.trim().startsWith("* ")) {
         const item = line.trim().substring(2);
         const wrapped = `<li>${item}</li>`;
+
         if (!inList) {
           inList = true;
-          return `<ul style="margin: 0.5rem 0; padding-left: 1.25rem;">${wrapped}`;
-        }
-        return wrapped;
-      } else {
-        if (inList) {
-          inList = false;
-          return `</ul><p style="margin: 0.5rem 0;">${line}</p>`;
-        }
-        return line.trim() ? `<p style="margin: 0.5rem 0;">${line}</p>` : '';
-      }
-    });
-    if (inList) processedLines.push('</ul>');
 
-    return processedLines.join('');
+          return `
+            <ul style="margin:0.5rem 0; padding-left:1.25rem;">
+              ${wrapped}
+          `;
+        }
+
+        return wrapped;
+      }
+
+      if (inList) {
+        inList = false;
+
+        return `
+          </ul>
+          <p style="margin:0.5rem 0;">${line}</p>
+        `;
+      }
+
+      return line.trim() ? `<p style="margin:0.5rem 0;">${line}</p>` : "";
+    });
+
+    if (inList) {
+      processedLines.push("</ul>");
+    }
+
+    return processedLines.join("");
   };
 
   const handleExampleSelect = (exTitle, exDesc, exContext) => {
     setTitle(exTitle);
     setDescription(exDesc);
     setUserContext(exContext);
-    setStep('input');
+    setStep("input");
     setError(null);
   };
 
+
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
+
     setAuthError(null);
-    const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/signup';
+
+    const endpoint =
+      authMode === "login" ? "/api/auth/login" : "/api/auth/signup";
 
     try {
       const res = await fetch(`${API_URL}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: authEmail.trim(), password: authPassword })
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: authEmail.trim(),
+          password: authPassword,
+        }),
       });
+
       const data = await res.json();
 
       if (!res.ok) {
-        if (authMode === 'signup' && (res.status === 400 || res.status === 409 || (data.error && data.error.toLowerCase().includes('exist')))) {
-          throw new Error('This email address is already registered. Please log in instead.');
+        if (
+          authMode === "signup" &&
+          (res.status === 400 ||
+            res.status === 409 ||
+            (data.error && data.error.toLowerCase().includes("exist")))
+        ) {
+          throw new Error(
+            "This email address is already registered. Please log in instead.",
+          );
         }
-        throw new Error(data.error || 'Authentication failed');
+
+        throw new Error(data.error || "Authentication failed");
       }
 
-      const userData = data.user || { id: data.userId || authEmail, email: authEmail };
+      const userData = data.user || {
+        id: data.userId || authEmail,
+        email: authEmail,
+      };
+
       setCurrentUser(userData);
       setShowAuthModal(false);
-      setAuthEmail('');
-      setAuthPassword('');
-      triggerCustomAlert(authMode === 'signup' ? 'Account created successfully!' : 'Logged in successfully!', 'success');
+      setAuthEmail("");
+      setAuthPassword("");
+
+      triggerCustomAlert(
+        authMode === "signup"
+          ? "Account created successfully!"
+          : "Logged in successfully!",
+        "success",
+      );
     } catch (err) {
       setAuthError(err.message);
     }
@@ -168,11 +237,13 @@ export default function App() {
 
   const handleLogout = () => {
     setCurrentUser(null);
-    localStorage.removeItem('verlo_user');
+    localStorage.removeItem("verlo_user");
     setUserHistory([]);
-    setStep('landing');
-    triggerCustomAlert('Logged out successfully.', 'success');
+    setStep("landing");
+
+    triggerCustomAlert("Logged out successfully.", "success");
   };
+
 
   const handleSaveToAccount = async (resultData) => {
     if (!currentUser) {
@@ -182,71 +253,103 @@ export default function App() {
 
     try {
       const res = await fetch(`${API_URL}/api/history/save`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          userId: currentUser.id || currentUser.email, 
-          report: { title: title || 'Untitled Report', description, result: resultData } 
-        })
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId: currentUser.id || currentUser.email,
+
+          report: {
+            title: title || "Untitled Report",
+            description,
+            result: resultData,
+          },
+        }),
       });
+
       const data = await res.json();
+
       if (data.history) {
         setUserHistory(data.history);
-        triggerCustomAlert('Pathway saved successfully to your account history!', 'success');
+
+        triggerCustomAlert(
+          "Pathway saved successfully to your account history!",
+          "success",
+        );
       } else {
-        triggerCustomAlert('Pathway saved successfully.', 'success');
+        triggerCustomAlert("Pathway saved successfully.", "success");
       }
     } catch (err) {
-      console.error('Failed to save history', err);
-      triggerCustomAlert('Error saving pathway to account history.', 'error');
+      console.error("Failed to save history", err);
+
+      triggerCustomAlert("Error saving pathway to account history.", "error");
     }
   };
 
   const handleSecureFileUpload = async (file, targetContext) => {
     if (!file) return;
-    
+
     if (file.size > 15 * 1024 * 1024) {
-      triggerCustomAlert('File exceeds maximum size limit (15MB).', 'error');
+      triggerCustomAlert("File exceeds maximum size limit (15MB).", "error");
       return;
     }
 
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('context', targetContext);
-
     try {
-      triggerCustomAlert('Encrypting and securing file in sandbox DB...', 'success');
-      await new Promise(resolve => setTimeout(resolve, 800));
+      triggerCustomAlert(
+        "Encrypting and securing file in sandbox DB...",
+        "success",
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 800));
 
       const fileMeta = {
         name: file.name,
         size: `${(file.size / 1024).toFixed(1)} KB`,
-        type: file.type || 'application/octet-stream',
+        type: file.type || "application/octet-stream",
         uploadedAt: new Date().toISOString(),
-        sandboxId: `db_vault_${Math.random().toString(36).substring(2, 9)}`
+        sandboxId: `db_vault_${Math.random().toString(36).substring(2, 9)}`,
       };
 
-      if (targetContext === 'assessment') {
+      if (targetContext === "assessment") {
         setAssessmentAttachment(fileMeta);
-        triggerCustomAlert(`File "${file.name}" securely attached to assessment context.`, 'success');
-      } else if (targetContext === 'chat') {
-        setChatAttachment(fileMeta);
-        triggerCustomAlert(`File "${file.name}" securely attached to chat prompt.`, 'success');
+
+        triggerCustomAlert(
+          `File "${file.name}" securely attached to assessment context.`,
+          "success",
+        );
       }
-    } catch (err) {
-      triggerCustomAlert('Failed to securely upload file.', 'error');
+
+      if (targetContext === "chat") {
+        setChatAttachment(fileMeta);
+
+        triggerCustomAlert(
+          `File "${file.name}" securely attached to chat prompt.`,
+          "success",
+        );
+      }
+    } catch {
+      triggerCustomAlert("Failed to securely upload file.", "error");
     }
   };
 
   const removeAttachment = (targetContext) => {
-    if (targetContext === 'assessment') {
+    if (targetContext === "assessment") {
       setAssessmentAttachment(null);
-      triggerCustomAlert('Assessment attachment removed from vault.', 'success');
-    } else if (targetContext === 'chat') {
+
+      triggerCustomAlert(
+        "Assessment attachment removed from vault.",
+        "success",
+      );
+    }
+
+    if (targetContext === "chat") {
       setChatAttachment(null);
-      triggerCustomAlert('Chat attachment removed from vault.', 'success');
+
+      triggerCustomAlert("Chat attachment removed from vault.", "success");
     }
   };
+
 
   const getAllAssessmentItems = () => {
     if (!assessmentData) return [];
@@ -257,56 +360,106 @@ export default function App() {
       assessmentData.questions ||
       [];
 
-    return (Array.isArray(adaptiveSource) ? adaptiveSource : []).map((item, index) => ({
-      type: item.type === 'mcq' ? 'mcq' : 'text',
+    if (!Array.isArray(adaptiveSource)) {
+      return [];
+    }
+
+    return adaptiveSource.map((item, index) => ({
+      type: item.type === "mcq" ? "mcq" : "text",
+
       ...item,
+
       id: item.id || item.questionId || `adaptive-${index}`,
-      question: item.question || item.text || item.prompt || item.stem,
-      stem: item.stem || item.question || item.text || item.prompt,
-      choices: Array.isArray(item.choices) ? item.choices : []
+
+      question:
+        item.question ||
+        item.text ||
+        item.prompt ||
+        item.stem ||
+        "Please provide more information.",
+
+      stem:
+        item.stem ||
+        item.question ||
+        item.text ||
+        item.prompt ||
+        "Please choose an option.",
+
+      choices: Array.isArray(item.choices) ? item.choices : [],
     }));
   };
 
   const assessmentItems = getAllAssessmentItems();
 
+  const buildAllAnswers = (additionalKey = null, additionalValue = null) => {
+    const answers = {
+      ...adaptiveTextAnswers,
+      ...selectedMcqAnswers,
+    };
+
+    if (additionalKey !== null && additionalKey !== undefined) {
+      answers[additionalKey] = additionalValue;
+    }
+
+    return answers;
+  };
+
   const requestAdaptiveQuestion = async (previousAnswers = {}) => {
+    if (isAdaptiveLoading || adaptiveQuestionCount >= MAX_ADAPTIVE_QUESTIONS) {
+      return null;
+    }
+
     setIsAdaptiveLoading(true);
     setError(null);
 
     try {
+      const questionNumber = adaptiveQuestionCount + 1;
+
       const res = await fetch(`${API_URL}/api/adaptive-question`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           title,
           description,
           context: userContext,
           previousAnswers,
-          questionNumber: adaptiveQuestionCount + 1,
-          maxQuestions: MAX_ADAPTIVE_QUESTIONS
-        })
+          questionNumber,
+          maxQuestions: MAX_ADAPTIVE_QUESTIONS,
+        }),
       });
 
       const result = await res.json();
 
       if (!res.ok) {
-        throw new Error(result.error || 'Could not generate the adaptive question.');
+        throw new Error(
+          result.error || "Could not generate the adaptive question.",
+        );
       }
 
       if (!result.question) {
-        throw new Error('The adaptive engine returned no question.');
+        throw new Error("The adaptive engine returned no question.");
       }
 
-      setAssessmentData({
-        adaptiveQuestions: [...getAllAssessmentItems(), result.question]
-      });
-      setAdaptiveQuestionCount(prev => prev + 1);
-      setActiveAssessmentIndex(prev => prev + 1);
-      setStep('assessment');
+      const currentQuestions = getAllAssessmentItems();
 
-      return result;
+      const nextQuestions = [...currentQuestions, result.question];
+
+      setAssessmentData({
+        adaptiveQuestions: nextQuestions,
+      });
+
+      setAdaptiveQuestionCount(nextQuestions.length);
+
+      setActiveAssessmentIndex(nextQuestions.length - 1);
+
+      setStep("assessment");
+
+      return result.question;
     } catch (err) {
-      setError(err.message || 'Could not generate the next adaptive question.');
+      setError(err.message || "Could not generate the next adaptive question.");
+
       return null;
     } finally {
       setIsAdaptiveLoading(false);
@@ -317,65 +470,79 @@ export default function App() {
     e.preventDefault();
 
     if (wordCount < MIN_WORDS) {
-      setError(`Please provide a bit more detail (at least ${MIN_WORDS} words) so VERLO can build a reliable pathway.`);
+      setError(
+        `Please provide a bit more detail (at least ${MIN_WORDS} words) so VERLO can build a reliable pathway.`,
+      );
+
       return;
     }
 
     setError(null);
-    setStep('processing');
+
+    setStep("processing");
     setProcessingStage(0);
-    setAssessmentData({ adaptiveQuestions: [] });
+
+    setAssessmentData({
+      adaptiveQuestions: [],
+    });
+
     setSelectedMcqAnswers({});
     setAdaptiveTextAnswers({});
     setActiveAssessmentIndex(0);
     setAdaptiveQuestionCount(0);
 
     let currentStage = 0;
-    const intervalTime = 500;
 
     const interval = setInterval(() => {
       currentStage += 1;
+
       if (currentStage < processingSteps.length) {
         setProcessingStage(currentStage);
-      } else {
-        clearInterval(interval);
       }
-    }, intervalTime);
+    }, 550);
 
     try {
-      await new Promise(resolve => setTimeout(resolve, processingSteps.length * intervalTime));
+      await new Promise((resolve) => setTimeout(resolve, 1800));
 
       const firstQuestion = await fetch(`${API_URL}/api/adaptive-question`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           title,
           description,
           context: userContext,
           previousAnswers: {},
           questionNumber: 1,
-          maxQuestions: MAX_ADAPTIVE_QUESTIONS
-        })
+          maxQuestions: MAX_ADAPTIVE_QUESTIONS,
+        }),
       });
 
       const result = await firstQuestion.json();
 
       if (!firstQuestion.ok) {
-        throw new Error(result.error || 'Adaptive engine failed to create the first question.');
+        throw new Error(
+          result.error ||
+            "Adaptive engine failed to create the first question.",
+        );
       }
 
       if (!result.question) {
-        throw new Error('The adaptive engine returned no first question.');
+        throw new Error("The adaptive engine returned no first question.");
       }
 
-      setAssessmentData({ adaptiveQuestions: [result.question] });
+      setAssessmentData({
+        adaptiveQuestions: [result.question],
+      });
+
       setAdaptiveQuestionCount(1);
       setActiveAssessmentIndex(0);
-      setStep('assessment');
+      setStep("assessment");
     } catch (err) {
-      clearInterval(interval);
-      setError(err.message || 'Could not connect to the adaptive engine.');
-      setStep('input');
+      setError(err.message || "Could not connect to the adaptive engine.");
+
+      setStep("input");
     } finally {
       clearInterval(interval);
     }
@@ -383,106 +550,119 @@ export default function App() {
 
   const getCurrentAnswer = () => {
     const item = assessmentItems[activeAssessmentIndex];
-    if (!item) return '';
+
+    if (!item) return "";
 
     const key = item.id || activeAssessmentIndex;
 
-    if (item.type === 'mcq') {
-      return selectedMcqAnswers[key] || '';
+    if (item.type === "mcq") {
+      return selectedMcqAnswers[key] || "";
     }
 
-    return adaptiveTextAnswers[key] || '';
+    return adaptiveTextAnswers[key] || "";
   };
 
   const handleAssessmentNext = async () => {
     const item = assessmentItems[activeAssessmentIndex];
-    if (!item) return;
+
+    if (!item || isAdaptiveLoading) {
+      return;
+    }
 
     const answer = getCurrentAnswer();
 
     if (!String(answer).trim()) {
-      triggerCustomAlert('Please answer this question before continuing.', 'error');
+      triggerCustomAlert(
+        "Please answer this question before continuing.",
+        "error",
+      );
+
       return;
     }
 
     const key = item.id || activeAssessmentIndex;
-    const allAnswers = {
-      ...Object.fromEntries(
-        Object.entries(adaptiveTextAnswers).map(([id, value]) => [id, value])
-      ),
-      ...Object.fromEntries(
-        Object.entries(selectedMcqAnswers).map(([id, value]) => [id, value])
-      ),
-      [key]: answer
-    };
 
-    if (item.type === 'mcq') {
-      setSelectedMcqAnswers(prev => ({ ...prev, [key]: answer }));
+    if (item.type === "mcq") {
+      setSelectedMcqAnswers((prev) => ({
+        ...prev,
+        [key]: answer,
+      }));
     } else {
-      setAdaptiveTextAnswers(prev => ({ ...prev, [key]: answer }));
+      setAdaptiveTextAnswers((prev) => ({
+        ...prev,
+        [key]: answer,
+      }));
     }
+
+    const allAnswers = buildAllAnswers(key, answer);
 
     if (adaptiveQuestionCount >= MAX_ADAPTIVE_QUESTIONS) {
       await handleFinalAssessmentSubmit(allAnswers);
+
       return;
     }
 
-    const next = await requestAdaptiveQuestion(allAnswers);
-
-    if (!next) return;
+    await requestAdaptiveQuestion(allAnswers);
   };
 
   const handleAssessmentPrev = () => {
+    if (isAdaptiveLoading) return;
+
     if (activeAssessmentIndex > 0) {
-      setActiveAssessmentIndex(prev => prev - 1);
-    } else {
-      setStep('input');
+      setActiveAssessmentIndex((prev) => prev - 1);
+
+      return;
     }
+
+    setStep("input");
   };
 
   const handleFinalAssessmentSubmit = async (answersOverride = null) => {
-    setStep('processing');
+    setStep("processing");
     setProcessingStage(0);
 
-    const finalAnswers = answersOverride || {
-      ...adaptiveTextAnswers,
-      ...selectedMcqAnswers
-    };
+    const finalAnswers = answersOverride || buildAllAnswers();
 
     let currentStage = 0;
-    const intervalTime = 700;
 
     const interval = setInterval(() => {
       currentStage += 1;
+
       if (currentStage < processingSteps.length) {
         setProcessingStage(currentStage);
-      } else {
-        clearInterval(interval);
       }
-    }, intervalTime);
+    }, 700);
 
     try {
       const [res] = await Promise.all([
         fetch(`${API_URL}/api/analyze`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             title,
             prompt: description,
-            category: title || 'General',
+            category: title || "General",
             context: userContext,
             answers: JSON.stringify(finalAnswers),
-            attachment: assessmentAttachment
-          })
+            attachment: assessmentAttachment,
+          }),
         }),
-        new Promise(resolve => setTimeout(resolve, processingSteps.length * intervalTime))
+
+        new Promise((resolve) =>
+          setTimeout(resolve, processingSteps.length * 700),
+        ),
       ]);
 
       const result = await res.json();
 
       if (!res.ok) {
-        throw new Error(result.error || 'Failed to compute final diagnostic pathway.');
+        throw new Error(
+          result.error || "Failed to compute final diagnostic pathway.",
+        );
       }
+
       let finalData = result.data;
 
       if (!finalData && result.analysis) {
@@ -491,80 +671,136 @@ export default function App() {
         } catch {
           finalData = {
             situation: result.analysis,
-            confidence: 'Moderate',
+
+            confidence: "Moderate",
+
             riskAssessment: {
-              severityScore: 'N/A',
-              financialExposure: 'Not established',
-              timeSensitivity: 'Review required'
+              severityScore: "N/A",
+
+              financialExposure: "Not established",
+
+              timeSensitivity: "Review required",
             },
+
             nextSteps: [],
             personalizedPanels: [],
             draftTemplate: null,
-            resources: []
+            referenceLinks: [],
           };
         }
       }
 
       setAnalysisData(finalData);
+
       setChatHistory([]);
-      setActiveTab('overview');
-      setStep('results');
+      setActiveTab("overview");
+
+      setStep("results");
     } catch (err) {
-      clearInterval(interval);
-      setError(err.message || 'Could not connect to the server.');
-      setStep('assessment');
+      setError(err.message || "Could not connect to the server.");
+
+      setStep("assessment");
     } finally {
       clearInterval(interval);
     }
   };
 
   const handleCopyDraft = () => {
-    if (!analysisData?.draftTemplate) return;
-    const textToCopy = `To: ${analysisData.draftTemplate.recipient}\nSubject: ${analysisData.draftTemplate.subject}\n\n${analysisData.draftTemplate.body}`;
+    if (!analysisData?.draftTemplate) {
+      return;
+    }
+
+    const textToCopy =
+      `To: ${analysisData.draftTemplate.recipient}\n` +
+      `Subject: ${analysisData.draftTemplate.subject}\n\n` +
+      `${analysisData.draftTemplate.body}`;
+
     navigator.clipboard.writeText(textToCopy);
+
     setCopied(true);
 
     const nextCount = copyCount + 1;
+
     setCopyCount(nextCount);
 
     if (nextCount === 1) {
-      triggerCustomAlert('Letter template copied to clipboard!', 'success');
+      triggerCustomAlert("Letter template copied to clipboard!", "success");
     } else {
-      triggerCustomAlert(`Letter copied (${nextCount}x multi-strike!)! 🎯`, 'success');
+      triggerCustomAlert(
+        `Letter copied (${nextCount}x multi-strike!)! 🎯`,
+        "success",
+      );
     }
 
-    setTimeout(() => setCopied(false), 3000);
+    setTimeout(() => {
+      setCopied(false);
+    }, 3000);
   };
 
   const handleChatSubmit = async (e) => {
     e.preventDefault();
-    if ((!chatQuestion.trim() && !chatAttachment) || isChatLoading) return;
 
-    const questionText = chatQuestion.trim() || (chatAttachment ? `[Uploaded file: ${chatAttachment.name}]` : '');
+    if ((!chatQuestion.trim() && !chatAttachment) || isChatLoading) {
+      return;
+    }
+
+    const questionText =
+      chatQuestion.trim() ||
+      (chatAttachment ? `[Uploaded file: ${chatAttachment.name}]` : "");
+
     const currentAtt = chatAttachment;
-    setChatQuestion('');
+
+    setChatQuestion("");
     setChatAttachment(null);
     setIsChatLoading(true);
 
-    const newHistory = [...chatHistory, { role: 'user', content: questionText, attachment: currentAtt }];
+    const newHistory = [
+      ...chatHistory,
+      {
+        role: "user",
+        content: questionText,
+        attachment: currentAtt,
+      },
+    ];
+
     setChatHistory(newHistory);
 
     try {
       const res = await fetch(`${API_URL}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          question: questionText, 
-          currentSituation: description || title,
-          attachment: currentAtt
-        })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to get chat response.');
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          question: questionText,
 
-      setChatHistory([...newHistory, { role: 'assistant', content: data.reply }]);
+          currentSituation: description || title,
+
+          attachment: currentAtt,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to get chat response.");
+      }
+
+      setChatHistory([
+        ...newHistory,
+        {
+          role: "assistant",
+          content: data.reply,
+        },
+      ]);
     } catch (err) {
-      setChatHistory([...newHistory, { role: 'assistant', content: `⚠️ Error: ${err.message}` }]);
+      setChatHistory([
+        ...newHistory,
+        {
+          role: "assistant",
+          content: `⚠️ Error: ${err.message}`,
+        },
+      ]);
     } finally {
       setIsChatLoading(false);
     }
@@ -573,149 +809,499 @@ export default function App() {
   const currentAssessmentItem = assessmentItems[activeAssessmentIndex];
 
   return (
-    <div className="verlo-app" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', position: 'relative' }}>
+    <div
+      className="verlo-app"
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        boxSizing: "border-box",
+        position: "relative",
+      }}
+    >
       {customAlert && (
-        <div style={{ 
-          position: 'fixed', 
-          top: '20px', 
-          left: '50%', 
-          transform: alertExiting ? 'translateX(-50%) translateY(-20px)' : 'translateX(-50%) translateY(0)', 
-          opacity: alertExiting ? 0 : 1,
-          transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-          zIndex: 9999, 
-          background: customAlert.type === 'error' ? '#ef4444' : '#10b981', 
-          color: '#fff', 
-          padding: '0.75rem 1.5rem', 
-          borderRadius: '8px', 
-          boxShadow: '0 4px 12px rgba(0,0,0,0.3)', 
-          fontSize: '0.9rem', 
-          fontWeight: 600, 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '0.5rem',
-          maxWidth: '90%',
-          boxSizing: 'border-box'
-        }}>
-          <span>{customAlert.type === 'error' ? '⚠️' : '✓'}</span>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{customAlert.message}</span>
+        <div
+          style={{
+            position: "fixed",
+            top: "20px",
+            left: "50%",
+            transform: alertExiting
+              ? "translateX(-50%) translateY(-20px)"
+              : "translateX(-50%) translateY(0)",
+
+            opacity: alertExiting ? 0 : 1,
+
+            transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
+
+            zIndex: 9999,
+
+            background: customAlert.type === "error" ? "#ef4444" : "#10b981",
+
+            color: "#fff",
+
+            padding: "0.75rem 1.5rem",
+
+            borderRadius: "8px",
+
+            boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+
+            fontSize: "0.9rem",
+            fontWeight: 600,
+
+            display: "flex",
+            alignItems: "center",
+
+            gap: "0.5rem",
+
+            maxWidth: "90%",
+
+            boxSizing: "border-box",
+          }}
+        >
+          <span>{customAlert.type === "error" ? "⚠️" : "✓"}</span>
+
+          <span
+            style={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {customAlert.message}
+          </span>
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem', gap: '1rem', width: '100%', boxSizing: 'border-box', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }} onClick={() => setStep('landing')}>
-          <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '28px', height: '28px', objectFit: 'contain' }} />
-          <span style={{ fontWeight: 800, letterSpacing: '0.05em', color: 'var(--text-main)', fontSize: '1.1rem' }}>VERLO</span>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+
+          padding: "1rem 1.5rem",
+
+          gap: "1rem",
+          width: "100%",
+
+          boxSizing: "border-box",
+
+          flexWrap: "wrap",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            cursor: "pointer",
+          }}
+          onClick={() => setStep("landing")}
+        >
+          <img
+            src="/VVNormal.png"
+            alt="VERLO Logo"
+            style={{
+              width: "28px",
+              height: "28px",
+              objectFit: "contain",
+            }}
+          />
+
+          <span
+            style={{
+              fontWeight: 800,
+              letterSpacing: "0.05em",
+              color: "var(--text-main)",
+              fontSize: "1.1rem",
+            }}
+          >
+            VERLO
+          </span>
         </div>
-        
+
         {currentUser ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <button 
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+              flexWrap: "wrap",
+            }}
+          >
+            <button
               onClick={() => setShowHistoryDrawer(!showHistoryDrawer)}
-              style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+              style={{
+                background: "var(--bg-surface)",
+                border: "1px solid var(--border-subtle)",
+                color: "var(--text-main)",
+                padding: "0.4rem 0.8rem",
+                borderRadius: "6px",
+                fontSize: "0.85rem",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.4rem",
+              }}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              </svg>
               History ({userHistory.length})
             </button>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+
+            <span
+              style={{
+                fontSize: "0.85rem",
+                color: "var(--text-muted)",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.4rem",
+              }}
+            >
               {currentUser.email || currentUser.id}
             </span>
-            <button 
-              onClick={handleLogout} 
-              style={{ background: 'none', border: '1px solid var(--border-subtle)', color: 'var(--danger)', padding: '0.3rem 0.6rem', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}
+
+            <button
+              onClick={handleLogout}
+              style={{
+                background: "none",
+                border: "1px solid var(--border-subtle)",
+                color: "var(--danger)",
+                padding: "0.3rem 0.6rem",
+                borderRadius: "6px",
+                fontSize: "0.8rem",
+                cursor: "pointer",
+              }}
             >
               Logout
             </button>
           </div>
         ) : (
-          <button 
-            onClick={() => { setAuthMode('login'); setAuthError(null); setShowAuthModal(true); }}
-            style={{ background: 'var(--accent)', color: 'var(--bg-primary)', border: 'none', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
+          <button
+            onClick={() => {
+              setAuthMode("login");
+              setAuthError(null);
+              setShowAuthModal(true);
+            }}
+            style={{
+              background: "var(--accent)",
+              color: "var(--bg-primary)",
+              border: "none",
+              padding: "0.5rem 1rem",
+              borderRadius: "8px",
+              fontSize: "0.85rem",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
           >
             Login / Signup
           </button>
         )}
       </div>
 
-      <div style={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '850px', margin: '0 auto', padding: '0 1rem 3rem 1rem', boxSizing: 'border-box', alignItems: 'center' }}>
-        {step === 'landing' && (
-          <div className="page-transition" key="landing" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div className="verlo-header" style={{ marginTop: '1rem', textAlign: 'center', width: '100%', boxSizing: 'border-box' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '1rem', width: '100%' }}>
-                <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
-                <span className="verlo-brand" style={{ margin: 0 }}>VERLO</span>
+      <div
+        style={{
+          flex: "1 0 auto",
+          display: "flex",
+          flexDirection: "column",
+          width: "100%",
+          maxWidth: "850px",
+          margin: "0 auto",
+          padding: "0 1rem 3rem 1rem",
+          boxSizing: "border-box",
+          alignItems: "center",
+        }}
+      >
+
+        {step === "landing" && (
+          <div
+            className="page-transition"
+            key="landing"
+            style={{
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
+          >
+            <div
+              className="verlo-header"
+              style={{
+                marginTop: "1rem",
+                textAlign: "center",
+                width: "100%",
+                boxSizing: "border-box",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.5rem",
+                  marginBottom: "1rem",
+                  width: "100%",
+                }}
+              >
+                <img
+                  src="/VVNormal.png"
+                  alt="VERLO Logo"
+                  style={{
+                    width: "40px",
+                    height: "40px",
+                    objectFit: "contain",
+                  }}
+                />
+
+                <span
+                  className="verlo-brand"
+                  style={{
+                    margin: 0,
+                  }}
+                >
+                  VERLO
+                </span>
               </div>
-              <h1 className="verlo-title" style={{ fontSize: 'clamp(1.75rem, 4vw, 2.75rem)' }}>Stop guessing. Know your exact next step.</h1>
-              <p className="verlo-subtitle" style={{ marginBottom: '2.5rem', maxWidth: '650px', marginInline: 'auto', padding: '0 0.5rem', boxSizing: 'border-box' }}>
-                Verlo is an adaptive supercharged decision-intelligence engine that transforms messy, stressful situations into a fully tailored, risk-scored action pathway through dynamic profiling.
+
+              <h1
+                className="verlo-title"
+                style={{
+                  fontSize: "clamp(1.75rem, 4vw, 2.75rem)",
+                }}
+              >
+                Stop guessing. Know your exact next step.
+              </h1>
+
+              <p
+                className="verlo-subtitle"
+                style={{
+                  marginBottom: "2.5rem",
+                  maxWidth: "650px",
+                  marginInline: "auto",
+                  padding: "0 0.5rem",
+                  boxSizing: "border-box",
+                }}
+              >
+                Verlo is an adaptive supercharged decision-intelligence engine
+                that transforms messy, stressful situations into a fully
+                tailored, risk-scored action pathway through dynamic profiling.
               </p>
-              <button className="btn-primary" style={{ maxWidth: '300px', margin: '0 auto 3rem' }} onClick={() => setStep('input')}>
+
+              <button
+                className="btn-primary"
+                style={{
+                  maxWidth: "300px",
+                  margin: "0 auto 3rem",
+                }}
+                onClick={() => setStep("input")}
+              >
                 Launch Decision Engine →
               </button>
 
-              <div style={{ textAlign: 'center', width: '100%', maxWidth: '650px', margin: '0 auto 4rem', boxSizing: 'border-box' }}>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'center' }}>
+              <div
+                style={{
+                  textAlign: "center",
+                  width: "100%",
+                  maxWidth: "650px",
+                  margin: "0 auto 4rem",
+                  boxSizing: "border-box",
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "var(--text-muted)",
+                    marginBottom: "1rem",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    textAlign: "center",
+                  }}
+                >
                   Test common VERLO scenarios:
                 </p>
-                <div style={{ display: 'grid', gap: '0.75rem', width: '100%', textAlign: 'left', boxSizing: 'border-box' }}>
-                  <div 
-                    className="verlo-card" 
-                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', boxSizing: 'border-box' }}
-                    onClick={() => handleExampleSelect(
-                      'Flight cancelled at gate', 
-                      'My international flight was abruptly cancelled at the boarding gate due to mechanical failure. The airline desk agent says the earliest they can rebook me is in 48 hours, and they are refusing to cover hotel accommodations for the night despite my connecting ticket.',
-                      'Travelling on a strict budget for an important family event'
-                    )}
+
+                <div
+                  style={{
+                    display: "grid",
+                    gap: "0.75rem",
+                    width: "100%",
+                    textAlign: "left",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <div
+                    className="verlo-card"
+                    style={{
+                      padding: "1rem 1.25rem",
+                      cursor: "pointer",
+                      marginBottom: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "1rem",
+                      width: "100%",
+                      boxSizing: "border-box",
+                    }}
+                    onClick={() =>
+                      handleExampleSelect(
+                        "Flight cancelled at gate",
+                        "My international flight was abruptly cancelled at the boarding gate due to mechanical failure. The airline desk agent says the earliest they can rebook me is in 48 hours, and they are refusing to cover hotel accommodations for the night despite my connecting ticket.",
+                        "Travelling on a strict budget for an important family event",
+                      )
+                    }
                   >
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent)', flexShrink: 0 }}>
-                      <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+                    <svg
+                      width="22"
+                      height="22"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{
+                        color: "var(--accent)",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" />
                     </svg>
+
                     <div>
-                      <strong>Flight cancelled at gate</strong> &mdash; Airline refusing overnight hotel voucher.
+                      <strong>Flight cancelled at gate</strong> &mdash; Airline
+                      refusing overnight hotel voucher.
                     </div>
                   </div>
 
-                  <div 
-                    className="verlo-card" 
-                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', boxSizing: 'border-box' }}
-                    onClick={() => handleExampleSelect(
-                      'Unresolved billing charge', 
-                      'I noticed an unexpected $450 charge on my credit card from a software enterprise subscription that I explicitly cancelled three months ago in writing. Support is ignoring my emails and chat tickets.',
-                      'Freelancer relying on tight monthly cash flow'
-                    )}
+                  <div
+                    className="verlo-card"
+                    style={{
+                      padding: "1rem 1.25rem",
+                      cursor: "pointer",
+                      marginBottom: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "1rem",
+                      width: "100%",
+                      boxSizing: "border-box",
+                    }}
+                    onClick={() =>
+                      handleExampleSelect(
+                        "Unresolved billing charge",
+                        "I noticed an unexpected $450 charge on my credit card from a software enterprise subscription that I explicitly cancelled three months ago in writing. Support is ignoring my emails and chat tickets.",
+                        "Freelancer relying on tight monthly cash flow",
+                      )
+                    }
                   >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      style={{
+                        color: "var(--accent)",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <rect x="1" y="4" width="22" height="16" rx="2" />
+                      <line x1="1" y1="10" x2="23" y2="10" />
+                    </svg>
+
                     <div>
-                      <strong>Unresolved billing dispute</strong> &mdash; Subscription charged post-cancellation.
+                      <strong>Unresolved billing dispute</strong> &mdash;
+                      Subscription charged post-cancellation.
                     </div>
                   </div>
 
-                  <div 
-                    className="verlo-card" 
-                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', boxSizing: 'border-box' }}
-                    onClick={() => handleExampleSelect(
-                      'Landlord withholding bond', 
-                      'My tenancy agreement ended 3 weeks ago and my landlord is refusing to release my full $2,000 security deposit, claiming minor carpet scuffs that were already present when I moved in as documented on my condition report.',
-                      'First-time renter moving into a new apartment'
-                    )}
+                  <div
+                    className="verlo-card"
+                    style={{
+                      padding: "1rem 1.25rem",
+                      cursor: "pointer",
+                      marginBottom: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "1rem",
+                      width: "100%",
+                      boxSizing: "border-box",
+                    }}
+                    onClick={() =>
+                      handleExampleSelect(
+                        "Landlord withholding bond",
+                        "My tenancy agreement ended 3 weeks ago and my landlord is refusing to release my full $2,000 security deposit, claiming minor carpet scuffs that were already present when I moved in as documented on my condition report.",
+                        "First-time renter moving into a new apartment",
+                      )
+                    }
                   >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      style={{
+                        color: "var(--accent)",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                      <polyline points="9 22 9 12 15 12 15 22" />
+                    </svg>
+
                     <div>
-                      <strong>Landlord withholding bond</strong> &mdash; Disputing false wear-and-tear deductions.
+                      <strong>Landlord withholding bond</strong> &mdash;
+                      Disputing false wear-and-tear deductions.
                     </div>
                   </div>
 
-                  <div 
-                    className="verlo-card" 
-                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', boxSizing: 'border-box' }}
-                    onClick={() => handleExampleSelect(
-                      'Defective laptop warranty dispute', 
-                      'I purchased a high-end laptop 5 months ago that has suffered multiple motherboard failures. The manufacturer service center is claiming accidental liquid damage violation even though the machine has never been exposed to liquids.',
-                      'Student relying on laptop for coursework'
-                    )}
+                  <div
+                    className="verlo-card"
+                    style={{
+                      padding: "1rem 1.25rem",
+                      cursor: "pointer",
+                      marginBottom: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "1rem",
+                      width: "100%",
+                      boxSizing: "border-box",
+                    }}
+                    onClick={() =>
+                      handleExampleSelect(
+                        "Defective laptop warranty dispute",
+                        "I purchased a high-end laptop 5 months ago that has suffered multiple motherboard failures. The manufacturer service center is claiming accidental liquid damage violation even though the machine has never been exposed to liquids.",
+                        "Student relying on laptop for coursework",
+                      )
+                    }
                   >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      style={{
+                        color: "var(--accent)",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <rect x="2" y="3" width="20" height="14" rx="2" />
+                      <line x1="8" y1="21" x2="16" y2="21" />
+                      <line x1="12" y1="17" x2="12" y2="21" />
+                    </svg>
+
                     <div>
-                      <strong>Defective laptop warranty</strong> &mdash; Manufacturer denying warranty repair unfairly.
+                      <strong>Defective laptop warranty</strong> &mdash;
+                      Manufacturer denying warranty repair unfairly.
                     </div>
                   </div>
                 </div>
@@ -723,50 +1309,203 @@ export default function App() {
             </div>
           </div>
         )}
-        {step === 'input' && (
-          <div className="page-transition" key="input" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{ width: '100%', maxWidth: '650px', boxSizing: 'border-box' }}>
-              <div style={{ marginBottom: '1.5rem', textAlign: 'left', width: '100%' }}>
-                <button 
-                  onClick={() => setStep('landing')}
-                  style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}
+
+        {step === "input" && (
+          <div
+            className="page-transition"
+            key="input"
+            style={{
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
+          >
+            <div
+              style={{
+                width: "100%",
+                maxWidth: "650px",
+                boxSizing: "border-box",
+              }}
+            >
+              <div
+                style={{
+                  marginBottom: "1.5rem",
+                  textAlign: "left",
+                  width: "100%",
+                }}
+              >
+                <button
+                  onClick={() => setStep("landing")}
+                  style={{
+                    background: "var(--bg-surface)",
+                    border: "1px solid var(--border-subtle)",
+                    color: "var(--text-muted)",
+                    padding: "0.5rem 1rem",
+                    borderRadius: "8px",
+                    fontSize: "0.85rem",
+                    fontWeight: 600,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    cursor: "pointer",
+                  }}
                 >
                   ← Back to Overview
                 </button>
               </div>
 
-              <div className="verlo-header" style={{ marginTop: '1rem', marginBottom: '2rem', textAlign: 'center', width: '100%' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '1rem', width: '100%' }}>
-                  <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
-                  <span className="verlo-brand" style={{ margin: 0 }}>VERLO</span>
+              <div
+                className="verlo-header"
+                style={{
+                  marginTop: "1rem",
+                  marginBottom: "2rem",
+                  textAlign: "center",
+                  width: "100%",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "0.5rem",
+                    marginBottom: "1rem",
+                    width: "100%",
+                  }}
+                >
+                  <img
+                    src="/VVNormal.png"
+                    alt="VERLO Logo"
+                    style={{
+                      width: "32px",
+                      height: "32px",
+                      objectFit: "contain",
+                    }}
+                  />
+
+                  <span
+                    className="verlo-brand"
+                    style={{
+                      margin: 0,
+                    }}
+                  >
+                    VERLO
+                  </span>
                 </div>
-                <h2 className="verlo-title" style={{ fontSize: '2rem', marginBottom: '0.25rem' }}>Define Your Situation</h2>
-                <p className="verlo-subtitle" style={{ margin: 0, textAlign: 'center' }}>Provide the details below. Our adaptive engine will formulate custom probing questions before constructing your report.</p>
+
+                <h2
+                  className="verlo-title"
+                  style={{
+                    fontSize: "2rem",
+                    marginBottom: "0.25rem",
+                  }}
+                >
+                  Define Your Situation
+                </h2>
+
+                <p
+                  className="verlo-subtitle"
+                  style={{
+                    margin: 0,
+                    textAlign: "center",
+                  }}
+                >
+                  Provide the details below. Our adaptive engine will formulate
+                  custom probing questions before constructing your report.
+                </p>
               </div>
 
-              {error && <div style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.9rem', background: 'rgba(239, 68, 68, 0.1)', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.3)', width: '100%', boxSizing: 'border-box', textAlign: 'center' }}>{error}</div>}
+              {error && (
+                <div
+                  style={{
+                    color: "var(--danger)",
+                    marginBottom: "1rem",
+                    fontSize: "0.9rem",
+                    background: "rgba(239, 68, 68, 0.1)",
+                    padding: "0.75rem",
+                    borderRadius: "8px",
+                    border: "1px solid rgba(239, 68, 68, 0.3)",
+                    width: "100%",
+                    boxSizing: "border-box",
+                    textAlign: "center",
+                  }}
+                >
+                  {error}
+                </div>
+              )}
 
-              <form onSubmit={handleInitialSubmit} className="verlo-card" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
-                <div className="form-group" style={{ textAlign: 'left' }}>
-                  <label className="form-label">Situation Title (Optional)</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="e.g., Landlord deposit dispute" 
+              <form
+                onSubmit={handleInitialSubmit}
+                className="verlo-card"
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  textAlign: "left",
+                }}
+              >
+                <div
+                  className="form-group"
+                  style={{
+                    textAlign: "left",
+                  }}
+                >
+                  <label className="form-label">
+                    Situation Title (Optional)
+                  </label>
+
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g., Landlord deposit dispute"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                   />
                 </div>
 
-                <div className="form-group" style={{ textAlign: 'left' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.25rem' }}>
-                    <label className="form-label" style={{ marginBottom: 0 }}>Describe what happened *</label>
-                    <span style={{ fontSize: '0.8rem', color: wordCount < MIN_WORDS ? 'var(--warning)' : 'var(--text-muted)' }}>
-                      {wordCount} words {wordCount < MIN_WORDS ? `(Minimum ${MIN_WORDS} required)` : '✓'}
+                <div
+                  className="form-group"
+                  style={{
+                    textAlign: "left",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "0.5rem",
+                      flexWrap: "wrap",
+                      gap: "0.25rem",
+                    }}
+                  >
+                    <label
+                      className="form-label"
+                      style={{
+                        marginBottom: 0,
+                      }}
+                    >
+                      Describe what happened *
+                    </label>
+
+                    <span
+                      style={{
+                        fontSize: "0.8rem",
+                        color:
+                          wordCount < MIN_WORDS
+                            ? "var(--warning)"
+                            : "var(--text-muted)",
+                      }}
+                    >
+                      {wordCount} words{" "}
+                      {wordCount < MIN_WORDS
+                        ? `(Minimum ${MIN_WORDS} required)`
+                        : "✓"}
                     </span>
                   </div>
-                  <textarea 
-                    className="form-textarea" 
+
+                  <textarea
+                    className="form-textarea"
                     placeholder="Include key details: dates, amounts, communications, and what outcome you are looking for..."
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
@@ -774,39 +1513,121 @@ export default function App() {
                   />
                 </div>
 
-                <div className="form-group" style={{ textAlign: 'left' }}>
-                  <label className="form-label">Any specific personal context or constraints? (Optional)</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="e.g., I'm a student living on a tight budget" 
+                <div
+                  className="form-group"
+                  style={{
+                    textAlign: "left",
+                  }}
+                >
+                  <label className="form-label">
+                    Any specific personal context or constraints? (Optional)
+                  </label>
+
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g., I'm a student living on a tight budget"
                     value={userContext}
                     onChange={(e) => setUserContext(e.target.value)}
                   />
                 </div>
-                <div className="form-group" style={{ textAlign: 'left' }}>
-                  <label className="form-label">Attach Evidence / Files / Media (Optional)</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                    <label style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}>
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+
+                <div
+                  className="form-group"
+                  style={{
+                    textAlign: "left",
+                  }}
+                >
+                  <label className="form-label">
+                    Attach Evidence / Files / Media (Optional)
+                  </label>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.75rem",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <label
+                      style={{
+                        background: "var(--bg-surface)",
+                        border: "1px solid var(--border-subtle)",
+                        color: "var(--text-main)",
+                        padding: "0.5rem 1rem",
+                        borderRadius: "8px",
+                        fontSize: "0.85rem",
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.4rem",
+                        fontWeight: 600,
+                      }}
+                    >
                       Browse File / Media
-                      <input 
-                        type="file" 
-                        style={{ display: 'none' }} 
-                        onChange={(e) => handleSecureFileUpload(e.target.files[0], 'assessment')}
+                      <input
+                        type="file"
+                        style={{
+                          display: "none",
+                        }}
+                        onChange={(e) =>
+                          handleSecureFileUpload(
+                            e.target.files[0],
+                            "assessment",
+                          )
+                        }
                       />
                     </label>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Stored in safe encrypted DB sandbox; removable anytime.</span>
+
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "var(--text-muted)",
+                      }}
+                    >
+                      Stored in safe encrypted DB sandbox; removable anytime.
+                    </span>
                   </div>
+
                   {assessmentAttachment && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-surface)', padding: '0.6rem 0.8rem', borderRadius: '6px', marginTop: '0.5rem', border: '1px solid var(--border-subtle)', fontSize: '0.85rem' }}>
-                      <span style={{ color: 'var(--accent)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80%' }}>
-                        📎 {assessmentAttachment.name} ({assessmentAttachment.size})
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        background: "var(--bg-surface)",
+                        padding: "0.6rem 0.8rem",
+                        borderRadius: "6px",
+                        marginTop: "0.5rem",
+                        border: "1px solid var(--border-subtle)",
+                        fontSize: "0.85rem",
+                      }}
+                    >
+                      <span
+                        style={{
+                          color: "var(--accent)",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          maxWidth: "80%",
+                        }}
+                      >
+                        📎 {assessmentAttachment.name} (
+                        {assessmentAttachment.size})
                       </span>
-                      <button 
-                        type="button" 
-                        onClick={() => removeAttachment('assessment')}
-                        style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700 }}
+
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment("assessment")}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "var(--danger)",
+                          cursor: "pointer",
+                          fontSize: "0.8rem",
+                          fontWeight: 700,
+                        }}
                       >
                         Remove
                       </button>
@@ -814,101 +1635,318 @@ export default function App() {
                   )}
                 </div>
 
-                <button type="submit" className="btn-primary" style={{ width: '100%' }}>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  style={{
+                    width: "100%",
+                  }}
+                >
                   Generate Adaptive Assessment →
                 </button>
               </form>
             </div>
           </div>
         )}
-        {step === 'assessment' && assessmentData && currentAssessmentItem && (
-          <div className="page-transition animate-fade-slide-up" key="assessment" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{ width: '100%', maxWidth: '650px', boxSizing: 'border-box' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', width: '100%' }}>
-                <button 
+
+
+        {step === "assessment" && assessmentData && currentAssessmentItem && (
+          <div
+            className="page-transition animate-fade-slide-up"
+            key="assessment"
+            style={{
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
+          >
+            <div
+              style={{
+                width: "100%",
+                maxWidth: "650px",
+                boxSizing: "border-box",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "1.5rem",
+                  width: "100%",
+                  gap: "1rem",
+                }}
+              >
+                <button
                   onClick={handleAssessmentPrev}
-                  style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}
+                  style={{
+                    background: "var(--bg-surface)",
+                    border: "1px solid var(--border-subtle)",
+                    color: "var(--text-muted)",
+                    padding: "0.5rem 1rem",
+                    borderRadius: "8px",
+                    fontSize: "0.85rem",
+                    fontWeight: 600,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    cursor: "pointer",
+                  }}
                 >
                   ← Back
                 </button>
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                  Question {activeAssessmentIndex + 1} of {Math.max(assessmentItems.length, 1)}
-                  {adaptiveQuestionCount < MAX_ADAPTIVE_QUESTIONS && (
-                    <span style={{ marginLeft: '0.4rem', color: 'var(--accent)', fontWeight: 500 }}>
-                      • adaptive
-                    </span>
-                  )}
+
+                <span
+                  style={{
+                    fontSize: "0.85rem",
+                    color: "var(--text-muted)",
+                    fontWeight: 600,
+                    textAlign: "right",
+                  }}
+                >
+                  Question {activeAssessmentIndex + 1} of{" "}
+                  {MAX_ADAPTIVE_QUESTIONS}
+                  <span
+                    style={{
+                      marginLeft: "0.4rem",
+                      color: "var(--accent)",
+                      fontWeight: 500,
+                    }}
+                  >
+                    • adaptive
+                  </span>
                 </span>
               </div>
-              <div style={{ width: '100%', height: '4px', background: 'var(--bg-surface)', borderRadius: '2px', marginBottom: '2rem', overflow: 'hidden' }}>
-                <div style={{ width: `${((activeAssessmentIndex + 1) / assessmentItems.length) * 100}%`, height: '100%', background: 'var(--accent)', transition: 'width 0.3s ease' }} />
+
+              <div
+                style={{
+                  width: "100%",
+                  height: "5px",
+                  background: "var(--bg-surface)",
+                  borderRadius: "3px",
+                  marginBottom: "2rem",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    width: `${Math.min(
+                      ((activeAssessmentIndex + 1) / MAX_ADAPTIVE_QUESTIONS) *
+                        100,
+                      100,
+                    )}%`,
+
+                    height: "100%",
+
+                    background: "var(--accent)",
+
+                    transition: "width 0.4s ease",
+                  }}
+                />
               </div>
 
-              <div className="verlo-header" style={{ marginTop: '0.5rem', marginBottom: '1.5rem', textAlign: 'center', width: '100%' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.75rem', width: '100%' }}>
-                  <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
-                  <span className="verlo-brand" style={{ margin: 0 }}>Adaptive Intelligence Matrix</span>
+              <div
+                className="verlo-header"
+                style={{
+                  marginTop: "0.5rem",
+                  marginBottom: "1.5rem",
+                  textAlign: "center",
+                  width: "100%",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "0.5rem",
+                    marginBottom: "0.75rem",
+                    width: "100%",
+                  }}
+                >
+                  <img
+                    src="/VVNormal.png"
+                    alt="VERLO Logo"
+                    style={{
+                      width: "32px",
+                      height: "32px",
+                      objectFit: "contain",
+                    }}
+                  />
+
+                  <span
+                    className="verlo-brand"
+                    style={{
+                      margin: 0,
+                    }}
+                  >
+                    Adaptive Intelligence Matrix
+                  </span>
                 </div>
-                <h2 className="verlo-title" style={{ fontSize: '1.75rem', marginBottom: '0.25rem' }}>Refine Your Parameters</h2>
-                <p className="verlo-subtitle" style={{ margin: 0, textAlign: 'center' }}>Answering these custom inquiries ensures your final action pathway is laser-focused.</p>
+
+                <h2
+                  className="verlo-title"
+                  style={{
+                    fontSize: "1.75rem",
+                    marginBottom: "0.25rem",
+                  }}
+                >
+                  Refine Your Parameters
+                </h2>
+
+                <p
+                  className="verlo-subtitle"
+                  style={{
+                    margin: 0,
+                    textAlign: "center",
+                  }}
+                >
+                  Answering these custom inquiries ensures your final action
+                  pathway is laser-focused.
+                </p>
               </div>
 
-              <div className="verlo-card" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left', margin: 0 }}>
+              <div
+                className="verlo-card"
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  textAlign: "left",
+                  margin: 0,
+                }}
+              >
                 {isAdaptiveLoading ? (
-                  <div style={{ padding: '1rem 0', textAlign: 'center' }}>
-                    <div className="processing-pulse-ring" style={{ width: '42px', height: '42px', margin: '0 auto 1rem' }}></div>
-                    <strong style={{ display: 'block', color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                  <div
+                    style={{
+                      padding: "2rem 1rem",
+                      textAlign: "center",
+                    }}
+                  >
+                    <div
+                      className="processing-pulse-ring"
+                      style={{
+                        width: "42px",
+                        height: "42px",
+                        margin: "0 auto 1rem",
+                      }}
+                    />
+
+                    <strong
+                      style={{
+                        display: "block",
+                        color: "var(--text-main)",
+                        marginBottom: "0.35rem",
+                      }}
+                    >
                       Adapting the next question...
                     </strong>
-                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                      VERLO is using your previous answer to decide what matters next.
+
+                    <span
+                      style={{
+                        color: "var(--text-muted)",
+                        fontSize: "0.85rem",
+                      }}
+                    >
+                      VERLO is using your previous answer to decide what matters
+                      next.
                     </span>
                   </div>
-                ) : currentAssessmentItem.type === 'mcq' ? (
+                ) : currentAssessmentItem.type === "mcq" ? (
                   <div>
-                    <label className="form-label" style={{ color: 'var(--accent)', fontWeight: 700, marginBottom: '1rem', display: 'block', fontSize: '1rem' }}>
+                    <label
+                      className="form-label"
+                      style={{
+                        color: "var(--accent)",
+                        fontWeight: 700,
+                        marginBottom: "1rem",
+                        display: "block",
+                        fontSize: "1rem",
+                        lineHeight: 1.5,
+                      }}
+                    >
                       {currentAssessmentItem.stem}
                     </label>
-                    <div style={{ display: 'grid', gap: '0.75rem' }}>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gap: "0.75rem",
+                      }}
+                    >
                       {currentAssessmentItem.choices.map((choice, cIndex) => {
-                        const isSelected = selectedMcqAnswers[currentAssessmentItem.id || activeAssessmentIndex] === choice;
+                        const answerKey =
+                          currentAssessmentItem.id || activeAssessmentIndex;
+
+                        const isSelected =
+                          selectedMcqAnswers[answerKey] === choice;
+
                         return (
-                          <div 
+                          <div
                             key={cIndex}
-                            onClick={() => setSelectedMcqAnswers({ ...selectedMcqAnswers, [currentAssessmentItem.id || activeAssessmentIndex]: choice })}
-
-
-
-
-
-
-
-
-
-                            // LUCKY NUMBER 888
-                            style={{ 
-                              padding: '1rem', 
-                              borderRadius: '8px', 
-                              border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--border-subtle)'}`,
-                              background: isSelected ? 'rgba(16, 185, 129, 0.08)' : 'var(--bg-card)',
-                              color: 'var(--text-main)',
-                              cursor: 'pointer',
-                              fontSize: '0.95rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.75rem',
-                              transition: 'all 0.2s ease',
-                              boxSizing: 'border-box'
+                            onClick={() =>
+                              setSelectedMcqAnswers((prev) => ({
+                                ...prev,
+                                [answerKey]: choice,
+                              }))
+                            }
+                            style={{
+                              padding: "1rem",
+                              borderRadius: "8px",
+                              border: `1px solid ${
+                                isSelected
+                                  ? "var(--accent)"
+                                  : "var(--border-subtle)"
+                              }`,
+                              background: isSelected
+                                ? "rgba(16, 185, 129, 0.08)"
+                                : "var(--bg-card)",
+                              color: "var(--text-main)",
+                              cursor: "pointer",
+                              fontSize: "0.95rem",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.75rem",
+                              transition: "all 0.2s ease",
+                              boxSizing: "border-box",
                             }}
                           >
-                            <div style={{ 
-                              width: '18px', height: '18px', borderRadius: '50%', 
-                              border: `2px solid ${isSelected ? 'var(--accent)' : 'var(--text-muted)'}`,
-                              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
-                            }}>
-                              {isSelected && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent)' }} />}
+                            <div
+                              style={{
+                                width: "18px",
+                                height: "18px",
+                                borderRadius: "50%",
+                                border: `2px solid ${
+                                  isSelected
+                                    ? "var(--accent)"
+                                    : "var(--text-muted)"
+                                }`,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                flexShrink: 0,
+                              }}
+                            >
+                              {isSelected && (
+                                <div
+                                  style={{
+                                    width: "8px",
+                                    height: "8px",
+                                    borderRadius: "50%",
+                                    background: "var(--accent)",
+                                  }}
+                                />
+                              )}
                             </div>
-                            <span style={{ wordBreak: 'break-word' }}>{choice}</span>
+
+                            <span
+                              style={{
+                                wordBreak: "break-word",
+                                lineHeight: 1.4,
+                              }}
+                            >
+                              {choice}
+                            </span>
                           </div>
                         );
                       })}
@@ -916,141 +1954,485 @@ export default function App() {
                   </div>
                 ) : (
                   <div>
-                    <label className="form-label" style={{ fontWeight: 700, marginBottom: '1rem', display: 'block', fontSize: '1rem' }}>
+                    <label
+                      className="form-label"
+                      style={{
+                        fontWeight: 700,
+                        marginBottom: "1rem",
+                        display: "block",
+                        fontSize: "1rem",
+                        lineHeight: 1.5,
+                      }}
+                    >
                       {currentAssessmentItem.question}
                     </label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
+
+                    <input
+                      type="text"
+                      className="form-input"
                       placeholder="Type your precise specification here and press Enter..."
-                      value={adaptiveTextAnswers[currentAssessmentItem.id || activeAssessmentIndex] || ''}
-                      onChange={(e) => setAdaptiveTextAnswers({ ...adaptiveTextAnswers, [currentAssessmentItem.id || activeAssessmentIndex]: e.target.value })}
+                      value={
+                        adaptiveTextAnswers[
+                          currentAssessmentItem.id || activeAssessmentIndex
+                        ] || ""
+                      }
+                      onChange={(e) =>
+                        setAdaptiveTextAnswers((prev) => ({
+                          ...prev,
+                          [currentAssessmentItem.id || activeAssessmentIndex]:
+                            e.target.value,
+                        }))
+                      }
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !isAdaptiveLoading) {
+                        if (e.key === "Enter" && !isAdaptiveLoading) {
                           e.preventDefault();
+
                           handleAssessmentNext();
                         }
                       }}
-                      style={{ fontSize: '1rem', padding: '0.85rem' }}
+                      style={{
+                        fontSize: "1rem",
+                        padding: "0.85rem",
+                      }}
                       autoFocus
                     />
                   </div>
                 )}
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem', width: '100%' }}>
-                <button 
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  marginTop: "1.5rem",
+                  width: "100%",
+                }}
+              >
+                <button
                   onClick={handleAssessmentNext}
                   className="btn-primary"
                   disabled={isAdaptiveLoading}
-                  style={{ width: 'auto', padding: '0.75rem 2rem', opacity: isAdaptiveLoading ? 0.6 : 1 }}
+                  style={{
+                    width: "auto",
+                    padding: "0.75rem 2rem",
+                    opacity: isAdaptiveLoading ? 0.6 : 1,
+                  }}
                 >
                   {isAdaptiveLoading
-                    ? 'Adapting...'
+                    ? "Adapting..."
                     : adaptiveQuestionCount >= MAX_ADAPTIVE_QUESTIONS
-                      ? 'Synthesise Final Report →'
-                      : 'Next Question →'}
+                      ? "Synthesise Final Report →"
+                      : "Next Question →"}
                 </button>
               </div>
             </div>
           </div>
         )}
-        {step === 'processing' && (
-          <div className="page-transition processing-container" key="processing" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3rem 0' }}>
-            <div className="processing-pulse-ring"></div>
-            <h2 style={{ fontSize: '1.5rem', marginTop: '1.5rem', color: 'var(--text-main)', textAlign: 'center' }}>Synthesising supercharged logic & links...</h2>
-            
-            <div className="processing-steps" style={{ width: '100%', maxWidth: '450px', marginTop: '2rem', boxSizing: 'border-box', padding: '0 1rem' }}>
+
+        {step === "processing" && (
+          <div
+            className="page-transition processing-container"
+            key="processing"
+            style={{
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "4rem 1rem",
+              boxSizing: "border-box",
+            }}
+          >
+            <div className="processing-pulse-ring" />
+
+            <h2
+              style={{
+                fontSize: "1.5rem",
+                marginTop: "1.5rem",
+                color: "var(--text-main)",
+                textAlign: "center",
+                maxWidth: "650px",
+              }}
+            >
+              Synthesising supercharged logic & links...
+            </h2>
+            <div
+              className="processing-steps"
+              style={{
+                width: "100%",
+                maxWidth: "650px",
+                marginTop: "2rem",
+                boxSizing: "border-box",
+              }}
+            >
               {processingSteps.map((text, idx) => {
                 const isDone = idx < processingStage;
+
                 const isActive = idx === processingStage;
+
                 return (
-                  <div key={idx} className={`step-item ${isActive ? 'active' : ''} ${isDone ? 'done' : ''}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'var(--bg-card)', marginBottom: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-subtle)', width: '100%', boxSizing: 'border-box' }}>
-                    <span style={{ color: isActive ? 'var(--accent)' : 'var(--text-muted)', fontSize: '0.9rem' }}>{text}</span>
-                    <span>{isDone ? '✓' : isActive ? '●' : '○'}</span>
+                  <div
+                    key={idx}
+                    className={`step-item ${isActive ? "active" : ""} ${
+                      isDone ? "done" : ""
+                    }`}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+
+                      gap: "1rem",
+
+                      minHeight: "54px",
+
+                      padding: "0.85rem 1.1rem",
+
+                      background: "var(--bg-card)",
+
+                      marginBottom: "0.65rem",
+
+                      borderRadius: "8px",
+
+                      border: "1px solid var(--border-subtle)",
+
+                      width: "100%",
+
+                      boxSizing: "border-box",
+
+                      transition: "all 0.25s ease",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.75rem",
+                        minWidth: 0,
+                        flex: "1 1 auto",
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: "8px",
+                          height: "8px",
+                          borderRadius: "50%",
+                          background:
+                            isDone || isActive
+                              ? "var(--accent)"
+                              : "var(--text-muted)",
+                          opacity: isDone || isActive ? 1 : 0.35,
+                          flexShrink: 0,
+                        }}
+                      />
+
+                      <span
+                        style={{
+                          color: isActive
+                            ? "var(--accent)"
+                            : isDone
+                              ? "var(--text-main)"
+                              : "var(--text-muted)",
+
+                          fontSize: "0.9rem",
+
+                          lineHeight: 1.4,
+
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {text}
+                      </span>
+                    </div>
+
+                    <span
+                      style={{
+                        color: isDone
+                          ? "var(--accent)"
+                          : isActive
+                            ? "var(--accent)"
+                            : "var(--text-muted)",
+
+                        fontSize: "0.95rem",
+
+                        fontWeight: 700,
+
+                        flexShrink: 0,
+
+                        width: "20px",
+
+                        textAlign: "center",
+                      }}
+                    >
+                      {isDone ? "✓" : isActive ? "●" : "○"}
+                    </span>
                   </div>
                 );
               })}
             </div>
           </div>
         )}
-        {step === 'results' && analysisData && (
-          <div className="page-transition animate-fade-slide-up" key="results" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{ width: '100%', maxWidth: '800px', boxSizing: 'border-box' }}>
-              
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem', width: '100%' }}>
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <button 
-                    onClick={() => setStep('input')}
-                    style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.45rem 0.9rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
+        {step === "results" && analysisData && (
+          <div
+            className="page-transition animate-fade-slide-up"
+            key="results"
+            style={{
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
+          >
+            <div
+              style={{
+                width: "100%",
+                maxWidth: "800px",
+                boxSizing: "border-box",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "1.25rem",
+                  flexWrap: "wrap",
+                  gap: "0.75rem",
+                  width: "100%",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "0.5rem",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <button
+                    onClick={() => setStep("input")}
+                    style={{
+                      background: "var(--bg-surface)",
+                      border: "1px solid var(--border-subtle)",
+                      color: "var(--text-muted)",
+                      padding: "0.45rem 0.9rem",
+                      borderRadius: "8px",
+                      fontSize: "0.8rem",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
                   >
                     ← New Situation
                   </button>
-                  <button 
+
+                  <button
                     onClick={() => handleSaveToAccount(analysisData)}
-                    style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid var(--accent)', color: 'var(--accent)', padding: '0.45rem 0.9rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                    style={{
+                      background: "rgba(16, 185, 129, 0.1)",
+                      border: "1px solid var(--accent)",
+                      color: "var(--accent)",
+                      padding: "0.45rem 0.9rem",
+                      borderRadius: "8px",
+                      fontSize: "0.8rem",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.4rem",
+                    }}
                   >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                      <polyline points="17 21 17 13 7 13 7 21" />
+                      <polyline points="7 3 7 8 15 8" />
+                    </svg>
                     Save Pathway
                   </button>
                 </div>
-                <button 
-                  onClick={() => setStep('landing')} 
-                  style={{ background: 'none', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.45rem 0.9rem', borderRadius: '8px', fontSize: '0.8rem', cursor: 'pointer' }}
+
+                <button
+                  onClick={() => setStep("landing")}
+                  style={{
+                    background: "none",
+                    border: "1px solid var(--border-subtle)",
+                    color: "var(--text-muted)",
+                    padding: "0.45rem 0.9rem",
+                    borderRadius: "8px",
+                    fontSize: "0.8rem",
+                    cursor: "pointer",
+                  }}
                 >
                   Start Over
                 </button>
               </div>
 
-              <div className="result-section animate-fade-slide-up" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', marginBottom: '1.25rem' }}>
+              <div
+                className="result-section animate-fade-slide-up"
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "1rem",
+                  background: "var(--bg-surface)",
+                  width: "100%",
+                  boxSizing: "border-box",
+                  marginBottom: "1.25rem",
+                }}
+              >
                 <div>
-                  <span className={`badge ${analysisData.confidence?.toLowerCase()}`} style={{ marginBottom: '0.25rem', display: 'inline-block' }}>
+                  <span
+                    className={`badge ${
+                      analysisData.confidence?.toLowerCase() || ""
+                    }`}
+                    style={{
+                      marginBottom: "0.25rem",
+                      display: "inline-block",
+                    }}
+                  >
                     Confidence: {analysisData.confidence}
                   </span>
-                  {userContext && <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', wordBreak: 'break-word' }}>Tailored for: <em>"{userContext}"</em></div>}
+
+                  {userContext && (
+                    <div
+                      style={{
+                        fontSize: "0.85rem",
+                        color: "var(--text-muted)",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      Tailored for: <em>"{userContext}"</em>
+                    </div>
+                  )}
                 </div>
-                <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.85rem', flexWrap: 'wrap' }}>
+
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "1.25rem",
+                    fontSize: "0.85rem",
+                    flexWrap: "wrap",
+                  }}
+                >
                   <div>
-                    <span style={{ color: 'var(--text-muted)' }}>Severity:</span><br/>
-                    <strong style={{ color: Number(analysisData.riskAssessment?.severityScore) > 7 ? 'var(--danger)' : 'var(--warning)' }}>
-                      {analysisData.riskAssessment?.severityScore}/10
+                    <span
+                      style={{
+                        color: "var(--text-muted)",
+                      }}
+                    >
+                      Severity:
+                    </span>
+
+                    <br />
+
+                    <strong
+                      style={{
+                        color:
+                          Number(analysisData.riskAssessment?.severityScore) > 7
+                            ? "var(--danger)"
+                            : "var(--warning)",
+                      }}
+                    >
+                      {analysisData.riskAssessment?.severityScore}
+                      /10
                     </strong>
                   </div>
+
                   <div>
-                    <span style={{ color: 'var(--text-muted)' }}>Exposure:</span><br/>
-                    <strong>{analysisData.riskAssessment?.financialExposure}</strong>
+                    <span
+                      style={{
+                        color: "var(--text-muted)",
+                      }}
+                    >
+                      Exposure:
+                    </span>
+
+                    <br />
+
+                    <strong>
+                      {analysisData.riskAssessment?.financialExposure}
+                    </strong>
                   </div>
+
                   <div>
-                    <span style={{ color: 'var(--text-muted)' }}>Urgency:</span><br/>
-                    <strong>{analysisData.riskAssessment?.timeSensitivity}</strong>
+                    <span
+                      style={{
+                        color: "var(--text-muted)",
+                      }}
+                    >
+                      Urgency:
+                    </span>
+
+                    <br />
+
+                    <strong>
+                      {analysisData.riskAssessment?.timeSensitivity}
+                    </strong>
                   </div>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: '0.3rem', background: 'var(--bg-surface)', padding: '0.3rem', borderRadius: '10px', border: '1px solid var(--border-subtle)', marginBottom: '1.25rem', overflowX: 'auto', width: '100%', boxSizing: 'border-box' }}>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: "0.3rem",
+                  background: "var(--bg-surface)",
+                  padding: "0.3rem",
+                  borderRadius: "10px",
+                  border: "1px solid var(--border-subtle)",
+                  marginBottom: "1.25rem",
+                  overflowX: "auto",
+                  width: "100%",
+                  boxSizing: "border-box",
+                }}
+              >
                 {[
-                  { id: 'overview', label: '⚡ Overview' },
-                  { id: 'panels', label: '🧩 Panels' },
-                  { id: 'steps', label: '📋 Action Steps' },
-                  { id: 'letter', label: '✉️ Letter' },
-                  { id: 'resources', label: '🔗 Resources' }
-                ].map(tab => {
+                  {
+                    id: "overview",
+                    label: "⚡ Overview",
+                  },
+                  {
+                    id: "panels",
+                    label: "🧩 Panels",
+                  },
+                  {
+                    id: "steps",
+                    label: "📋 Action Steps",
+                  },
+                  {
+                    id: "letter",
+                    label: "✉️ Letter",
+                  },
+                  {
+                    id: "resources",
+                    label: "🔗 Resources",
+                  },
+                ].map((tab) => {
                   const isActive = activeTab === tab.id;
+
                   return (
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
                       style={{
-                        flex: '1 1 auto',
-                        padding: '0.6rem 0.8rem',
-                        borderRadius: '7px',
-                        border: 'none',
-                        background: isActive ? 'var(--accent)' : 'transparent',
-                        color: isActive ? 'var(--bg-primary)' : 'var(--text-muted)',
+                        flex: "1 1 auto",
+                        padding: "0.6rem 0.8rem",
+                        border: "none",
+                        borderRadius: "7px",
+                        background: isActive ? "var(--accent)" : "transparent",
+                        color: isActive
+                          ? "var(--bg-primary)"
+                          : "var(--text-muted)",
                         fontWeight: isActive ? 700 : 500,
-                        fontSize: '0.82rem',
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                        transition: 'all 0.2s ease'
+                        fontSize: "0.82rem",
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                        transition: "all 0.2s ease",
                       }}
                     >
                       {tab.label}
@@ -1059,126 +2441,396 @@ export default function App() {
                 })}
               </div>
 
-              {activeTab === 'overview' && (
-                <div style={{ display: 'grid', gap: '1.25rem', width: '100%', boxSizing: 'border-box' }}>
-                  <div className="dominant-action animate-fade-slide-up" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left', margin: 0 }}>
-                    <h3 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+              {activeTab === "overview" && (
+                <div
+                  style={{
+                    display: "grid",
+                    gap: "1.25rem",
+                    width: "100%",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <div
+                    className="dominant-action animate-fade-slide-up"
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      textAlign: "left",
+                      margin: 0,
+                    }}
+                  >
+                    <h3
+                      style={{
+                        fontSize: "0.8rem",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.08em",
+                        color: "var(--accent)",
+                        marginBottom: "0.5rem",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.4rem",
+                      }}
+                    >
                       Immediate Priority Action
                     </h3>
-                    <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', wordBreak: 'break-word' }}>{analysisData.nextSteps?.[0]?.step || "Review strategic options below."}</h2>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: 0, wordBreak: 'break-word' }}>
-                      <strong>Why this first:</strong> {analysisData.nextSteps?.[0]?.why || "Establishes your foundational position."}
+
+                    <h2
+                      style={{
+                        fontSize: "1.25rem",
+                        marginBottom: "0.5rem",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {analysisData.nextSteps?.[0]?.step}
+                    </h2>
+
+                    <p
+                      style={{
+                        color: "var(--text-muted)",
+                        fontSize: "0.9rem",
+                        marginBottom: 0,
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      <strong>Why this first:</strong>{" "}
+                      {analysisData.nextSteps?.[0]?.why}
                     </p>
                   </div>
 
                   {analysisData.situation && (
-                    <div className="result-section animate-fade-slide-up" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left', margin: 0 }}>
-                      <h3 style={{ color: 'var(--text-main)', marginBottom: '0.75rem', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                    <div
+                      className="result-section animate-fade-slide-up"
+                      style={{
+                        width: "100%",
+                        boxSizing: "border-box",
+                        textAlign: "left",
+                        margin: 0,
+                      }}
+                    >
+                      <h3
+                        style={{
+                          color: "var(--text-main)",
+                          marginBottom: "0.75rem",
+                          fontSize: "1rem",
+                        }}
+                      >
                         Situation Summary
                       </h3>
-                      <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: '1.5', margin: 0, wordBreak: 'break-word' }}>{analysisData.situation}</p>
+
+                      <p
+                        style={{
+                          fontSize: "0.9rem",
+                          color: "var(--text-muted)",
+                          lineHeight: "1.5",
+                          margin: 0,
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {analysisData.situation}
+                      </p>
                     </div>
                   )}
 
-                  <div className="result-section animate-fade-slide-up" style={{ background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', textAlign: 'left', margin: 0 }}>
-                    <h3 style={{ color: 'var(--text-main)', marginBottom: '0.5rem', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  <div
+                    className="result-section animate-fade-slide-up"
+                    style={{
+                      background: "var(--bg-surface)",
+                      width: "100%",
+                      boxSizing: "border-box",
+                      textAlign: "left",
+                      margin: 0,
+                    }}
+                  >
+                    <h3
+                      style={{
+                        color: "var(--text-main)",
+                        marginBottom: "0.5rem",
+                        fontSize: "1rem",
+                      }}
+                    >
                       Ask VERLO AI Assistant
                     </h3>
-                    <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>Need immediate clarification, follow-up response, or file attachment?</p>
-                    
+
+                    <p
+                      style={{
+                        fontSize: "0.82rem",
+                        color: "var(--text-muted)",
+                        marginBottom: "0.75rem",
+                      }}
+                    >
+                      Need immediate clarification, follow-up response, or file
+                      attachment?
+                    </p>
+
                     {chatHistory.length > 0 && (
-                      <div style={{ display: 'grid', gap: '0.75rem', marginBottom: '0.75rem', maxHeight: '250px', overflowY: 'auto', paddingRight: '0.4rem', width: '100%', boxSizing: 'border-box' }}>
+                      <div
+                        style={{
+                          display: "grid",
+                          gap: "0.75rem",
+                          marginBottom: "0.75rem",
+                          maxHeight: "250px",
+                          overflowY: "auto",
+                          paddingRight: "0.4rem",
+                          width: "100%",
+                          boxSizing: "border-box",
+                        }}
+                      >
                         {chatHistory.map((msg, index) => (
-                          <div 
-                            key={index} 
-                            style={{ 
-                              background: msg.role === 'user' ? 'var(--bg-card)' : 'rgba(16, 185, 129, 0.08)', 
-                              padding: '0.75rem', 
-                              borderRadius: '8px', 
-                              border: '1px solid var(--border-subtle)',
-                              fontSize: '0.85rem',
-                              width: '100%',
-                              boxSizing: 'border-box',
-                              wordBreak: 'break-word'
+                          <div
+                            key={index}
+                            style={{
+                              background:
+                                msg.role === "user"
+                                  ? "var(--bg-card)"
+                                  : "rgba(16, 185, 129, 0.08)",
+                              padding: "0.75rem",
+                              borderRadius: "8px",
+                              border: "1px solid var(--border-subtle)",
+                              fontSize: "0.85rem",
+                              width: "100%",
+                              boxSizing: "border-box",
+                              wordBreak: "break-word",
                             }}
                           >
-                            <strong style={{ display: 'block', marginBottom: '0.2rem', color: msg.role === 'user' ? 'var(--text-main)' : 'var(--accent)' }}>
-                              {msg.role === 'user' ? 'You' : 'VERLO AI'}
+                            <strong
+                              style={{
+                                display: "block",
+                                marginBottom: "0.2rem",
+                                color:
+                                  msg.role === "user"
+                                    ? "var(--text-main)"
+                                    : "var(--accent)",
+                              }}
+                            >
+                              {msg.role === "user" ? "You" : "VERLO AI"}
                             </strong>
+
                             {msg.attachment && (
-                              <div style={{ fontSize: '0.75rem', color: 'var(--accent)', marginBottom: '0.4rem', fontStyle: 'italic' }}>
-                                📎 Attached file: {msg.attachment.name} ({msg.attachment.size})
+                              <div
+                                style={{
+                                  fontSize: "0.75rem",
+                                  color: "var(--accent)",
+                                  marginBottom: "0.4rem",
+                                }}
+                              >
+                                📎 Attached file: {msg.attachment.name}
                               </div>
                             )}
-                            {msg.role === 'user' ? (
-                              <div style={{ color: 'var(--text-muted)', whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+
+                            {msg.role === "user" ? (
+                              <div
+                                style={{
+                                  color: "var(--text-muted)",
+                                  whiteSpace: "pre-wrap",
+                                }}
+                              >
+                                {msg.content}
+                              </div>
                             ) : (
-                              <div style={{ color: 'var(--text-muted)' }} dangerouslySetInnerHTML={{ __html: renderMarkdownToHTML(msg.content) }} />
+                              <div
+                                style={{
+                                  color: "var(--text-muted)",
+                                }}
+                                dangerouslySetInnerHTML={{
+                                  __html: renderMarkdownToHTML(msg.content),
+                                }}
+                              />
                             )}
                           </div>
                         ))}
                       </div>
                     )}
+
                     {chatAttachment && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-card)', padding: '0.5rem 0.75rem', borderRadius: '6px', marginBottom: '0.5rem', border: '1px solid var(--border-subtle)', fontSize: '0.8rem' }}>
-                        <span style={{ color: 'var(--accent)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80%' }}>
-                          📎 {chatAttachment.name} ({chatAttachment.size})
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          background: "var(--bg-card)",
+                          padding: "0.5rem 0.75rem",
+                          borderRadius: "6px",
+                          marginBottom: "0.5rem",
+                          border: "1px solid var(--border-subtle)",
+                          fontSize: "0.8rem",
+                        }}
+                      >
+                        <span
+                          style={{
+                            color: "var(--accent)",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            maxWidth: "80%",
+                          }}
+                        >
+                          📎 {chatAttachment.name}
                         </span>
-                        <button 
-                          type="button" 
-                          onClick={() => removeAttachment('chat')}
-                          style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
+
+                        <button
+                          type="button"
+                          onClick={() => removeAttachment("chat")}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: "var(--danger)",
+                            cursor: "pointer",
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                          }}
                         >
                           Remove
                         </button>
                       </div>
                     )}
 
-                    <form onSubmit={handleChatSubmit} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', width: '100%', boxSizing: 'border-box' }}>
-                      <input 
-                        type="text" 
-                        className="form-input" 
-                        placeholder="Ask a question or upload file..." 
+                    <form
+                      onSubmit={handleChatSubmit}
+                      style={{
+                        display: "flex",
+                        gap: "0.5rem",
+                        flexWrap: "wrap",
+                        width: "100%",
+                        boxSizing: "border-box",
+                      }}
+                    >
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="Ask a question or upload file..."
                         value={chatQuestion}
                         onChange={(e) => setChatQuestion(e.target.value)}
                         disabled={isChatLoading}
-                        style={{ marginBottom: 0, flex: '1 1 180px' }}
+                        style={{
+                          marginBottom: 0,
+                          flex: "1 1 180px",
+                        }}
                       />
-                      <label title="Attach File/Media to Chat" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '0.5rem 0.75rem', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                        <input 
-                          type="file" 
-                          style={{ display: 'none' }} 
-                          onChange={(e) => handleSecureFileUpload(e.target.files[0], 'chat')}
+
+                      <label
+                        title="Attach File/Media to Chat"
+                        style={{
+                          background: "var(--bg-card)",
+                          border: "1px solid var(--border-subtle)",
+                          color: "var(--text-main)",
+                          padding: "0.5rem 0.75rem",
+                          borderRadius: "8px",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        📎
+                        <input
+                          type="file"
+                          style={{
+                            display: "none",
+                          }}
+                          onChange={(e) =>
+                            handleSecureFileUpload(e.target.files[0], "chat")
+                          }
                         />
                       </label>
-                      <button type="submit" className="btn-primary" style={{ width: 'auto', padding: '0.5rem 1rem', marginTop: 0 }} disabled={isChatLoading}>
-                        {isChatLoading ? '...' : 'Send'}
+
+                      <button
+                        type="submit"
+                        className="btn-primary"
+                        style={{
+                          width: "auto",
+                          padding: "0.5rem 1rem",
+                          marginTop: 0,
+                        }}
+                        disabled={isChatLoading}
+                      >
+                        {isChatLoading ? "..." : "Send"}
                       </button>
                     </form>
                   </div>
                 </div>
               )}
 
-              {activeTab === 'panels' && (
-                <div className="result-section animate-fade-slide-up" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left', margin: 0 }}>
-                  <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.05rem' }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+              {activeTab === "panels" && (
+                <div
+                  className="result-section animate-fade-slide-up"
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    textAlign: "left",
+                    margin: 0,
+                  }}
+                >
+                  <h3
+                    style={{
+                      color: "var(--text-main)",
+                      marginBottom: "1rem",
+                      fontSize: "1.05rem",
+                    }}
+                  >
                     Personalised Issue Solution Panels
                   </h3>
-                  {(!analysisData.personalizedPanels || analysisData.personalizedPanels.length === 0) ? (
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No custom panels generated for this query.</p>
+
+                  {!analysisData.personalizedPanels ||
+                  analysisData.personalizedPanels.length === 0 ? (
+                    <p
+                      style={{
+                        color: "var(--text-muted)",
+                        fontSize: "0.85rem",
+                      }}
+                    >
+                      No custom panels generated for this query.
+                    </p>
                   ) : (
-                    <div style={{ display: 'grid', gap: '1rem', width: '100%', boxSizing: 'border-box' }}>
+                    <div
+                      style={{
+                        display: "grid",
+                        gap: "1rem",
+                        width: "100%",
+                      }}
+                    >
                       {analysisData.personalizedPanels.map((panel, pIdx) => (
-                        <div key={pIdx} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', padding: '1.25rem', borderRadius: '8px', width: '100%', boxSizing: 'border-box' }}>
-                          <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--accent)', marginBottom: '0.4rem', wordBreak: 'break-word' }}>{panel.panelTitle}</div>
-                          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.75rem', lineHeight: '1.4', wordBreak: 'break-word' }} dangerouslySetInnerHTML={{ __html: renderMarkdownToHTML(panel.insight) }} />
-                          <div style={{ fontSize: '0.85rem', color: 'var(--text-main)', background: 'var(--bg-surface)', padding: '0.75rem', borderRadius: '6px', wordBreak: 'break-word' }}>
-                            <strong>Recommended Solution:</strong> {panel.solution}
+                        <div
+                          key={pIdx}
+                          style={{
+                            background: "var(--bg-card)",
+                            border: "1px solid var(--border-subtle)",
+                            padding: "1.25rem",
+                            borderRadius: "8px",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontWeight: 700,
+                              color: "var(--accent)",
+                              marginBottom: "0.4rem",
+                            }}
+                          >
+                            {panel.panelTitle}
+                          </div>
+
+                          <div
+                            style={{
+                              fontSize: "0.85rem",
+                              color: "var(--text-muted)",
+                              marginBottom: "0.75rem",
+                            }}
+                            dangerouslySetInnerHTML={{
+                              __html: renderMarkdownToHTML(panel.insight),
+                            }}
+                          />
+
+                          <div
+                            style={{
+                              fontSize: "0.85rem",
+                              color: "var(--text-main)",
+                              background: "var(--bg-surface)",
+                              padding: "0.75rem",
+                              borderRadius: "6px",
+                            }}
+                          >
+                            <strong>Recommended Solution:</strong>{" "}
+                            {panel.solution}
                           </div>
                         </div>
                       ))}
@@ -1187,22 +2839,102 @@ export default function App() {
                 </div>
               )}
 
-              {activeTab === 'steps' && (
-                <div className="result-section animate-fade-slide-up" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left', margin: 0 }}>
-                  <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.05rem' }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+              {activeTab === "steps" && (
+                <div
+                  className="result-section animate-fade-slide-up"
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    textAlign: "left",
+                    margin: 0,
+                  }}
+                >
+                  <h3
+                    style={{
+                      color: "var(--text-main)",
+                      marginBottom: "1rem",
+                      fontSize: "1.05rem",
+                    }}
+                  >
                     Full Step-by-Step Action Pathway
                   </h3>
-                  <div style={{ display: 'grid', gap: '1rem', width: '100%', boxSizing: 'border-box' }}>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: "1rem",
+                      width: "100%",
+                    }}
+                  >
                     {analysisData.nextSteps?.map((item, idx) => (
-                      <div key={idx} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', padding: '1.2rem', borderRadius: '8px', width: '100%', boxSizing: 'border-box' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
-                          <span style={{ background: 'var(--accent)', color: 'var(--bg-primary)', width: '22px', height: '22px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700, flexShrink: 0 }}>{idx + 1}</span>
-                          <strong style={{ fontSize: '0.9rem', color: 'var(--text-main)', wordBreak: 'break-word' }}>{item.step}</strong>
+                      <div
+                        key={idx}
+                        style={{
+                          background: "var(--bg-card)",
+                          border: "1px solid var(--border-subtle)",
+                          padding: "1.2rem",
+                          borderRadius: "8px",
+                          width: "100%",
+                          boxSizing: "border-box",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.75rem",
+                            marginBottom: "0.4rem",
+                          }}
+                        >
+                          <span
+                            style={{
+                              background: "var(--accent)",
+                              color: "var(--bg-primary)",
+                              width: "22px",
+                              height: "22px",
+                              borderRadius: "50%",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: "0.75rem",
+                              fontWeight: 700,
+                              flexShrink: 0,
+                            }}
+                          >
+                            {idx + 1}
+                          </span>
+
+                          <strong
+                            style={{
+                              fontSize: "0.9rem",
+                            }}
+                          >
+                            {item.step}
+                          </strong>
                         </div>
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '1.9rem', marginBottom: '0.3rem', wordBreak: 'break-word' }}><strong>Why:</strong> {item.why}</p>
+
+                        <p
+                          style={{
+                            fontSize: "0.85rem",
+                            color: "var(--text-muted)",
+                            marginLeft: "1.9rem",
+                          }}
+                        >
+                          <strong>Why:</strong> {item.why}
+                        </p>
+
                         {item.pitfallWarning && (
-                          <p style={{ fontSize: '0.85rem', color: 'var(--danger)', marginLeft: '1.9rem', marginBottom: 0, wordBreak: 'break-word' }}><strong>⚠️ Pitfall to Avoid:</strong> {item.pitfallWarning}</p>
+                          <p
+                            style={{
+                              fontSize: "0.85rem",
+                              color: "var(--danger)",
+                              marginLeft: "1.9rem",
+                              marginBottom: 0,
+                            }}
+                          >
+                            <strong>⚠️ Pitfall to Avoid:</strong>{" "}
+                            {item.pitfallWarning}
+                          </p>
                         )}
                       </div>
                     ))}
@@ -1210,99 +2942,335 @@ export default function App() {
                 </div>
               )}
 
-              {activeTab === 'letter' && (
-                <div className="result-section animate-fade-slide-up" style={{ background: 'rgba(16, 185, 129, 0.05)', borderColor: 'rgba(16, 185, 129, 0.3)', width: '100%', boxSizing: 'border-box', textAlign: 'left', margin: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                    <h3 style={{ color: 'var(--accent)', fontSize: '0.95rem', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              {activeTab === "letter" && (
+                <div
+                  className="result-section animate-fade-slide-up"
+                  style={{
+                    background: "rgba(16, 185, 129, 0.05)",
+                    borderColor: "rgba(16, 185, 129, 0.3)",
+                    width: "100%",
+                    boxSizing: "border-box",
+                    textAlign: "left",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "0.75rem",
+                      flexWrap: "wrap",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    <h3
+                      style={{
+                        color: "var(--accent)",
+                        fontSize: "0.95rem",
+                        marginBottom: 0,
+                      }}
+                    >
                       Automated Resolution Letter
                     </h3>
-                    <button 
+
+                    <button
                       onClick={handleCopyDraft}
-                      style={{ background: 'var(--accent)', color: 'var(--bg-primary)', border: 'none', padding: '0.35rem 0.85rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}
+                      style={{
+                        background: "var(--accent)",
+                        color: "var(--bg-primary)",
+                        border: "none",
+                        padding: "0.35rem 0.85rem",
+                        borderRadius: "6px",
+                        fontSize: "0.8rem",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
                     >
-                      {copied ? 'Copied!' : 'Copy Letter Template'}
+                      {copied ? "Copied!" : "Copy Letter Template"}
                     </button>
                   </div>
+
                   {analysisData.draftTemplate ? (
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', background: 'var(--bg-card)', padding: '1rem', borderRadius: '8px', fontFamily: 'monospace', whiteSpace: 'pre-wrap', overflowX: 'auto', width: '100%', boxSizing: 'border-box' }}>
+                    <div
+                      style={{
+                        fontSize: "0.85rem",
+                        color: "var(--text-muted)",
+                        background: "var(--bg-card)",
+                        padding: "1rem",
+                        borderRadius: "8px",
+                        fontFamily: "monospace",
+                        whiteSpace: "pre-wrap",
+                        overflowX: "auto",
+                      }}
+                    >
                       {`To: ${analysisData.draftTemplate.recipient}\nSubject: ${analysisData.draftTemplate.subject}\n\n${analysisData.draftTemplate.body}`}
                     </div>
                   ) : (
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No template generated for this situation.</p>
+                    <p
+                      style={{
+                        color: "var(--text-muted)",
+                        fontSize: "0.85rem",
+                      }}
+                    >
+                      No template generated for this situation.
+                    </p>
                   )}
                 </div>
               )}
 
-              {activeTab === 'resources' && (
-                <div className="result-section animate-fade-slide-up" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left', margin: 0 }}>
-                  <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.05rem' }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              {activeTab === "resources" && (
+                <div
+                  className="result-section animate-fade-slide-up"
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    textAlign: "left",
+                  }}
+                >
+                  <h3
+                    style={{
+                      color: "var(--text-main)",
+                      marginBottom: "1rem",
+                      fontSize: "1.05rem",
+                    }}
+                  >
                     Authoritative Resources & Links
                   </h3>
-                  {(!analysisData.referenceLinks || analysisData.referenceLinks.length === 0) ? (
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No external links provided for this pathway.</p>
+
+                  {!analysisData.referenceLinks ||
+                  analysisData.referenceLinks.length === 0 ? (
+                    <p
+                      style={{
+                        color: "var(--text-muted)",
+                        fontSize: "0.85rem",
+                      }}
+                    >
+                      No external links provided for this pathway.
+                    </p>
                   ) : (
-                    <div style={{ display: 'grid', gap: '0.5rem', width: '100%', boxSizing: 'border-box' }}>
+                    <div
+                      style={{
+                        display: "grid",
+                        gap: "0.5rem",
+                      }}
+                    >
                       {analysisData.referenceLinks.map((linkObj, lIdx) => (
-                        <a 
-                          key={lIdx} 
-                          href={linkObj.url} 
-                          target="_blank" 
+                        <a
+                          key={lIdx}
+                          href={linkObj.url}
+                          target="_blank"
                           rel="noopener noreferrer"
-                          style={{ background: 'var(--bg-card)', padding: '0.85rem 1rem', borderRadius: '6px', border: '1px solid var(--border-subtle)', color: 'var(--accent)', textDecoration: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.9rem', gap: '0.5rem', boxSizing: 'border-box' }}
+                          style={{
+                            background: "var(--bg-card)",
+                            padding: "0.85rem 1rem",
+                            borderRadius: "6px",
+                            border: "1px solid var(--border-subtle)",
+                            color: "var(--accent)",
+                            textDecoration: "none",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            fontSize: "0.9rem",
+                          }}
                         >
-                          <span style={{ wordBreak: 'break-word' }}>🔗 <strong>{linkObj.title}</strong></span>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', flexShrink: 0 }}>Visit →</span>
+                          <span>
+                            🔗 <strong>{linkObj.title}</strong>
+                          </span>
+
+                          <span
+                            style={{
+                              fontSize: "0.75rem",
+                              color: "var(--text-muted)",
+                            }}
+                          >
+                            Visit →
+                          </span>
                         </a>
                       ))}
                     </div>
                   )}
                 </div>
               )}
-
             </div>
           </div>
         )}
       </div>
 
-      <footer style={{ borderTop: '1px solid var(--border-subtle)', padding: '2rem 1rem', background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', marginTop: 'auto', textAlign: 'center', flexShrink: 0 }}>
-        <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '20px', height: '20px', objectFit: 'contain' }} />
-            <span style={{ fontWeight: 700, letterSpacing: '0.05em', fontSize: '0.9rem', color: 'var(--text-main)' }}>VERLO</span>
+      <footer
+        style={{
+          borderTop: "1px solid var(--border-subtle)",
+          padding: "2rem 1rem",
+          background: "var(--bg-surface)",
+          width: "100%",
+          boxSizing: "border-box",
+          marginTop: "auto",
+          textAlign: "center",
+          flexShrink: 0,
+        }}
+      >
+        <div
+          style={{
+            maxWidth: "1000px",
+            margin: "0 auto",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.75rem",
+            alignItems: "center",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}
+          >
+            <img
+              src="/VVNormal.png"
+              alt="VERLO Logo"
+              style={{
+                width: "20px",
+                height: "20px",
+                objectFit: "contain",
+              }}
+            />
+
+            <span
+              style={{
+                fontWeight: 700,
+                letterSpacing: "0.05em",
+                fontSize: "0.9rem",
+                color: "var(--text-main)",
+              }}
+            >
+              VERLO
+            </span>
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-            &copy; {new Date().getFullYear()} VERLO Engine. All rights reserved. Crafted with 🌶️. 
+
+          <div
+            style={{
+              fontSize: "0.75rem",
+              color: "var(--text-muted)",
+              marginTop: "0.5rem",
+            }}
+          >
+            &copy; {new Date().getFullYear()} VERLO Engine. All rights reserved.
+            Crafted with 🌶️.
           </div>
         </div>
       </footer>
 
+
       {showHistoryDrawer && (
-        <div className="animate-slide-in-right" style={{ position: 'fixed', top: 0, right: 0, width: '100%', maxWidth: '380px', height: '100%', background: 'var(--bg-card)', borderLeft: '1px solid var(--border-subtle)', zIndex: 100, padding: '1.5rem', overflowY: 'auto', boxShadow: '-5px 0 25px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Your Saved Pathways</h3>
-            <button onClick={() => setShowHistoryDrawer(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+        <div
+          className="animate-slide-in-right"
+          style={{
+            position: "fixed",
+            top: 0,
+            right: 0,
+            width: "100%",
+            maxWidth: "380px",
+            height: "100%",
+            background: "var(--bg-card)",
+            borderLeft: "1px solid var(--border-subtle)",
+            zIndex: 100,
+            padding: "1.5rem",
+            overflowY: "auto",
+            boxShadow: "-5px 0 25px rgba(0,0,0,0.5)",
+            boxSizing: "border-box",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "1.5rem",
+            }}
+          >
+            <h3
+              style={{
+                margin: 0,
+                fontSize: "1.1rem",
+              }}
+            >
+              Your Saved Pathways
+            </h3>
+
+            <button
+              onClick={() => setShowHistoryDrawer(false)}
+              style={{
+                background: "none",
+                border: "none",
+                color: "var(--text-muted)",
+                fontSize: "1.2rem",
+                cursor: "pointer",
+              }}
+            >
+              ✕
+            </button>
           </div>
+
           {userHistory.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No saved reports yet. Click "Save Pathway" on any result screen!</p>
+            <p
+              style={{
+                color: "var(--text-muted)",
+                fontSize: "0.85rem",
+              }}
+            >
+              No saved reports yet. Click "Save Pathway" on any result screen!
+            </p>
           ) : (
-            <div style={{ display: 'grid', gap: '0.75rem' }}>
+            <div
+              style={{
+                display: "grid",
+                gap: "0.75rem",
+              }}
+            >
               {userHistory.map((item, idx) => (
-                <div 
-                  key={idx} 
+                <div
+                  key={idx}
                   onClick={() => {
                     setTitle(item.title);
+
                     setDescription(item.description);
+
                     setAnalysisData(item.result);
-                    setStep('results');
-                    setActiveTab('overview');
+
+                    setStep("results");
+
+                    setActiveTab("overview");
+
                     setShowHistoryDrawer(false);
                   }}
-                  style={{ background: 'var(--bg-surface)', padding: '0.85rem', borderRadius: '8px', border: '1px solid var(--border-subtle)', cursor: 'pointer', textAlign: 'left' }}
+                  style={{
+                    background: "var(--bg-surface)",
+                    padding: "0.85rem",
+                    borderRadius: "8px",
+                    border: "1px solid var(--border-subtle)",
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
                 >
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.2rem', wordBreak: 'break-word' }}>{item.title}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{new Date(item.timestamp).toLocaleDateString()}</div>
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      fontSize: "0.9rem",
+                      marginBottom: "0.2rem",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {item.title}
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: "0.75rem",
+                      color: "var(--text-muted)",
+                    }}
+                  >
+                    {new Date(item.timestamp).toLocaleDateString()}
+                  </div>
                 </div>
               ))}
             </div>
@@ -1311,51 +3279,161 @@ export default function App() {
       )}
 
       {showAuthModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 200, padding: '1rem', boxSizing: 'border-box' }}>
-          <div style={{ background: 'var(--bg-card)', padding: '2rem', borderRadius: '12px', border: '1px solid var(--border-subtle)', width: '100%', maxWidth: '400px', boxSizing: 'border-box', textAlign: 'left' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h3 style={{ margin: '0' }}>{authMode === 'login' ? 'Log in to VERLO' : 'Create an Account'}</h3>
-              <button onClick={() => setShowAuthModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            background: "rgba(0,0,0,0.7)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 200,
+            padding: "1rem",
+            boxSizing: "border-box",
+          }}
+        >
+          <div
+            style={{
+              background: "var(--bg-card)",
+              padding: "2rem",
+              borderRadius: "12px",
+              border: "1px solid var(--border-subtle)",
+              width: "100%",
+              maxWidth: "400px",
+              boxSizing: "border-box",
+              textAlign: "left",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "1.5rem",
+              }}
+            >
+              <h3
+                style={{
+                  margin: 0,
+                }}
+              >
+                {authMode === "login" ? "Log in to VERLO" : "Create an Account"}
+              </h3>
+
+              <button
+                onClick={() => setShowAuthModal(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--text-muted)",
+                  fontSize: "1.2rem",
+                  cursor: "pointer",
+                }}
+              >
+                ✕
+              </button>
             </div>
-            {authError && <div style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.85rem', background: 'rgba(239, 68, 68, 0.1)', padding: '0.5rem', borderRadius: '6px' }}>{authError}</div>}
+
+            {authError && (
+              <div
+                style={{
+                  color: "var(--danger)",
+                  marginBottom: "1rem",
+                  fontSize: "0.85rem",
+                  background: "rgba(239, 68, 68, 0.1)",
+                  padding: "0.5rem",
+                  borderRadius: "6px",
+                }}
+              >
+                {authError}
+              </div>
+            )}
+
             <form onSubmit={handleAuthSubmit}>
               <div className="form-group">
                 <label className="form-label">Email Address</label>
-                <input 
-                  type="email" 
-                  className="form-input" 
-                  value={authEmail} 
-                  onChange={(e) => setAuthEmail(e.target.value)} 
-                  required 
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Password</label>
-                <input 
-                  type="password" 
-                  className="form-input" 
-                  value={authPassword} 
-                  onChange={(e) => setAuthPassword(e.target.value)} 
-                  required 
+
+                <input
+                  type="email"
+                  className="form-input"
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  required
                 />
               </div>
 
-              <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
-                {authMode === 'login' ? 'Log In' : 'Sign Up'}
+              <div className="form-group">
+                <label className="form-label">Password</label>
+
+                <input
+                  type="password"
+                  className="form-input"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="btn-primary"
+                style={{
+                  width: "100%",
+                  marginTop: "1rem",
+                }}
+              >
+                {authMode === "login" ? "Log In" : "Sign Up"}
               </button>
             </form>
 
-            <div style={{ textAlign: 'center', marginTop: '1.25rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              {authMode === 'login' ? (
-                <span>Don't have an account? <button onClick={() => setAuthMode('signup')} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}>Sign up</button></span>
+            <div
+              style={{
+                textAlign: "center",
+                marginTop: "1.25rem",
+                fontSize: "0.85rem",
+                color: "var(--text-muted)",
+              }}
+            >
+              {authMode === "login" ? (
+                <span>
+                  Don't have an account?{" "}
+                  <button
+                    onClick={() => setAuthMode("signup")}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "var(--accent)",
+                      cursor: "pointer",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Sign up
+                  </button>
+                </span>
               ) : (
-                <span>Already have an account? <button onClick={() => setAuthMode('login')} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}>Log in</button></span>
+                <span>
+                  Already have an account?{" "}
+                  <button
+                    onClick={() => setAuthMode("login")}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "var(--accent)",
+                      cursor: "pointer",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Log in
+                  </button>
+                </span>
               )}
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }
