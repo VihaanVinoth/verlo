@@ -273,16 +273,19 @@ function App() {
     <main className="page-transition">
       <div className="verlo-header">
         <div className="verlo-brand">VERLO</div>
+
         <h1 className="verlo-title">
           Understand the situation.
           <br />
           Find your next step.
         </h1>
+
         <p className="verlo-subtitle">
           Verlo asks adaptive questions about your situation and turns your
           answers into practical, personalised guidance.
         </p>
       </div>
+
       <div className="verlo-card">
         <div className="grid-cols-2">
           <div>
@@ -292,6 +295,7 @@ function App() {
               its questions based on what you tell it.
             </p>
           </div>
+
           <div>
             <h2>Personalised results</h2>
             <p className="verlo-subtitle">
@@ -301,8 +305,10 @@ function App() {
           </div>
         </div>
       </div>
+
       <div className="verlo-card">
         <h2 style={{ marginBottom: "0.75rem" }}>What can Verlo help with?</h2>
+
         <ul>
           <li>Understanding a difficult situation</li>
           <li>Working out possible next steps</li>
@@ -310,7 +316,9 @@ function App() {
           <li>Creating a clearer plan of action</li>
         </ul>
       </div>
-      <button className="btn-primary"
+
+      <button
+        className="btn-primary"
         onClick={() => {
           setError("");
           setPage("input");
@@ -320,21 +328,26 @@ function App() {
       </button>
     </main>
   );
+
   const renderInput = () => (
     <main className="page-transition">
       <div className="verlo-header">
         <div className="verlo-brand">VERLO / START</div>
+
         <h1 className="verlo-title">Tell us what is happening.</h1>
+
         <p className="verlo-subtitle">
           Give Verlo enough information to understand the situation. You do not
           need to write everything perfectly.
         </p>
       </div>
+
       <div className="verlo-card">
         <div className="form-group">
           <label className="form-label" htmlFor="title">
             What is this about?
           </label>
+
           <input
             id="title"
             className="form-input"
@@ -343,10 +356,12 @@ function App() {
             placeholder="e.g. Choosing between two options"
           />
         </div>
+
         <div className="form-group">
           <label className="form-label" htmlFor="description">
             Describe the situation
           </label>
+
           <textarea
             id="description"
             className="form-textarea"
@@ -355,10 +370,12 @@ function App() {
             placeholder="Explain what is happening, what you are trying to decide, or what you need help understanding."
           />
         </div>
+
         <div className="form-group">
           <label className="form-label" htmlFor="context">
             Anything else we should know?
           </label>
+
           <textarea
             id="context"
             className="form-textarea"
@@ -367,6 +384,7 @@ function App() {
             placeholder="Add any useful background information. This can be left blank."
           />
         </div>
+
         {error && (
           <div
             style={{
@@ -381,6 +399,7 @@ function App() {
             {error}
           </div>
         )}
+
         <button
           className="btn-primary"
           onClick={startAssessment}
@@ -389,6 +408,7 @@ function App() {
           {loading ? "Starting..." : "Continue"}
         </button>
       </div>
+
       <button
         onClick={handleBack}
         style={{
@@ -404,6 +424,7 @@ function App() {
       </button>
     </main>
   );
+
   const renderQuestions = () => {
     const questionText =
       typeof question === "string"
@@ -412,17 +433,21 @@ function App() {
           question?.question ||
           question?.prompt ||
           "Tell us a little more about this situation.";
+
     return (
       <main className="page-transition">
         <div className="verlo-header">
           <div className="verlo-brand">
             VERLO / QUESTION {Math.min(questionNumber + 1, MAX_QUESTIONS)}
           </div>
+
           <h1 className="verlo-title">Help Verlo understand.</h1>
+
           <p className="verlo-subtitle">
             The next question is based on what you have already told us.
           </p>
         </div>
+
         <div className="verlo-card">
           <div style={{ marginBottom: "1.5rem" }}>
             <div
@@ -447,6 +472,7 @@ function App() {
                 }}
               />
             </div>
+
             <h2
               style={{
                 marginBottom: "1rem",
@@ -456,10 +482,12 @@ function App() {
             >
               {questionText}
             </h2>
+
             {question?.context && (
               <p style={{ color: "var(--text-muted)" }}>{question.context}</p>
             )}
           </div>
+
           <div className="form-group">
             <textarea
               className="form-textarea"
@@ -470,6 +498,7 @@ function App() {
               autoFocus
             />
           </div>
+
           {error && (
             <div
               style={{
@@ -484,6 +513,7 @@ function App() {
               {error}
             </div>
           )}
+
           <button
             className="btn-primary"
             onClick={submitAnswer}
@@ -495,6 +525,7 @@ function App() {
                 ? "Finish"
                 : "Continue"}
           </button>
+
           <button
             onClick={skipQuestion}
             disabled={loading}
@@ -510,6 +541,7 @@ function App() {
             Skip this question
           </button>
         </div>
+
         <button
           onClick={() => setPage("input")}
           disabled={loading}
@@ -527,18 +559,24 @@ function App() {
       </main>
     );
   };
+
   const renderProcessing = () => (
     <main className="processing-container page-transition">
       <div className="verlo-brand">VERLO / ANALYSIS</div>
+
       <div className="processing-pulse-ring" />
+
       <h1 className="verlo-title">Working through your answers.</h1>
+
       <p className="verlo-subtitle">
         Verlo is putting the information together into a useful response.
       </p>
+
       <div className="processing-steps">
         {processingSteps.map((step, index) => {
           const isDone = index < processingStep;
           const isActive = index === processingStep;
+
           return (
             <div
               key={step}
@@ -555,6 +593,7 @@ function App() {
       </div>
     </main>
   );
+
   const renderResults = () => {
     if (!result) {
       return null;
@@ -814,36 +853,3 @@ function App() {
 export default App;
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// LUCKY NUMBER 888
