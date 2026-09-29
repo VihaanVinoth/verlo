@@ -60,27 +60,6 @@ app.post('/api/auth/login', (req, res) => {
   res.json({ success: true, user: userData });
 });
 
-app.get('/api/profile/:userId', (req, res) => {
-  const { userId } = req.params;
-  const account = userProfiles[userId];
-  if (!account) {
-    return res.status(404).json({ error: 'User profile not found.' });
-  }
-  const { password: _, ...userData } = account;
-  res.json({ success: true, profile: userData });
-});
-
-app.post('/api/profile/update', (req, res) => {
-  const { userId, fullName, tier } = req.body;
-  if (!userProfiles[userId]) {
-    return res.status(404).json({ error: 'User profile not found.' });
-  }
-  if (fullName) userProfiles[userId].fullName = fullName;
-  if (tier) userProfiles[userId].tier = tier;
-  const { password: _, ...updated } = userProfiles[userId];
-  res.json({ success: true, profile: updated });
-});
-
 app.get('/api/history/:userId', (req, res) => {
   const { userId } = req.params;
   const history = inMemoryHistory[userId] || [];
@@ -104,52 +83,6 @@ app.post('/api/history/save', (req, res) => {
   res.json({ success: true, history: inMemoryHistory[userId], savedId: entry.id });
 });
 
-app.delete('/api/history/:userId/:reportId', (req, res) => {
-  const { userId, reportId } = req.params;
-  if (!inMemoryHistory[userId]) {
-    return res.status(404).json({ error: 'User history not found.' });
-  }
-  inMemoryHistory[userId] = inMemoryHistory[userId].filter(item => item.id !== reportId);
-  res.json({ success: true, history: inMemoryHistory[userId] });
-});
-
-app.post('/api/directives/set', (req, res) => {
-  const { userId, directiveKey, directiveValue } = req.body;
-  if (!userId || !directiveKey) {
-    return res.status(400).json({ error: 'userId and directiveKey are required.' });
-  }
-  if (!customDirectives[userId]) {
-    customDirectives[userId] = {};
-  }
-  customDirectives[userId][directiveKey] = directiveValue;
-  res.json({ success: true, directives: customDirectives[userId] });
-});
-
-app.get('/api/directives/:userId', (req, res) => {
-  const { userId } = req.params;
-  res.json({ success: true, directives: customDirectives[userId] || {} });
-});
-
-app.post('/api/kb/contribute', (req, res) => {
-  const { topic, content, author } = req.body;
-  if (!topic || !content) {
-    return res.status(400).json({ error: 'Topic and content are required.' });
-  }
-  const kbId = `kb_${Date.now()}`;
-  systemKnowledgeBase[kbId] = { topic, content, author: author || 'Anonymous', timestamp: new Date().toISOString() };
-  res.json({ success: true, kbId, message: 'Knowledge base entry successfully indexed.' });
-});
-
-app.get('/api/kb/search', (req, res) => {
-  const { q } = req.query;
-  const entries = Object.entries(systemKnowledgeBase).map(([id, val]) => ({ id, ...val }));
-  if (!q) {
-    return res.json({ success: true, results: entries });
-  }
-  const filtered = entries.filter(e => e.topic.toLowerCase().includes(q.toLowerCase()) || e.content.toLowerCase().includes(q.toLowerCase()));
-  res.json({ success: true, results: filtered });
-});
-
 app.post('/api/assess', async (req, res) => {
   try {
     const { title, description } = req.body;
@@ -157,31 +90,25 @@ app.post('/api/assess', async (req, res) => {
       return res.status(400).json({ error: 'Please provide a comprehensive situation description.' });
     }
 
-    const systemPrompt = `You are VERLO, an ultra-advanced adaptive decision-intelligence and strategic simulation engine. Analyze the user's initial situation. Determine if there are critical ambiguities, alternative paths, or choices that require clarification, and generate both absolute adaptive questions and structured multiple-choice questions (MCQs) for deep profiling. Return a STRICTLY VALID JSON object with this exact structure:
+    const systemPrompt = `You are VERLO, an ultra-advanced adaptive decision-intelligence and strategic simulation engine. Analyze the user's initial situation. Determine critical ambiguities or decision branches that require clarification, and generate both absolute probing questions and structured multiple-choice questions (MCQs) for deep profiling. Return a STRICTLY VALID JSON object with this exact structure:
     {
       "needsClarification": true,
       "adaptiveQuestions": [
         {
           "id": "q1",
-          "question": "A precise analytical question to isolate the primary risk vector?",
-          "options": [
-            "Path Alpha: Aggressive legal / operational pushback",
-            "Path Beta: Mediated settlement or phased retreat",
-            "Path Gamma: Complete neutral audit and documentation"
-          ]
+          "question": "A precise analytical question to isolate the primary risk vector?"
         }
       ],
       "mcqAssessment": [
         {
           "id": "mcq1",
-          "stem": "What is the primary operational constraint governing this scenario?",
+          "stem": "What is the primary operational or legal constraint governing this scenario?",
           "choices": [
             "Strict capital limitations and cash-flow burn",
             "Severe time constraints and looming legal deadlines",
             "Reputational exposure and stakeholder backlash",
             "Technical ambiguity and lack of precedent"
-          ],
-          "correctIndicator": 1
+          ]
         }
       ]
     }
@@ -214,7 +141,7 @@ app.post('/api/diagnose', async (req, res) => {
   try {
     const { title, description, context, userAnswers, mcqAnswers } = req.body;
 
-    const systemPrompt = `You are VERLO, an elite ethical decision-intelligence and strategic action engine. Synthesize the user's dilemma, clarifying choices, and MCQ selections into a master strategic blueprint. Return a STRICTLY VALID JSON object with the following exact structure:
+    const systemPrompt = `You are VERLO, an elite ethical decision-intelligence and strategic action engine. Synthesize the user's dilemma, adaptive clarifying choices, and MCQ selections into a master strategic blueprint complete with personalized panels and verified reference links. Return a STRICTLY VALID JSON object with the following exact structure:
 {
   "confidence": "High",
   "riskAssessment": {
@@ -223,6 +150,13 @@ app.post('/api/diagnose', async (req, res) => {
     "timeSensitivity": "Urgency rating and hard timeline window"
   },
   "situation": "An executive-level summary framing the core systemic issue.",
+  "personalizedPanels": [
+    {
+      "panelTitle": "Targeted Issue Dimension Title",
+      "insight": "Deep analysis of this specific facet based on user choices.",
+      "solution": "Actionable strategy to resolve this specific dimension."
+    }
+  ],
   "nextSteps": [
     {
       "step": "Tactical action header",
@@ -230,10 +164,10 @@ app.post('/api/diagnose', async (req, res) => {
       "pitfallWarning": "Critical failure mode or hazard to avoid"
     }
   ],
-  "options": [
+  "referenceLinks": [
     {
-      "title": "Strategic Alternative Pathway",
-      "bestFor": "Specific operational conditions where this excels"
+      "title": "Authoritative Portal or Statute Name",
+      "url": "https://www.example.com"
     }
   ],
   "verificationNeeded": ["Audit financial statements", "Verify jurisdictional compliance"],
@@ -245,7 +179,7 @@ app.post('/api/diagnose', async (req, res) => {
 }
 Return raw valid JSON only without markdown wrapping.`;
 
-    const userPrompt = `Title: ${title || 'Untitled'} Description: ${description} Context: ${context || 'None'} User Answers: ${JSON.stringify(userAnswers || {})} MCQ Answers: ${JSON.stringify(mcqAnswers || {})}`;
+    const userPrompt = `Title: ${title || 'Untitled'} Description: ${description} Context: ${context || 'None'} Adaptive Text Answers: ${JSON.stringify(userAnswers || {})} MCQ Answers: ${JSON.stringify(mcqAnswers || {})}`;
 
     const completion = await groq.chat.completions.create({
       model: 'openai/gpt-oss-120b',

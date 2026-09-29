@@ -8,6 +8,11 @@ export default function App() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [userContext, setUserContext] = useState('');
+  
+  const [assessmentData, setAssessmentData] = useState(null);
+  const [selectedMcqAnswers, setSelectedMcqAnswers] = useState({});
+  const [adaptiveTextAnswers, setAdaptiveTextAnswers] = useState({});
+
   const [analysisData, setAnalysisData] = useState(null);
   const [processingStage, setProcessingStage] = useState(0);
   const [error, setError] = useState(null);
@@ -86,9 +91,10 @@ export default function App() {
       .replace(/>/g, '&gt;');
 
     html = html.replace(/```([\s\S]*?)```/g, '<pre style="background:var(--bg-card); padding:0.75rem; border-radius:6px; overflow-x:auto; font-family:monospace; margin:0.5rem 0;"><code>$1</code></pre>');
-    
     html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
   
+    html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" style="color: var(--accent); text-decoration: underline;">$1</a>');
+
     const lines = html.split('\n');
     let inList = false;
     let processedLines = lines.map(line => {
@@ -188,9 +194,8 @@ export default function App() {
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleInitialSubmit = async (e) => {
     e.preventDefault();
-    
     if (wordCount < MIN_WORDS) {
       setError(`Please provide a bit more detail (at least ${MIN_WORDS} words) so VERLO can build a reliable pathway.`);
       return;
@@ -202,14 +207,77 @@ export default function App() {
 
     let apiPromise;
     try {
-      apiPromise = fetch(`${API_URL}/api/diagnose`, {
+      apiPromise = fetch(`${API_URL}/api/assess`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, context: userContext }),
+        body: JSON.stringify({ title, description }),
       });
     } catch (err) {
       setError('Could not connect to server. Is the backend running?');
       setStep('input');
+      return;
+    }
+
+    let currentStage = 0;
+    const intervalTime = 600; 
+
+    const interval = setInterval(() => {
+      currentStage += 1;
+      if (currentStage < processingSteps.length) {
+        setProcessingStage(currentStage);
+      } else {
+        clearInterval(interval);
+      }
+    }, intervalTime);
+
+    try {
+      const totalAnimationTime = processingSteps.length * intervalTime;
+      const [res] = await Promise.all([
+        apiPromise,
+        new Promise(resolve => setTimeout(resolve, totalAnimationTime))
+      ]);
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        clearInterval(interval);
+        setError(result.error || 'Engine calculation failed.');
+        setStep('input');
+        return;
+      }
+
+      setAssessmentData(result.data);
+      setSelectedMcqAnswers({});
+      setAdaptiveTextAnswers({});
+      setStep('assessment');
+    } catch (err) {
+      clearInterval(interval);
+      setError(err.message || 'Could not connect to the server.');
+      setStep('input');
+    }
+  };
+
+  const handleAssessmentSubmit = async (e) => {
+    e.preventDefault();
+    setStep('processing');
+    setProcessingStage(0);
+
+    let apiPromise;
+    try {
+      apiPromise = fetch(`${API_URL}/api/diagnose`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          title, 
+          description, 
+          context: userContext, 
+          userAnswers: adaptiveTextAnswers, 
+          mcqAnswers: selectedMcqAnswers 
+        }),
+      });
+    } catch (err) {
+      setError('Could not connect to server.');
+      setStep('assessment');
       return;
     }
 
@@ -236,8 +304,8 @@ export default function App() {
 
       if (!res.ok) {
         clearInterval(interval);
-        setError(result.error || 'Content restricted or engine calculation failed.');
-        setStep('input');
+        setError(result.error || 'Failed to compute final diagnostic pathway.');
+        setStep('assessment');
         return;
       }
 
@@ -247,7 +315,7 @@ export default function App() {
     } catch (err) {
       clearInterval(interval);
       setError(err.message || 'Could not connect to the server.');
-      setStep('input');
+      setStep('assessment');
     }
   };
 
@@ -363,6 +431,7 @@ export default function App() {
         )}
       </div>
       <div style={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '800px', margin: '0 auto', padding: '0 1.5rem 3rem 1.5rem', boxSizing: 'border-box', alignItems: 'center' }}>
+        
         {step === 'landing' && (
           <div className="page-transition" key="landing" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div className="verlo-header" style={{ marginTop: '1rem', textAlign: 'center', width: '100%' }}>
@@ -372,7 +441,7 @@ export default function App() {
               </div>
               <h1 className="verlo-title" style={{ textShadow: 'none' }}>Stop guessing. Know your exact next step.</h1>
               <p className="verlo-subtitle" style={{ marginBottom: '2.5rem', maxWidth: '650px', marginInline: 'auto', textShadow: 'none' }}>
-                Verlo is an ethical decision-intelligence system that transforms messy, stressful situations into a fully tailored, risk-scored action pathway.
+                Verlo is an adaptive supercharged decision-intelligence engine that transforms messy, stressful situations into a fully tailored, risk-scored action pathway through dynamic profiling.
               </p>
               <button className="btn-primary" style={{ maxWidth: '300px', margin: '0 auto 3rem', textShadow: 'none', boxShadow: 'none' }} onClick={() => setStep('input')}>
                 Launch Decision Engine →
@@ -413,48 +482,6 @@ export default function App() {
                       <strong>Unresolved billing dispute</strong> &mdash; Subscription charged post-cancellation.
                     </div>
                   </div>
-                  <div 
-                    className="verlo-card" 
-                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', boxSizing: 'border-box' }}
-                    onClick={() => handleExampleSelect(
-                      'Unreturned apartment deposit', 
-                      'My landlord has withheld my full $1,800 security deposit for over 45 days past lease termination without itemised deduction notices or damage reports, and is now ignoring my phone calls.',
-                      'First-time renter moving to a new state'
-                    )}
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-                    <div>
-                      <strong>Unreturned security deposit</strong> &mdash; Landlord withholding funds past legal deadline.
-                    </div>
-                  </div>
-                  <div 
-                    className="verlo-card" 
-                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', boxSizing: 'border-box' }}
-                    onClick={() => handleExampleSelect(
-                      'Damaged courier delivery', 
-                      'An expensive electronics item I ordered arrived completely smashed due to poor handling by the courier service. The seller is claiming it is the courier’s fault, and the courier claims I need to file through the merchant.',
-                      'Purchased using debit card with standard consumer guarantees'
-                    )}
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-                    <div>
-                      <strong>Damaged courier delivery</strong> &mdash; Merchant and courier shifting blame for broken item.
-                    </div>
-                  </div>
-                  <div 
-                    className="verlo-card" 
-                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', boxSizing: 'border-box' }}
-                    onClick={() => handleExampleSelect(
-                      'Unauthorised gym membership debit', 
-                      'My local fitness club continued debiting my account for two months after I submitted my written contract cancellation form in person. They are claiming they never received the paperwork.',
-                      'Strict monthly budget constraints'
-                    )}
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                    <div>
-                      <strong>Unauthorised gym direct debit</strong> &mdash; Fees charged after contract cancellation.
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -479,12 +506,12 @@ export default function App() {
                   <span className="verlo-brand" style={{ margin: 0, textShadow: 'none' }}>VERLO</span>
                 </div>
                 <h2 className="verlo-title" style={{ fontSize: '2rem', marginBottom: '0.25rem', textShadow: 'none' }}>Define Your Situation</h2>
-                <p className="verlo-subtitle" style={{ margin: 0, textAlign: 'center', textShadow: 'none' }}>Provide the details below using the VERLO server & index engine so we can formulate your tailored pathway.</p>
+                <p className="verlo-subtitle" style={{ margin: 0, textAlign: 'center', textShadow: 'none' }}>Provide the details below. Our adaptive engine will formulate custom probing questions before constructing your report.</p>
               </div>
 
               {error && <div style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.9rem', background: 'rgba(239, 68, 68, 0.1)', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.3)', width: '100%', boxSizing: 'border-box', textAlign: 'center' }}>{error}</div>}
 
-              <form onSubmit={handleSubmit} className="verlo-card" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
+              <form onSubmit={handleInitialSubmit} className="verlo-card" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
                 <div className="form-group" style={{ textAlign: 'left' }}>
                   <label className="form-label" style={{ textShadow: 'none' }}>Situation Title (Optional)</label>
                   <input 
@@ -524,17 +551,101 @@ export default function App() {
                 </div>
 
                 <button type="submit" className="btn-primary" style={{ width: '100%', textShadow: 'none', boxShadow: 'none' }}>
-                  Compute Tailored Pathway →
+                  Generate Adaptive Assessment →
                 </button>
               </form>
             </div>
           </div>
         )}
+        {step === 'assessment' && assessmentData && (
+          <div className="page-transition animate-fade-slide-up" key="assessment" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ width: '100%', maxWidth: '650px' }}>
+              <div style={{ marginBottom: '1.5rem', textAlign: 'left', width: '100%' }}>
+                <button 
+                  onClick={() => setStep('input')}
+                  style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', textShadow: 'none' }}
+                >
+                  ← Back to Description
+                </button>
+              </div>
 
+              <div className="verlo-header" style={{ marginTop: '0.5rem', marginBottom: '1.5rem', textAlign: 'center', width: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.75rem', width: '100%' }}>
+                  <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
+                  <span className="verlo-brand" style={{ margin: 0, textShadow: 'none' }}>Adaptive Intelligence Matrix</span>
+                </div>
+                <h2 className="verlo-title" style={{ fontSize: '1.75rem', marginBottom: '0.25rem', textShadow: 'none' }}>Refine Your Parameters</h2>
+                <p className="verlo-subtitle" style={{ margin: 0, textAlign: 'center', textShadow: 'none' }}>VERLO has analyzed your scenario and generated custom diagnostic queries to dial in your tailored pathway.</p>
+              </div>
+
+              <form onSubmit={handleAssessmentSubmit} style={{ display: 'grid', gap: '1.5rem', width: '100%' }}>
+                {assessmentData.mcqAssessment && assessmentData.mcqAssessment.map((mcq, mIndex) => (
+                  <div key={mcq.id || mIndex} className="verlo-card" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left', margin: 0 }}>
+                    <label className="form-label" style={{ color: 'var(--accent)', fontWeight: 700, marginBottom: '0.75rem', display: 'block', textShadow: 'none' }}>
+                      Q{mIndex + 1}. {mcq.stem}
+                    </label>
+                    <div style={{ display: 'grid', gap: '0.5rem' }}>
+                      {mcq.choices.map((choice, cIndex) => {
+                        const isSelected = selectedMcqAnswers[mcq.id || mIndex] === choice;
+                        return (
+                          <div 
+                            key={cIndex}
+                            onClick={() => setSelectedMcqAnswers({ ...selectedMcqAnswers, [mcq.id || mIndex]: choice })}
+                            style={{ 
+                              padding: '0.75rem 1rem', 
+                              borderRadius: '6px', 
+                              border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                              background: isSelected ? 'rgba(16, 185, 129, 0.08)' : 'var(--bg-card)',
+                              color: 'var(--text-main)',
+                              cursor: 'pointer',
+                              fontSize: '0.9rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.75rem',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            <div style={{ 
+                              width: '16px', height: '16px', borderRadius: '50%', 
+                              border: `2px solid ${isSelected ? 'var(--accent)' : 'var(--text-muted)'}`,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center'
+                            }}>
+                              {isSelected && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent)' }} />}
+                            </div>
+                            <span>{choice}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                {assessmentData.adaptiveQuestions && assessmentData.adaptiveQuestions.map((q, qIndex) => (
+                  <div key={q.id || qIndex} className="verlo-card" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left', margin: 0 }}>
+                    <label className="form-label" style={{ fontWeight: 600, marginBottom: '0.5rem', display: 'block', textShadow: 'none' }}>
+                      {q.question}
+                    </label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="Type your precise specification here..."
+                      value={adaptiveTextAnswers[q.id || qIndex] || ''}
+                      onChange={(e) => setAdaptiveTextAnswers({ ...adaptiveTextAnswers, [q.id || qIndex]: e.target.value })}
+                      style={{ marginBottom: 0 }}
+                    />
+                  </div>
+                ))}
+
+                <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '0.5rem', textShadow: 'none', boxShadow: 'none' }}>
+                  Synthesise Final Action Pathway →
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
         {step === 'processing' && (
           <div className="page-transition processing-container" key="processing" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3rem 0' }}>
             <div className="processing-pulse-ring"></div>
-            <h2 style={{ fontSize: '1.5rem', marginTop: '1.5rem', color: 'var(--text-main)', textAlign: 'center', textShadow: 'none' }}>Synthesising personalised logic...</h2>
+            <h2 style={{ fontSize: '1.5rem', marginTop: '1.5rem', color: 'var(--text-main)', textAlign: 'center', textShadow: 'none' }}>Synthesising supercharged logic & links...</h2>
             
             <div className="processing-steps" style={{ width: '100%', maxWidth: '450px', marginTop: '2rem' }}>
               {processingSteps.map((text, idx) => {
@@ -550,7 +661,6 @@ export default function App() {
             </div>
           </div>
         )}
-
         {step === 'results' && analysisData && (
           <div className="page-transition animate-fade-slide-up" key="results" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div style={{ width: '100%', maxWidth: '750px' }}>
@@ -560,7 +670,7 @@ export default function App() {
                     onClick={() => setStep('input')}
                     style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', textShadow: 'none' }}
                   >
-                    ← Edit Situation
+                    ← New Situation
                   </button>
                   <button 
                     onClick={() => handleSaveToAccount(analysisData)}
@@ -577,6 +687,7 @@ export default function App() {
                   Start Over
                 </button>
               </div>
+
               <div className="result-section animate-fade-slide-up" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box' }}>
                 <div>
                   <span className={`badge ${analysisData.confidence?.toLowerCase()}`} style={{ marginBottom: '0.25rem', display: 'inline-block' }}>
@@ -611,6 +722,25 @@ export default function App() {
                   <strong>Why this first:</strong> {analysisData.nextSteps?.[0]?.why || "Establishes your foundational position."}
                 </p>
               </div>
+              {analysisData.personalizedPanels && analysisData.personalizedPanels.length > 0 && (
+                <div className="result-section animate-fade-slide-up" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
+                  <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                    Personalised Issue Solution Panels
+                  </h3>
+                  <div style={{ display: 'grid', gap: '1rem', width: '100%' }}>
+                    {analysisData.personalizedPanels.map((panel, pIdx) => (
+                      <div key={pIdx} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', padding: '1.25rem', borderRadius: '8px', width: '100%', boxSizing: 'border-box' }}>
+                        <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--accent)', marginBottom: '0.4rem' }}>{panel.panelTitle}</div>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }} dangerouslySetInnerHTML={{ __html: renderMarkdownToHTML(panel.insight) }} />
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-main)', background: 'var(--bg-surface)', padding: '0.75rem', borderRadius: '6px' }}>
+                          <strong>Recommended Solution:</strong> {panel.solution}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="result-section animate-fade-slide-up" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
                 <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
@@ -631,40 +761,26 @@ export default function App() {
                   ))}
                 </div>
               </div>
-              {analysisData.options && analysisData.options.length > 0 && (
+              {analysisData.referenceLinks && analysisData.referenceLinks.length > 0 && (
                 <div className="result-section animate-fade-slide-up" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
                   <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                    Evaluated Strategic Options
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                    Authoritative Resources & Links
                   </h3>
-                  <div style={{ display: 'grid', gap: '0.75rem', width: '100%' }}>
-                    {analysisData.options.map((opt, i) => (
-                      <div key={i} style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-subtle)', width: '100%', boxSizing: 'border-box' }}>
-                        <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)', marginBottom: '0.25rem' }}>{opt.title}</div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}><strong>Best For:</strong> {opt.bestFor}</div>
-                      </div>
+                  <div style={{ display: 'grid', gap: '0.5rem', width: '100%' }}>
+                    {analysisData.referenceLinks.map((linkObj, lIdx) => (
+                      <a 
+                        key={lIdx} 
+                        href={linkObj.url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        style={{ background: 'var(--bg-card)', padding: '0.85rem 1rem', borderRadius: '6px', border: '1px solid var(--border-subtle)', color: 'var(--accent)', textDecoration: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.9rem' }}
+                      >
+                        <span>🔗 <strong>{linkObj.title}</strong></span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Visit Resource →</span>
+                      </a>
                     ))}
                   </div>
-                </div>
-              )}
-              <div className="result-section animate-fade-slide-up" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
-                <h3 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-                  Situation Summary
-                </h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: 0 }}>{analysisData.situation}</p>
-              </div>
-              {analysisData.verificationNeeded && analysisData.verificationNeeded.length > 0 && (
-                <div className="result-section animate-fade-slide-up" style={{ background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
-                  <h3 style={{ color: 'var(--text-main)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                    Items Recommended for Verification
-                  </h3>
-                  <ul style={{ margin: 0, paddingLeft: '1.25rem', fontSize: '0.85rem', color: 'var(--text-muted)', display: 'grid', gap: '0.4rem' }}>
-                    {analysisData.verificationNeeded.map((item, i) => (
-                      <li key={i}>{item}</li>
-                    ))}
-                  </ul>
                 </div>
               )}
               {analysisData.draftTemplate && (
@@ -746,18 +862,6 @@ export default function App() {
                 </form>
               </div>
 
-              <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.5)', padding: '1rem 1.25rem', borderRadius: '8px', marginTop: '1.5rem', fontSize: '0.85rem', color: '#ef4444', display: 'flex', gap: '0.75rem', alignItems: 'flex-start', width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: '2px' }}>
-                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                  <line x1="12" y1="9" x2="12" y2="13"/>
-                  <line x1="12" y1="17" x2="12.01" y2="17"/>
-                </svg>
-                <div>
-                  <strong style={{ display: 'block', marginBottom: '0.2rem', color: '#ef4444' }}>Ethical Notice & Information Verification Required</strong>
-                  VERLO is an AI decision-intelligence assistant designed to structure administrative pathways. AI models can occasionally misstate rules, statutes, or deadlines. Please independently verify all critical claims, contract terms, legal deadlines, or financial obligations before executing high-stakes actions.
-                </div>
-              </div>
-
             </div>
           </div>
         )}
@@ -781,6 +885,7 @@ export default function App() {
             <h3 style={{ margin: 0, fontSize: '1.1rem', textShadow: 'none' }}>Your Saved Pathways</h3>
             <button onClick={() => setShowHistoryDrawer(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
           </div>
+          {/********LUCKY NUMBER 888********/}
           {userHistory.length === 0 ? (
             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No saved reports yet. Click "Save to Account" on any result screen!</p>
           ) : (
@@ -805,6 +910,7 @@ export default function App() {
           )}
         </div>
       )}
+
       {showAuthModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 200, padding: '1rem', boxSizing: 'border-box' }}>
           <div style={{ background: 'var(--bg-card)', padding: '2rem', borderRadius: '12px', border: '1px solid var(--border-subtle)', width: '100%', maxWidth: '400px', boxSizing: 'border-box', textAlign: 'left' }}>
