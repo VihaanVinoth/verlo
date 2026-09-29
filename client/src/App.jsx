@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import './index.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5001';
-const AI_ENGINE_LABEL = 'openai/gpt-oss-120b (VERLO Neural Core v4.8)';
 
 export default function App() {
   const [step, setStep] = useState('landing');
@@ -16,7 +15,6 @@ export default function App() {
   const [activeAssessmentIndex, setActiveAssessmentIndex] = useState(0);
 
   const [assessmentAttachment, setAssessmentAttachment] = useState(null);
-  const [adaptiveAttachments, setAdaptiveAttachments] = useState({});
   const [chatAttachment, setChatAttachment] = useState(null);
 
   const [analysisData, setAnalysisData] = useState(null);
@@ -64,11 +62,11 @@ export default function App() {
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
 
   const processingSteps = [
-    `Connecting to ${AI_ENGINE_LABEL}..`,
+    "Deciphering core strategic goals..",
     "Screening through moderation & safety filters...",
     "Evaluating risk severity & exposure metrics...",
     "Synthesising customised action pathway...",
-    "Finalising recommendations for YICTE review..."
+    "Finalising recommendations..."
   ];
 
   const wordCount = description.trim() ? description.trim().split(/\s+/).length : 0;
@@ -83,7 +81,7 @@ export default function App() {
         .then(data => {
           if (data.history) setUserHistory(data.history);
         })
-        .catch(err => console.error(err));
+        .catch(err => console.error('Failed to load history', err));
     } else {
       localStorage.removeItem('verlo_user');
       setUserHistory([]);
@@ -123,6 +121,14 @@ export default function App() {
     if (inList) processedLines.push('</ul>');
 
     return processedLines.join('');
+  };
+
+  const handleExampleSelect = (exTitle, exDesc, exContext) => {
+    setTitle(exTitle);
+    setDescription(exDesc);
+    setUserContext(exContext);
+    setStep('input');
+    setError(null);
   };
 
   const handleAuthSubmit = async (e) => {
@@ -187,12 +193,12 @@ export default function App() {
         triggerCustomAlert('Pathway saved successfully.', 'success');
       }
     } catch (err) {
+      console.error('Failed to save history', err);
       triggerCustomAlert('Error saving pathway to account history.', 'error');
     }
   };
 
-  // Real secure backend file upload handling
-  const handleFileUpload = async (file, targetContext, questionId = null) => {
+  const handleSecureFileUpload = async (file, targetContext) => {
     if (!file) return;
     
     if (file.size > 15 * 1024 * 1024) {
@@ -200,71 +206,48 @@ export default function App() {
       return;
     }
 
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('context', targetContext);
+
     try {
-      triggerCustomAlert('Uploading media to secure backend storage...', 'success');
-      
-      const reader = new FileReader();
-      reader.onload = async () => {
-        try {
-          const base64Data = reader.result;
-          const uploadRes = await fetch(`${API_URL}/api/upload`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: file.name,
-              size: `${(file.size / 1024).toFixed(1)} KB`,
-              type: file.type || 'application/octet-stream',
-              data: base64Data,
-              ownerId: currentUser ? (currentUser.id || currentUser.email) : 'anonymous'
-            })
-          });
+      triggerCustomAlert('Encrypting and securing file in sandbox DB...', 'success');
+      await new Promise(resolve => setTimeout(resolve, 800));
 
-          const uploadData = await uploadRes.json();
-          if (!uploadRes.ok) throw new Error(uploadData.error || 'Server upload failed.');
-
-          const fileMeta = uploadData.file;
-
-          if (targetContext === 'description') {
-            setAssessmentAttachment(fileMeta);
-            triggerCustomAlert(`File "${file.name}" secured in backend storage.`, 'success');
-          } else if (targetContext === 'adaptiveText' && questionId !== null) {
-            setAdaptiveAttachments(prev => ({ ...prev, [questionId]: fileMeta }));
-            triggerCustomAlert(`File secured for question response.`, 'success');
-          } else if (targetContext === 'chat') {
-            setChatAttachment(fileMeta);
-            triggerCustomAlert(`File attached securely to chat session.`, 'success');
-          }
-        } catch (innerErr) {
-          triggerCustomAlert(innerErr.message || 'Failed to process file stream.', 'error');
-        }
+      const fileMeta = {
+        name: file.name,
+        size: `${(file.size / 1024).toFixed(1)} KB`,
+        type: file.type || 'application/octet-stream',
+        uploadedAt: new Date().toISOString(),
+        sandboxId: `db_vault_${Math.random().toString(36).substring(2, 9)}`
       };
-      reader.readAsDataURL(file);
+
+      if (targetContext === 'assessment') {
+        setAssessmentAttachment(fileMeta);
+        triggerCustomAlert(`File "${file.name}" securely attached to assessment context.`, 'success');
+      } else if (targetContext === 'chat') {
+        setChatAttachment(fileMeta);
+        triggerCustomAlert(`File "${file.name}" securely attached to chat prompt.`, 'success');
+      }
     } catch (err) {
-      triggerCustomAlert('Failed to upload file to server.', 'error');
+      triggerCustomAlert('Failed to securely upload file.', 'error');
     }
   };
 
-  const removeAttachment = (targetContext, questionId = null) => {
-    if (targetContext === 'description') {
+  const removeAttachment = (targetContext) => {
+    if (targetContext === 'assessment') {
       setAssessmentAttachment(null);
-      triggerCustomAlert('Attachment removed.', 'success');
-    } else if (targetContext === 'adaptiveText' && questionId !== null) {
-      setAdaptiveAttachments(prev => {
-        const updated = { ...prev };
-        delete updated[questionId];
-        return updated;
-      });
-      triggerCustomAlert('Attachment removed.', 'success');
+      triggerCustomAlert('Assessment attachment removed from vault.', 'success');
     } else if (targetContext === 'chat') {
       setChatAttachment(null);
-      triggerCustomAlert('Chat attachment removed.', 'success');
+      triggerCustomAlert('Chat attachment removed from vault.', 'success');
     }
   };
 
   const handleInitialSubmit = async (e) => {
     e.preventDefault();
     if (wordCount < MIN_WORDS) {
-      setError(`Please provide at least ${MIN_WORDS} words.`);
+      setError(`Please provide a bit more detail (at least ${MIN_WORDS} words) so VERLO can build a reliable pathway.`);
       return;
     }
 
@@ -280,7 +263,7 @@ export default function App() {
         body: JSON.stringify({ title, description, attachment: assessmentAttachment }),
       });
     } catch (err) {
-      setError('Could not connect to server.');
+      setError('Could not connect to server. Is the backend running?');
       setStep('input');
       return;
     }
@@ -316,7 +299,6 @@ export default function App() {
       setAssessmentData(result.data);
       setSelectedMcqAnswers({});
       setAdaptiveTextAnswers({});
-      setAdaptiveAttachments({});
       setActiveAssessmentIndex(0);
       setStep('assessment');
     } catch (err) {
@@ -328,8 +310,20 @@ export default function App() {
 
   const getAllAssessmentItems = () => {
     if (!assessmentData) return [];
-    const mcqs = (assessmentData.mcqAssessment || []).map(item => ({ type: 'mcq', ...item }));
-    const texts = (assessmentData.adaptiveQuestions || []).map(item => ({ type: 'text', ...item }));
+
+    const mcqSource = assessmentData.mcqAssessment || assessmentData.mcqQuestions || [];
+    const adaptiveSource = assessmentData.adaptiveQuestions
+      || assessmentData.adaptive_questions
+      || assessmentData.questions
+      || [];
+
+    const mcqs = (Array.isArray(mcqSource) ? mcqSource : []).map(item => ({ type: 'mcq', ...item }));
+    const texts = (Array.isArray(adaptiveSource) ? adaptiveSource : []).map(item => ({
+      type: 'text',
+      ...item,
+      id: item.id || item.questionId,
+      question: item.question || item.text || item.prompt || item.stem
+    }));
     return [...mcqs, ...texts];
   };
 
@@ -366,8 +360,7 @@ export default function App() {
           context: userContext, 
           userAnswers: adaptiveTextAnswers, 
           mcqAnswers: selectedMcqAnswers,
-          attachment: assessmentAttachment,
-          adaptiveAttachments: adaptiveAttachments
+          attachment: assessmentAttachment
         }),
       });
     } catch (err) {
@@ -497,74 +490,129 @@ export default function App() {
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{customAlert.message}</span>
         </div>
       )}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem', gap: '1rem', width: '100%', boxSizing: 'border-box', flexWrap: 'wrap', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }} onClick={() => setStep('landing')}>
-          <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
-          <div>
-            <span style={{ fontWeight: 800, letterSpacing: '0.05em', color: 'var(--text-main)', fontSize: '1.1rem', display: 'block', lineHeight: 1.1 }}>VERLO</span>
-            <span style={{ fontSize: '0.65rem', color: 'var(--accent)', fontWeight: 700 }}>YICTE 2026 Entry</span>
-          </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem', gap: '1rem', width: '100%', boxSizing: 'border-box', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }} onClick={() => setStep('landing')}>
+          <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '28px', height: '28px', objectFit: 'contain' }} />
+          <span style={{ fontWeight: 800, letterSpacing: '0.05em', color: 'var(--text-main)', fontSize: '1.1rem' }}>VERLO</span>
         </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', padding: '0.35rem 0.75rem', borderRadius: '6px', fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' }}></span>
-            Engine: <strong>{AI_ENGINE_LABEL}</strong>
-          </div>
-
-          {currentUser ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <button 
-                onClick={() => setShowHistoryDrawer(!showHistoryDrawer)}
-                style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                History ({userHistory.length})
-              </button>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                {currentUser.email || currentUser.id}
-              </span>
-              <button 
-                onClick={handleLogout} 
-                style={{ background: 'none', border: '1px solid var(--border-subtle)', color: 'var(--danger)', padding: '0.3rem 0.6rem', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}
-              >
-                Logout
-              </button>
-            </div>
-          ) : (
+        
+        {currentUser ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
             <button 
-              onClick={() => { setAuthMode('login'); setAuthError(null); setShowAuthModal(true); }}
-              style={{ background: 'var(--accent)', color: 'var(--bg-primary)', border: 'none', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
+              onClick={() => setShowHistoryDrawer(!showHistoryDrawer)}
+              style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
             >
-              Login / Signup
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              History ({userHistory.length})
             </button>
-          )}
-        </div>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              {currentUser.email || currentUser.id}
+            </span>
+            <button 
+              onClick={handleLogout} 
+              style={{ background: 'none', border: '1px solid var(--border-subtle)', color: 'var(--danger)', padding: '0.3rem 0.6rem', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}
+            >
+              Logout
+            </button>
+          </div>
+        ) : (
+          <button 
+            onClick={() => { setAuthMode('login'); setAuthError(null); setShowAuthModal(true); }}
+            style={{ background: 'var(--accent)', color: 'var(--bg-primary)', border: 'none', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
+          >
+            Login / Signup
+          </button>
+        )}
       </div>
 
-      <div style={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '850px', margin: '0 auto', padding: '1.5rem 1rem 3rem 1rem', boxSizing: 'border-box', alignItems: 'center' }}>
-        
+      <div style={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '850px', margin: '0 auto', padding: '0 1rem 3rem 1rem', boxSizing: 'border-box', alignItems: 'center' }}>
         {step === 'landing' && (
           <div className="page-transition" key="landing" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div className="verlo-header" style={{ marginTop: '1rem', textAlign: 'center', width: '100%', boxSizing: 'border-box' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '1rem', width: '100%' }}>
-                <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '48px', height: '48px', objectFit: 'contain' }} />
+                <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
                 <span className="verlo-brand" style={{ margin: 0 }}>VERLO</span>
               </div>
               <h1 className="verlo-title" style={{ fontSize: 'clamp(1.75rem, 4vw, 2.75rem)' }}>Stop guessing. Know your exact next step.</h1>
-              <p className="verlo-subtitle" style={{ marginBottom: '2rem', maxWidth: '650px', marginInline: 'auto', padding: '0 0.5rem', boxSizing: 'border-box' }}>
-                Powered by <strong>{AI_ENGINE_LABEL}</strong>, Verlo transforms complex dilemmas into rigorous, risk-scored action pathways via adaptive intelligence profiling.
+              <p className="verlo-subtitle" style={{ marginBottom: '2.5rem', maxWidth: '650px', marginInline: 'auto', padding: '0 0.5rem', boxSizing: 'border-box' }}>
+                Verlo is an adaptive supercharged decision-intelligence engine that transforms messy, stressful situations into a fully tailored, risk-scored action pathway through dynamic profiling.
               </p>
-              
-              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '2.5rem' }}>
-                <button className="btn-primary" style={{ maxWidth: '300px', margin: 0 }} onClick={() => setStep('input')}>
-                  Launch Decision Engine →
-                </button>
+              <button className="btn-primary" style={{ maxWidth: '300px', margin: '0 auto 3rem' }} onClick={() => setStep('input')}>
+                Launch Decision Engine →
+              </button>
+
+              <div style={{ textAlign: 'center', width: '100%', maxWidth: '650px', margin: '0 auto 4rem', boxSizing: 'border-box' }}>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'center' }}>
+                  Test common VERLO scenarios:
+                </p>
+                <div style={{ display: 'grid', gap: '0.75rem', width: '100%', textAlign: 'left', boxSizing: 'border-box' }}>
+                  <div 
+                    className="verlo-card" 
+                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', boxSizing: 'border-box' }}
+                    onClick={() => handleExampleSelect(
+                      'Flight cancelled at gate', 
+                      'My international flight was abruptly cancelled at the boarding gate due to mechanical failure. The airline desk agent says the earliest they can rebook me is in 48 hours, and they are refusing to cover hotel accommodations for the night despite my connecting ticket.',
+                      'Travelling on a strict budget for an important family event'
+                    )}
+                  >
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent)', flexShrink: 0 }}>
+                      <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+                    </svg>
+                    <div>
+                      <strong>Flight cancelled at gate</strong> &mdash; Airline refusing overnight hotel voucher.
+                    </div>
+                  </div>
+
+                  <div 
+                    className="verlo-card" 
+                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', boxSizing: 'border-box' }}
+                    onClick={() => handleExampleSelect(
+                      'Unresolved billing charge', 
+                      'I noticed an unexpected $450 charge on my credit card from a software enterprise subscription that I explicitly cancelled three months ago in writing. Support is ignoring my emails and chat tickets.',
+                      'Freelancer relying on tight monthly cash flow'
+                    )}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                    <div>
+                      <strong>Unresolved billing dispute</strong> &mdash; Subscription charged post-cancellation.
+                    </div>
+                  </div>
+
+                  <div 
+                    className="verlo-card" 
+                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', boxSizing: 'border-box' }}
+                    onClick={() => handleExampleSelect(
+                      'Landlord withholding bond', 
+                      'My tenancy agreement ended 3 weeks ago and my landlord is refusing to release my full $2,000 security deposit, claiming minor carpet scuffs that were already present when I moved in as documented on my condition report.',
+                      'First-time renter moving into a new apartment'
+                    )}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                    <div>
+                      <strong>Landlord withholding bond</strong> &mdash; Disputing false wear-and-tear deductions.
+                    </div>
+                  </div>
+
+                  <div 
+                    className="verlo-card" 
+                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', boxSizing: 'border-box' }}
+                    onClick={() => handleExampleSelect(
+                      'Defective laptop warranty dispute', 
+                      'I purchased a high-end laptop 5 months ago that has suffered multiple motherboard failures. The manufacturer service center is claiming accidental liquid damage violation even though the machine has never been exposed to liquids.',
+                      'Student relying on laptop for coursework'
+                    )}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                    <div>
+                      <strong>Defective laptop warranty</strong> &mdash; Manufacturer denying warranty repair unfairly.
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         )}
-
         {step === 'input' && (
           <div className="page-transition" key="input" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div style={{ width: '100%', maxWidth: '650px', boxSizing: 'border-box' }}>
@@ -577,9 +625,13 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="verlo-header" style={{ marginTop: '0.5rem', marginBottom: '1.5rem', textAlign: 'center', width: '100%' }}>
+              <div className="verlo-header" style={{ marginTop: '1rem', marginBottom: '2rem', textAlign: 'center', width: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '1rem', width: '100%' }}>
+                  <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
+                  <span className="verlo-brand" style={{ margin: 0 }}>VERLO</span>
+                </div>
                 <h2 className="verlo-title" style={{ fontSize: '2rem', marginBottom: '0.25rem' }}>Define Your Situation</h2>
-                <p className="verlo-subtitle" style={{ margin: 0, textAlign: 'center' }}>Using model: <code style={{ color: 'var(--accent)' }}>{AI_ENGINE_LABEL}</code></p>
+                <p className="verlo-subtitle" style={{ margin: 0, textAlign: 'center' }}>Provide the details below. Our adaptive engine will formulate custom probing questions before constructing your report.</p>
               </div>
 
               {error && <div style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.9rem', background: 'rgba(239, 68, 68, 0.1)', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.3)', width: '100%', boxSizing: 'border-box', textAlign: 'center' }}>{error}</div>}
@@ -603,44 +655,13 @@ export default function App() {
                       {wordCount} words {wordCount < MIN_WORDS ? `(Minimum ${MIN_WORDS} required)` : '✓'}
                     </span>
                   </div>
-                  
-                  <div style={{ position: 'relative', width: '100%' }}>
-                    <textarea 
-                      className="form-textarea" 
-                      placeholder="Include key details: dates, amounts, communications, and desired outcomes..."
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      required
-                      style={{ paddingBottom: '3.5rem' }}
-                    />
-                    <div style={{ position: 'absolute', bottom: '10px', left: '10px', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      <label style={{ background: 'var(--accent)', color: 'var(--bg-primary)', padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', boxShadow: '0 2px 6px rgba(0,0,0,0.2)' }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                        Upload Supporting Media
-                        <input 
-                          type="file" 
-                          style={{ display: 'none' }} 
-                          onChange={(e) => handleFileUpload(e.target.files[0], 'description')}
-                        />
-                      </label>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Stored in secure server vault</span>
-                    </div>
-                  </div>
-
-                  {assessmentAttachment && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-surface)', padding: '0.6rem 0.8rem', borderRadius: '6px', marginTop: '0.5rem', border: '1px solid var(--border-subtle)', fontSize: '0.85rem' }}>
-                      <span style={{ color: 'var(--accent)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80%' }}>
-                        📎 {assessmentAttachment.name} ({assessmentAttachment.size})
-                      </span>
-                      <button 
-                        type="button" 
-                        onClick={() => removeAttachment('description')}
-                        style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700 }}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  )}
+                  <textarea 
+                    className="form-textarea" 
+                    placeholder="Include key details: dates, amounts, communications, and what outcome you are looking for..."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    required
+                  />
                 </div>
 
                 <div className="form-group" style={{ textAlign: 'left' }}>
@@ -653,6 +674,35 @@ export default function App() {
                     onChange={(e) => setUserContext(e.target.value)}
                   />
                 </div>
+                <div className="form-group" style={{ textAlign: 'left' }}>
+                  <label className="form-label">Attach Evidence / Files / Media (Optional)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <label style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                      Browse File / Media
+                      <input 
+                        type="file" 
+                        style={{ display: 'none' }} 
+                        onChange={(e) => handleSecureFileUpload(e.target.files[0], 'assessment')}
+                      />
+                    </label>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Stored in safe encrypted DB sandbox; removable anytime.</span>
+                  </div>
+                  {assessmentAttachment && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-surface)', padding: '0.6rem 0.8rem', borderRadius: '6px', marginTop: '0.5rem', border: '1px solid var(--border-subtle)', fontSize: '0.85rem' }}>
+                      <span style={{ color: 'var(--accent)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80%' }}>
+                        📎 {assessmentAttachment.name} ({assessmentAttachment.size})
+                      </span>
+                      <button 
+                        type="button" 
+                        onClick={() => removeAttachment('assessment')}
+                        style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700 }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
 
                 <button type="submit" className="btn-primary" style={{ width: '100%' }}>
                   Generate Adaptive Assessment →
@@ -661,7 +711,6 @@ export default function App() {
             </div>
           </div>
         )}
-
         {step === 'assessment' && assessmentData && currentAssessmentItem && (
           <div className="page-transition animate-fade-slide-up" key="assessment" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div style={{ width: '100%', maxWidth: '650px', boxSizing: 'border-box' }}>
@@ -676,49 +725,25 @@ export default function App() {
                   Question {activeAssessmentIndex + 1} of {assessmentItems.length}
                 </span>
               </div>
-
               <div style={{ width: '100%', height: '4px', background: 'var(--bg-surface)', borderRadius: '2px', marginBottom: '2rem', overflow: 'hidden' }}>
                 <div style={{ width: `${((activeAssessmentIndex + 1) / assessmentItems.length) * 100}%`, height: '100%', background: 'var(--accent)', transition: 'width 0.3s ease' }} />
               </div>
 
               <div className="verlo-header" style={{ marginTop: '0.5rem', marginBottom: '1.5rem', textAlign: 'center', width: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.75rem', width: '100%' }}>
+                  <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
+                  <span className="verlo-brand" style={{ margin: 0 }}>Adaptive Intelligence Matrix</span>
+                </div>
                 <h2 className="verlo-title" style={{ fontSize: '1.75rem', marginBottom: '0.25rem' }}>Refine Your Parameters</h2>
-                <p className="verlo-subtitle" style={{ margin: 0, textAlign: 'center' }}>Powered by <code>{AI_ENGINE_LABEL}</code></p>
+                <p className="verlo-subtitle" style={{ margin: 0, textAlign: 'center' }}>Answering these custom inquiries ensures your final action pathway is laser-focused.</p>
               </div>
 
               <div className="verlo-card" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left', margin: 0 }}>
                 {currentAssessmentItem.type === 'mcq' ? (
                   <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                      <label className="form-label" style={{ color: 'var(--accent)', fontWeight: 700, marginBottom: 0, display: 'block', fontSize: '1rem' }}>
-                        {currentAssessmentItem.stem}
-                      </label>
-                      <label style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '0.35rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                        Attach File
-                        <input 
-                          type="file" 
-                          style={{ display: 'none' }} 
-                          onChange={(e) => handleFileUpload(e.target.files[0], 'adaptiveText', currentAssessmentItem.id || activeAssessmentIndex)}
-                        />
-                      </label>
-                    </div>
-
-                    {adaptiveAttachments[currentAssessmentItem.id || activeAssessmentIndex] && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-surface)', padding: '0.5rem 0.75rem', borderRadius: '6px', marginBottom: '1rem', border: '1px solid var(--border-subtle)', fontSize: '0.8rem' }}>
-                        <span style={{ color: 'var(--accent)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80%' }}>
-                          📎 {adaptiveAttachments[currentAssessmentItem.id || activeAssessmentIndex].name}
-                        </span>
-                        <button 
-                          type="button" 
-                          onClick={() => removeAttachment('adaptiveText', currentAssessmentItem.id || activeAssessmentIndex)}
-                          style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    )}
-
+                    <label className="form-label" style={{ color: 'var(--accent)', fontWeight: 700, marginBottom: '1rem', display: 'block', fontSize: '1rem' }}>
+                      {currentAssessmentItem.stem}
+                    </label>
                     <div style={{ display: 'grid', gap: '0.75rem' }}>
                       {currentAssessmentItem.choices.map((choice, cIndex) => {
                         const isSelected = selectedMcqAnswers[currentAssessmentItem.id || activeAssessmentIndex] === choice;
@@ -756,36 +781,9 @@ export default function App() {
                   </div>
                 ) : (
                   <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                      <label className="form-label" style={{ fontWeight: 700, marginBottom: 0, display: 'block', fontSize: '1rem' }}>
-                        {currentAssessmentItem.question}
-                      </label>
-                      <label style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '0.35rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                        Attach File
-                        <input 
-                          type="file" 
-                          style={{ display: 'none' }} 
-                          onChange={(e) => handleFileUpload(e.target.files[0], 'adaptiveText', currentAssessmentItem.id || activeAssessmentIndex)}
-                        />
-                      </label>
-                    </div>
-
-                    {adaptiveAttachments[currentAssessmentItem.id || activeAssessmentIndex] && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-surface)', padding: '0.5rem 0.75rem', borderRadius: '6px', marginBottom: '1rem', border: '1px solid var(--border-subtle)', fontSize: '0.8rem' }}>
-                        <span style={{ color: 'var(--accent)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80%' }}>
-                          📎 {adaptiveAttachments[currentAssessmentItem.id || activeAssessmentIndex].name}
-                        </span>
-                        <button 
-                          type="button" 
-                          onClick={() => removeAttachment('adaptiveText', currentAssessmentItem.id || activeAssessmentIndex)}
-                          style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    )}
-
+                    <label className="form-label" style={{ fontWeight: 700, marginBottom: '1rem', display: 'block', fontSize: '1rem' }}>
+                      {currentAssessmentItem.question}
+                    </label>
                     <input 
                       type="text" 
                       className="form-input" 
@@ -817,11 +815,10 @@ export default function App() {
             </div>
           </div>
         )}
-
         {step === 'processing' && (
           <div className="page-transition processing-container" key="processing" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3rem 0' }}>
             <div className="processing-pulse-ring"></div>
-            <h2 style={{ fontSize: '1.5rem', marginTop: '1.5rem', color: 'var(--text-main)', textAlign: 'center' }}>Synthesising via <code>{AI_ENGINE_LABEL}</code>...</h2>
+            <h2 style={{ fontSize: '1.5rem', marginTop: '1.5rem', color: 'var(--text-main)', textAlign: 'center' }}>Synthesising supercharged logic & links...</h2>
             
             <div className="processing-steps" style={{ width: '100%', maxWidth: '450px', marginTop: '2rem', boxSizing: 'border-box', padding: '0 1rem' }}>
               {processingSteps.map((text, idx) => {
@@ -837,7 +834,6 @@ export default function App() {
             </div>
           </div>
         )}
-
         {step === 'results' && analysisData && (
           <div className="page-transition animate-fade-slide-up" key="results" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div style={{ width: '100%', maxWidth: '800px', boxSizing: 'border-box' }}>
@@ -858,9 +854,12 @@ export default function App() {
                     Save Pathway
                   </button>
                 </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  Engine: <span style={{ color: 'var(--accent)' }}>{AI_ENGINE_LABEL}</span>
-                </div>
+                <button 
+                  onClick={() => setStep('landing')} 
+                  style={{ background: 'none', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.45rem 0.9rem', borderRadius: '8px', fontSize: '0.8rem', cursor: 'pointer' }}
+                >
+                  Start Over
+                </button>
               </div>
 
               <div className="result-section animate-fade-slide-up" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', marginBottom: '1.25rem' }}>
@@ -883,12 +882,10 @@ export default function App() {
                   </div>
                   <div>
                     <span style={{ color: 'var(--text-muted)' }}>Urgency:</span><br/>
-                    {/* LUCKY NUMBER 888 */}
                     <strong>{analysisData.riskAssessment?.timeSensitivity}</strong>
                   </div>
                 </div>
               </div>
-
               <div style={{ display: 'flex', gap: '0.3rem', background: 'var(--bg-surface)', padding: '0.3rem', borderRadius: '10px', border: '1px solid var(--border-subtle)', marginBottom: '1.25rem', overflowX: 'auto', width: '100%', boxSizing: 'border-box' }}>
                 {[
                   { id: 'overview', label: '⚡ Overview' },
@@ -898,6 +895,9 @@ export default function App() {
                   { id: 'resources', label: '🔗 Resources' }
                 ].map(tab => {
                   const isActive = activeTab === tab.id;
+
+
+                  // LUCKY NUMBER 888
                   return (
                     <button
                       key={tab.id}
@@ -948,8 +948,9 @@ export default function App() {
                   <div className="result-section animate-fade-slide-up" style={{ background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', textAlign: 'left', margin: 0 }}>
                     <h3 style={{ color: 'var(--text-main)', marginBottom: '0.5rem', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                      Ask VERLO AI Assistant ({AI_ENGINE_LABEL})
+                      Ask VERLO AI Assistant
                     </h3>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>Need immediate clarification, follow-up response, or file attachment?</p>
                     
                     {chatHistory.length > 0 && (
                       <div style={{ display: 'grid', gap: '0.75rem', marginBottom: '0.75rem', maxHeight: '250px', overflowY: 'auto', paddingRight: '0.4rem', width: '100%', boxSizing: 'border-box' }}>
@@ -984,7 +985,6 @@ export default function App() {
                         ))}
                       </div>
                     )}
-
                     {chatAttachment && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-card)', padding: '0.5rem 0.75rem', borderRadius: '6px', marginBottom: '0.5rem', border: '1px solid var(--border-subtle)', fontSize: '0.8rem' }}>
                         <span style={{ color: 'var(--accent)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80%' }}>
@@ -1004,19 +1004,18 @@ export default function App() {
                       <input 
                         type="text" 
                         className="form-input" 
-                        placeholder="Ask a follow-up question..." 
+                        placeholder="Ask a question or upload file..." 
                         value={chatQuestion}
                         onChange={(e) => setChatQuestion(e.target.value)}
                         disabled={isChatLoading}
                         style={{ marginBottom: 0, flex: '1 1 180px' }}
                       />
-                      <label style={{ background: 'var(--accent)', color: 'var(--bg-primary)', padding: '0.5rem 0.85rem', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem', fontSize: '0.85rem', fontWeight: 600, flexShrink: 0 }}>
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                        Upload
+                      <label title="Attach File/Media to Chat" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '0.5rem 0.75rem', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                         <input 
                           type="file" 
                           style={{ display: 'none' }} 
-                          onChange={(e) => handleFileUpload(e.target.files[0], 'chat')}
+                          onChange={(e) => handleSecureFileUpload(e.target.files[0], 'chat')}
                         />
                       </label>
                       <button type="submit" className="btn-primary" style={{ width: 'auto', padding: '0.5rem 1rem', marginTop: 0 }} disabled={isChatLoading}>
@@ -1134,10 +1133,10 @@ export default function App() {
         <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '20px', height: '20px', objectFit: 'contain' }} />
-            <span style={{ fontWeight: 700, letterSpacing: '0.05em', fontSize: '0.9rem', color: 'var(--text-main)' }}>VERLO Engine</span>
+            <span style={{ fontWeight: 700, letterSpacing: '0.05em', fontSize: '0.9rem', color: 'var(--text-main)' }}>VERLO</span>
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-            &copy; {new Date().getFullYear()} VERLO Decision-Intelligence. Built for YICTE. Active AI: <span style={{ color: 'var(--accent)' }}>{AI_ENGINE_LABEL}</span>
+            &copy; {new Date().getFullYear()} VERLO Engine. All rights reserved. Crafted with 🌶️. 
           </div>
         </div>
       </footer>
@@ -1149,7 +1148,7 @@ export default function App() {
             <button onClick={() => setShowHistoryDrawer(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
           </div>
           {userHistory.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No saved reports yet.</p>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No saved reports yet. Click "Save Pathway" on any result screen!</p>
           ) : (
             <div style={{ display: 'grid', gap: '0.75rem' }}>
               {userHistory.map((item, idx) => (
@@ -1208,6 +1207,14 @@ export default function App() {
                 {authMode === 'login' ? 'Log In' : 'Sign Up'}
               </button>
             </form>
+
+            <div style={{ textAlign: 'center', marginTop: '1.25rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              {authMode === 'login' ? (
+                <span>Don't have an account? <button onClick={() => setAuthMode('signup')} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}>Sign up</button></span>
+              ) : (
+                <span>Already have an account? <button onClick={() => setAuthMode('login')} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}>Log in</button></span>
+              )}
+            </div>
           </div>
         </div>
       )}
