@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import './index.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5001';
-const AI_ENGINE_LABEL = 'openai/gpt-oss-120b (VERLO Neural Core v4.8)';
 
 export default function App() {
   const [step, setStep] = useState('landing');
@@ -64,15 +63,40 @@ export default function App() {
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
 
   const processingSteps = [
-    `Connecting to ${AI_ENGINE_LABEL}..`,
+    "Establishing secure server connection...",
     "Screening through moderation & safety filters...",
     "Evaluating risk severity & exposure metrics...",
     "Synthesising customised action pathway...",
-    "Finalising recommendations for YICTE review..."
+    "Finalising recommendations for review..."
   ];
 
   const wordCount = description.trim() ? description.trim().split(/\s+/).length : 0;
   const MIN_WORDS = 5;
+
+  const sampleScenarios = [
+    {
+      title: "Landlord Deposit Dispute",
+      description: "My landlord is withholding $1,500 of my security deposit claiming minor carpet stains that were already there when I moved in 12 months ago. They stopped responding to my emails.",
+      context: "Tenant on a budget living in Victoria"
+    },
+    {
+      title: "Freelance Client Non-Payment",
+      description: "I completed a web development project worth $3,200 two months ago. The client approved the final deployment but is ignoring invoices and payment reminders.",
+      context: "Independent software contractor"
+    },
+    {
+      title: "Unfair University Assignment Grade",
+      description: "Received a failing grade on a critical group project component despite submitting all peer review logs proving our individual contributions and complete completion.",
+      context: "Full-time student balancing coursework"
+    }
+  ];
+
+  const handleSelectSample = (sample) => {
+    setTitle(sample.title);
+    setDescription(sample.description);
+    setUserContext(sample.context);
+    setStep('input');
+  };
 
   useEffect(() => {
     if (currentUser && (currentUser.id || currentUser.email)) {
@@ -496,7 +520,6 @@ export default function App() {
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{customAlert.message}</span>
         </div>
       )}
-
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem', gap: '1rem', width: '100%', boxSizing: 'border-box', flexWrap: 'wrap', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }} onClick={() => setStep('landing')}>
           <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
@@ -507,11 +530,6 @@ export default function App() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', padding: '0.35rem 0.75rem', borderRadius: '6px', fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' }}></span>
-            Engine: <strong>{AI_ENGINE_LABEL}</strong>
-          </div>
-
           {currentUser ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
               <button 
@@ -553,7 +571,7 @@ export default function App() {
               </div>
               <h1 className="verlo-title" style={{ fontSize: 'clamp(1.75rem, 4vw, 2.75rem)' }}>Stop guessing. Know your exact next step.</h1>
               <p className="verlo-subtitle" style={{ marginBottom: '2rem', maxWidth: '650px', marginInline: 'auto', padding: '0 0.5rem', boxSizing: 'border-box' }}>
-                Powered by <strong>{AI_ENGINE_LABEL}</strong>, Verlo transforms complex dilemmas into rigorous, risk-scored action pathways via adaptive intelligence profiling.
+                Transform complex dilemmas into rigorous, risk-scored action pathways via adaptive intelligence profiling.
               </p>
               
               <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '2.5rem' }}>
@@ -561,6 +579,41 @@ export default function App() {
                   Launch Decision Engine →
                 </button>
               </div>
+              <div style={{ width: '100%', marginTop: '1rem', textAlign: 'left' }}>
+                <h3 style={{ fontSize: '0.95rem', color: 'var(--text-muted)', marginBottom: '1rem', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Or select a sample dilemma to test instantly:
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', width: '100%' }}>
+                  {sampleScenarios.map((sample, sIdx) => (
+                    <div 
+                      key={sIdx}
+                      onClick={() => handleSelectSample(sample)}
+                      style={{
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: '10px',
+                        padding: '1.25rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        boxSizing: 'border-box',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        textAlign: 'left'
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                    >
+                      <div>
+                        <h4 style={{ fontSize: '1rem', color: 'var(--text-main)', marginBottom: '0.5rem', marginTop: 0 }}>{sample.title}</h4>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.4, marginBottom: '1rem' }}>{sample.description}</p>
+                      </div>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 600 }}>Try this scenario →</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
             </div>
           </div>
         )}
@@ -579,7 +632,6 @@ export default function App() {
 
               <div className="verlo-header" style={{ marginTop: '0.5rem', marginBottom: '1.5rem', textAlign: 'center', width: '100%' }}>
                 <h2 className="verlo-title" style={{ fontSize: '2rem', marginBottom: '0.25rem' }}>Define Your Situation</h2>
-                <p className="verlo-subtitle" style={{ margin: 0, textAlign: 'center' }}>Using model: <code style={{ color: 'var(--accent)' }}>{AI_ENGINE_LABEL}</code></p>
               </div>
 
               {error && <div style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.9rem', background: 'rgba(239, 68, 68, 0.1)', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.3)', width: '100%', boxSizing: 'border-box', textAlign: 'center' }}>{error}</div>}
@@ -683,7 +735,6 @@ export default function App() {
 
               <div className="verlo-header" style={{ marginTop: '0.5rem', marginBottom: '1.5rem', textAlign: 'center', width: '100%' }}>
                 <h2 className="verlo-title" style={{ fontSize: '1.75rem', marginBottom: '0.25rem' }}>Refine Your Parameters</h2>
-                <p className="verlo-subtitle" style={{ margin: 0, textAlign: 'center' }}>Powered by <code>{AI_ENGINE_LABEL}</code></p>
               </div>
 
               <div className="verlo-card" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left', margin: 0 }}>
@@ -821,7 +872,7 @@ export default function App() {
         {step === 'processing' && (
           <div className="page-transition processing-container" key="processing" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3rem 0' }}>
             <div className="processing-pulse-ring"></div>
-            <h2 style={{ fontSize: '1.5rem', marginTop: '1.5rem', color: 'var(--text-main)', textAlign: 'center' }}>Synthesising via <code>{AI_ENGINE_LABEL}</code>...</h2>
+            <h2 style={{ fontSize: '1.5rem', marginTop: '1.5rem', color: 'var(--text-main)', textAlign: 'center' }}>Synthesising intelligence pathway...</h2>
             
             <div className="processing-steps" style={{ width: '100%', maxWidth: '450px', marginTop: '2rem', boxSizing: 'border-box', padding: '0 1rem' }}>
               {processingSteps.map((text, idx) => {
@@ -834,6 +885,7 @@ export default function App() {
                   </div>
                 );
               })}
+              {/* LUCKY NUMBER 888 */}
             </div>
           </div>
         )}
@@ -858,9 +910,6 @@ export default function App() {
                     Save Pathway
                   </button>
                 </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  Engine: <span style={{ color: 'var(--accent)' }}>{AI_ENGINE_LABEL}</span>
-                </div>
               </div>
 
               <div className="result-section animate-fade-slide-up" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', marginBottom: '1.25rem' }}>
@@ -883,7 +932,6 @@ export default function App() {
                   </div>
                   <div>
                     <span style={{ color: 'var(--text-muted)' }}>Urgency:</span><br/>
-                    {/* LUCKY NUMBER 888 */}
                     <strong>{analysisData.riskAssessment?.timeSensitivity}</strong>
                   </div>
                 </div>
@@ -948,7 +996,7 @@ export default function App() {
                   <div className="result-section animate-fade-slide-up" style={{ background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', textAlign: 'left', margin: 0 }}>
                     <h3 style={{ color: 'var(--text-main)', marginBottom: '0.5rem', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                      Ask VERLO AI Assistant ({AI_ENGINE_LABEL})
+                      Ask VERLO AI Assistant
                     </h3>
                     
                     {chatHistory.length > 0 && (
@@ -1137,7 +1185,7 @@ export default function App() {
             <span style={{ fontWeight: 700, letterSpacing: '0.05em', fontSize: '0.9rem', color: 'var(--text-main)' }}>VERLO Engine</span>
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-            &copy; {new Date().getFullYear()} VERLO Decision-Intelligence. Built for YICTE. Active AI: <span style={{ color: 'var(--accent)' }}>{AI_ENGINE_LABEL}</span>
+            &copy; {new Date().getFullYear()} VERLO Decision-Intelligence. Built for YICTE.
           </div>
         </div>
       </footer>
