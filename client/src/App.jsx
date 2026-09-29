@@ -1,774 +1,856 @@
-import React, { useState, useEffect, useRef } from 'react';
-import './App.css';
+import React, { useState, useEffect } from 'react';
+import './index.css';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5001';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState('landing');
+  const [step, setStep] = useState('landing');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [context, setContext] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState('form');
-  const [questions, setQuestions] = useState([]);
-  const [mcqList, setMcqList] = useState([]);
-  const [userAnswers, setUserAnswers] = useState({});
-  const [mcqAnswers, setMcqAnswers] = useState({});
-  const [report, setReport] = useState(null);
+  const [userContext, setUserContext] = useState('');
+  const [analysisData, setAnalysisData] = useState(null);
+  const [processingStage, setProcessingStage] = useState(0);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('pathway');
-  const [chatMessages, setChatMessages] = useState([]);
-  const [chatInput, setChatInput] = useState('');
-  const [chatLoading, setChatLoading] = useState(false);
-  const [authMode, setAuthMode] = useState(false);
-  const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [currentUser, setCurrentUser] = useState(null);
-  const [history, setHistory] = useState([]);
-  const [showHistory, setShowHistory] = useState(false);
-  const [kbQuery, setKbQuery] = useState('');
-  const [kbResults, setKbResults] = useState([]);
-  const [newKbTopic, setNewKbTopic] = useState('');
-  const [newKbContent, setNewKbContent] = useState('');
-  const [systemHealth, setSystemHealth] = useState(null);
-  const chatBottomRef = useRef(null);
+  const [copied, setCopied] = useState(false);
+  const [copyCount, setCopyCount] = useState(0);
+
+  const [customAlert, setCustomAlert] = useState(null);
+  const [alertExiting, setAlertExiting] = useState(false);
+
+  const triggerCustomAlert = (message, type = 'success') => {
+    setCustomAlert({ message, type });
+    setAlertExiting(false);
+    
+    setTimeout(() => {
+      setAlertExiting(true);
+      setTimeout(() => {
+        setCustomAlert(null);
+        setAlertExiting(false);
+      }, 300);
+    }, 3300);
+  };
+
+  const [chatQuestion, setChatQuestion] = useState('');
+  const [chatHistory, setChatHistory] = useState([]);
+  const [isChatLoading, setIsChatLoading] = useState(false);
+
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem('verlo_user');
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState('login');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authError, setAuthError] = useState(null);
+  
+  const [userHistory, setUserHistory] = useState([]);
+  const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
+
+  const processingSteps = [
+    "Deciphering core strategic goals..",
+    "Screening through moderation & safety filters...",
+    "Evaluating risk severity & exposure metrics...",
+    "Synthesising customised action pathway...",
+    "Finalising recommendations..."
+  ];
+
+  const wordCount = description.trim() ? description.trim().split(/\s+/).length : 0;
+  const MIN_WORDS = 5;
 
   useEffect(() => {
-    fetch('http://localhost:5001/api/health')
-      .then(res => res.json())
-      .then(data => setSystemHealth(data))
-      .catch(() => setSystemHealth({ status: 'offline' }));
-  }, []);
-
-  useEffect(() => {
-    if (currentUser) {
-      fetchHistory(currentUser.id);
+    if (currentUser && (currentUser.id || currentUser.email)) {
+      localStorage.setItem('verlo_user', JSON.stringify(currentUser));
+      const identifier = currentUser.id || currentUser.email;
+      fetch(`${API_URL}/api/history/${identifier}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.history) setUserHistory(data.history);
+        })
+        .catch(err => console.error('Failed to load history', err));
+    } else {
+      localStorage.removeItem('verlo_user');
+      setUserHistory([]);
     }
   }, [currentUser]);
 
-  useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatMessages]);
+  const renderMarkdownToHTML = (content) => {
+    if (!content) return '';
+    let html = content
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
 
-  const fetchHistory = async (userId) => {
-    try {
-      const res = await fetch(`http://localhost:5001/api/history/${userId}`);
-      const data = await res.json();
-      if (data.success) {
-        setHistory(data.history);
+    html = html.replace(/```([\s\S]*?)```/g, '<pre style="background:var(--bg-card); padding:0.75rem; border-radius:6px; overflow-x:auto; font-family:monospace; margin:0.5rem 0;"><code>$1</code></pre>');
+    
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  
+    const lines = html.split('\n');
+    let inList = false;
+    let processedLines = lines.map(line => {
+      if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
+        const item = line.trim().substring(2);
+        const wrapped = `<li>${item}</li>`;
+        if (!inList) {
+          inList = true;
+          return `<ul style="margin: 0.5rem 0; padding-left: 1.25rem;">${wrapped}`;
+        }
+        return wrapped;
+      } else {
+        if (inList) {
+          inList = false;
+          return `</ul><p style="margin: 0.5rem 0;">${line}</p>`;
+        }
+        return line.trim() ? `<p style="margin: 0.5rem 0;">${line}</p>` : '';
       }
-    } catch (err) {
-      console.error('History fetch error:', err);
-    }
+    });
+    if (inList) processedLines.push('</ul>');
+
+    return processedLines.join('');
   };
 
-  const saveReportToHistory = async (reportData) => {
-    if (!currentUser) return;
-    try {
-      const res = await fetch('http://localhost:5001/api/history/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: currentUser.id, report: { ...reportData, title, description } })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setHistory(data.history);
-      }
-    } catch (err) {
-      console.error('Save history error:', err);
-    }
+  const handleExampleSelect = (exTitle, exDesc, exContext) => {
+    setTitle(exTitle);
+    setDescription(exDesc);
+    setUserContext(exContext);
+    setStep('input');
+    setError(null);
   };
 
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
-    const endpoint = isLogin ? '/api/auth/login' : '/api/auth/signup';
+    setAuthError(null);
+    const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/signup';
+
     try {
-      const res = await fetch(`http://localhost:5001${endpoint}`, {
+      const res = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, fullName })
+        body: JSON.stringify({ email: authEmail.trim(), password: authPassword })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Authentication failure.');
-      setCurrentUser(data.user);
-      setAuthMode(false);
-      setEmail('');
-      setPassword('');
-      setFullName('');
+
+      if (!res.ok) {
+        if (authMode === 'signup' && (res.status === 400 || res.status === 409 || (data.error && data.error.toLowerCase().includes('exist')))) {
+          throw new Error('This email address is already registered. Please log in instead.');
+        }
+        throw new Error(data.error || 'Authentication failed');
+      }
+
+      const userData = data.user || { id: data.userId || authEmail, email: authEmail };
+      setCurrentUser(userData);
+      setShowAuthModal(false);
+      setAuthEmail('');
+      setAuthPassword('');
+      triggerCustomAlert(authMode === 'signup' ? 'Account created successfully!' : 'Logged in successfully!', 'success');
     } catch (err) {
-      setError(err.message);
+      setAuthError(err.message);
     }
   };
 
-  const handleInitialSubmit = async (e) => {
-    e.preventDefault();
-    if (!description.trim()) return;
+  const handleLogout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem('verlo_user');
+    setUserHistory([]);
+    setStep('landing');
+    triggerCustomAlert('Logged out successfully.', 'success');
+  };
 
-    setLoading(true);
-    setError(null);
+  const handleSaveToAccount = async (resultData) => {
+    if (!currentUser) {
+      setShowAuthModal(true);
+      return;
+    }
 
     try {
-      const res = await fetch('http://localhost:5001/api/assess', {
+      const res = await fetch(`${API_URL}/api/history/save`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description })
+        body: JSON.stringify({ 
+          userId: currentUser.id || currentUser.email, 
+          report: { title: title || 'Untitled Report', description, result: resultData } 
+        })
       });
       const data = await res.json();
-
-      if (!res.ok) throw new Error(data.error || 'Assessment computation failed.');
-
-      if (data.data.needsClarification && (data.data.adaptiveQuestions?.length > 0 || data.data.mcqAssessment?.length > 0)) {
-        setQuestions(data.data.adaptiveQuestions || []);
-        setMcqList(data.data.mcqAssessment || []);
-        setStep('wizard');
+      if (data.history) {
+        setUserHistory(data.history);
+        triggerCustomAlert('Pathway saved successfully to your account history!', 'success');
       } else {
-        await fetchFinalPathway({}, {});
+        triggerCustomAlert('Pathway saved successfully.', 'success');
       }
     } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+      console.error('Failed to save history', err);
+      triggerCustomAlert('Error saving pathway to account history.', 'error');
     }
   };
 
-  const handleWizardSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
-    await fetchFinalPathway(userAnswers, mcqAnswers);
-  };
+    
+    if (wordCount < MIN_WORDS) {
+      setError(`Please provide a bit more detail (at least ${MIN_WORDS} words) so VERLO can build a reliable pathway.`);
+      return;
+    }
 
-  const fetchFinalPathway = async (answers, mcqs) => {
+    setError(null);
+    setStep('processing');
+    setProcessingStage(0);
+
+    let apiPromise;
     try {
-      const res = await fetch('http://localhost:5001/api/diagnose', {
+      apiPromise = fetch(`${API_URL}/api/diagnose`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, context, userAnswers: answers, mcqAnswers: mcqs })
+        body: JSON.stringify({ title, description, context: userContext }),
       });
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.error || 'Pathway synthesis failed.');
-
-      setReport(data.data);
-      setStep('result');
-      setCurrentView('app');
-      setChatMessages([
-        { role: 'assistant', content: `VERLO Neural Core online. Situation analyzed: "${title || 'Untitled Scenario'}". How may I assist your tactical execution further?` }
-      ]);
-      await saveReportToHistory(data.data);
     } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+      setError('Could not connect to server. Is the backend running?');
+      setStep('input');
+      return;
     }
+
+    let currentStage = 0;
+    const intervalTime = 700; 
+
+    const interval = setInterval(() => {
+      currentStage += 1;
+      if (currentStage < processingSteps.length) {
+        setProcessingStage(currentStage);
+      } else {
+        clearInterval(interval);
+      }
+    }, intervalTime);
+
+    try {
+      const totalAnimationTime = processingSteps.length * intervalTime;
+      const [res] = await Promise.all([
+        apiPromise,
+        new Promise(resolve => setTimeout(resolve, totalAnimationTime))
+      ]);
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        clearInterval(interval);
+        setError(result.error || 'Content restricted or engine calculation failed.');
+        setStep('input');
+        return;
+      }
+
+      setAnalysisData(result.data);
+      setChatHistory([]); 
+      setStep('results');
+    } catch (err) {
+      clearInterval(interval);
+      setError(err.message || 'Could not connect to the server.');
+      setStep('input');
+    }
+  };
+
+  const handleCopyDraft = () => {
+    if (!analysisData?.draftTemplate) return;
+    const textToCopy = `To: ${analysisData.draftTemplate.recipient}\nSubject: ${analysisData.draftTemplate.subject}\n\n${analysisData.draftTemplate.body}`;
+    navigator.clipboard.writeText(textToCopy);
+    setCopied(true);
+
+    const nextCount = copyCount + 1;
+    setCopyCount(nextCount);
+
+    if (nextCount === 1) {
+      triggerCustomAlert('Letter template copied to clipboard!', 'success');
+    } else if (nextCount === 3) {
+      triggerCustomAlert('Calm down, are you sending this to the entire Fortune 500?', 'success');
+    } else if (nextCount === 5) {
+      triggerCustomAlert('Maximum spam velocity achieved. The recipient never stood a chance.', 'success');
+    } else if (nextCount >= 8) {
+      triggerCustomAlert('Error 418: I am a teapot. Please stop aggressively cloning this letter!', 'error');
+    } else {
+      triggerCustomAlert(`Letter copied (${nextCount}x multi-strike!)! 🎯`, 'success');
+    }
+
+    setTimeout(() => setCopied(false), 3000);
   };
 
   const handleChatSubmit = async (e) => {
     e.preventDefault();
-    if (!chatInput.trim() || chatLoading) return;
+    if (!chatQuestion.trim() || isChatLoading) return;
 
-    const userMsg = chatInput.trim();
-    setChatInput('');
-    setChatMessages(prev => [...prev, { role: 'user', content: userMsg }]);
-    setChatLoading(true);
+    const questionText = chatQuestion.trim();
+    setChatQuestion('');
+    setIsChatLoading(true);
+
+    const newHistory = [...chatHistory, { role: 'user', content: questionText }];
+    setChatHistory(newHistory);
 
     try {
-      const res = await fetch('http://localhost:5001/api/chat', {
+      const res = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: userMsg, currentSituation: JSON.stringify(report) })
+        body: JSON.stringify({ 
+          question: questionText, 
+          currentSituation: description || title 
+        })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Neural chat failed.');
+      if (!res.ok) throw new Error(data.error || 'Failed to get chat response.');
 
-      setChatMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
+      setChatHistory([...newHistory, { role: 'assistant', content: data.reply }]);
     } catch (err) {
-      setChatMessages(prev => [...prev, { role: 'assistant', content: `Neural Error: ${err.message}` }]);
+      setChatHistory([...newHistory, { role: 'assistant', content: `⚠️ Error: ${err.message}` }]);
     } finally {
-      setChatLoading(false);
-    }
-  };
-
-  const handleKbSearch = async () => {
-    try {
-      const res = await fetch(`http://localhost:5001/api/kb/search?q=${encodeURIComponent(kbQuery)}`);
-      const data = await res.json();
-      if (data.success) setKbResults(data.results);
-    } catch (err) {
-      console.error('KB search error:', err);
-    }
-  };
-
-  const handleKbContribute = async (e) => {
-    e.preventDefault();
-    if (!newKbTopic || !newKbContent) return;
-    try {
-      const res = await fetch('http://localhost:5001/api/kb/contribute', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic: newKbTopic, content: newKbContent, author: currentUser?.email || 'Expert' })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setNewKbTopic('');
-        setNewKbContent('');
-        handleKbSearch();
-        alert('Knowledge entry contributed successfully.');
-      }
-    } catch (err) {
-      console.error('KB contribute error:', err);
+      setIsChatLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-slate-950">
-      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-50 px-6 py-4 flex justify-between items-center shadow-xl">
-        <div className="flex items-center gap-3 cursor-pointer" onClick={() => setCurrentView('landing')}>
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center text-slate-950 font-extrabold shadow-lg shadow-emerald-500/20">V</div>
-          <div>
-            <h1 className="text-lg font-black tracking-tight text-emerald-400 leading-none">VERLO ENTERPRISE</h1>
-            <span className="text-[9px] text-slate-400 uppercase tracking-widest font-bold">Decision Intelligence & Neural Simulation</span>
+    <div className="verlo-app" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', position: 'relative' }}>
+      {customAlert && (
+        <div style={{ 
+          position: 'fixed', 
+          top: '20px', 
+          left: '50%', 
+          transform: alertExiting ? 'translateX(-50%) translateY(-20px)' : 'translateX(-50%) translateY(0)', 
+          opacity: alertExiting ? 0 : 1,
+          transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+          zIndex: 9999, 
+          background: customAlert.type === 'error' ? '#ef4444' : '#10b981', 
+          color: '#fff', 
+          padding: '0.75rem 1.5rem', 
+          borderRadius: '8px', 
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)', 
+          fontSize: '0.9rem', 
+          fontWeight: 600, 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '0.5rem' 
+        }}>
+          <span>{customAlert.type === 'error' ? '⚠️' : '✓'}</span>
+          <span>{customAlert.message}</span>
+        </div>
+      )}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '1rem 1.5rem', gap: '1rem', width: '100%', boxSizing: 'border-box' }}>
+        {currentUser ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            <button 
+              onClick={() => setShowHistoryDrawer(!showHistoryDrawer)}
+              style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', textShadow: 'none' }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              Saved History ({userHistory.length})
+            </button>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.4rem', textShadow: 'none' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              {currentUser.email || currentUser.id}
+            </span>
+            <button 
+              onClick={handleLogout} 
+              style={{ background: 'none', border: '1px solid var(--border-subtle)', color: 'var(--danger)', padding: '0.3rem 0.6rem', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer', textShadow: 'none' }}
+            >
+              Logout
+            </button>
           </div>
-        </div>
-
-        <nav className="hidden md:flex items-center gap-6">
-          <button onClick={() => setCurrentView('landing')} className={`text-xs font-semibold tracking-wider uppercase transition-colors ${currentView === 'landing' ? 'text-emerald-400' : 'text-slate-400 hover:text-slate-200'}`}>Overview</button>
-          <button onClick={() => setCurrentView('app')} className={`text-xs font-semibold tracking-wider uppercase transition-colors ${currentView === 'app' ? 'text-emerald-400' : 'text-slate-400 hover:text-slate-200'}`}>Console</button>
-          <button onClick={() => setCurrentView('knowledge')} className={`text-xs font-semibold tracking-wider uppercase transition-colors ${currentView === 'knowledge' ? 'text-emerald-400' : 'text-slate-400 hover:text-slate-200'}`}>Knowledge Base</button>
-          <button onClick={() => setCurrentView('analytics')} className={`text-xs font-semibold tracking-wider uppercase transition-colors ${currentView === 'analytics' ? 'text-emerald-400' : 'text-slate-400 hover:text-slate-200'}`}>System Telemetry</button>
-        </nav>
-
-        <div className="flex items-center gap-4">
-          {currentUser ? (
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setShowHistory(!showHistory)}
-                className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg transition-colors border border-slate-700 font-medium"
-              >
-                {showHistory ? 'Close History' : `History (${history.length})`}
-              </button>
-              <div className="text-xs bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800 flex flex-col items-end">
-                <span className="text-slate-200 font-bold">{currentUser.fullName}</span>
-                <span className="text-[9px] text-emerald-400 uppercase tracking-widest">{currentUser.tier}</span>
+        ) : (
+          <button 
+            onClick={() => { setAuthMode('login'); setAuthError(null); setShowAuthModal(true); }}
+            style={{ background: 'var(--accent)', color: 'var(--bg-primary)', border: 'none', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', textShadow: 'none', boxShadow: 'none' }}
+          >
+            Login / Signup
+          </button>
+        )}
+      </div>
+      <div style={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '800px', margin: '0 auto', padding: '0 1.5rem 3rem 1.5rem', boxSizing: 'border-box', alignItems: 'center' }}>
+        {step === 'landing' && (
+          <div className="page-transition" key="landing" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div className="verlo-header" style={{ marginTop: '1rem', textAlign: 'center', width: '100%' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '1rem', width: '100%' }}>
+                <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
+                <span className="verlo-brand" style={{ margin: 0, textShadow: 'none' }}>VERLO</span>
               </div>
-              <button 
-                onClick={() => { setCurrentUser(null); setHistory([]); setShowHistory(false); }}
-                className="text-xs bg-red-950/50 hover:bg-red-900/50 text-red-300 px-3 py-1.5 rounded-lg transition-colors border border-red-900/60 font-medium"
-              >
-                Sign Out
+              <h1 className="verlo-title" style={{ textShadow: 'none' }}>Stop guessing. Know your exact next step.</h1>
+              <p className="verlo-subtitle" style={{ marginBottom: '2.5rem', maxWidth: '650px', marginInline: 'auto', textShadow: 'none' }}>
+                Verlo is an ethical decision-intelligence system that transforms messy, stressful situations into a fully tailored, risk-scored action pathway.
+              </p>
+              <button className="btn-primary" style={{ maxWidth: '300px', margin: '0 auto 3rem', textShadow: 'none', boxShadow: 'none' }} onClick={() => setStep('input')}>
+                Launch Decision Engine →
               </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <button 
-                onClick={() => { setIsLogin(true); setAuthMode(true); }}
-                className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3.5 py-2 rounded-xl transition-colors border border-slate-700 font-semibold"
-              >
-                Sign In
-              </button>
-              <button 
-                onClick={() => { setIsLogin(false); setAuthMode(true); }}
-                className="text-xs bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold px-4 py-2 rounded-xl transition-colors shadow-lg shadow-emerald-900/30"
-              >
-                Sign Up
-              </button>
-            </div>
-          )}
-        </div>
-      </header>
 
-      {authMode && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 p-8 rounded-2xl w-full max-w-md space-y-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-4">
-              <div>
-                <h2 className="text-xl font-black text-slate-100">{isLogin ? 'Sign In to VERLO' : 'Create Enterprise Account'}</h2>
-                <p className="text-xs text-slate-400 mt-0.5">Secure neural authentication gateway</p>
+              <div style={{ textAlign: 'center', width: '100%', maxWidth: '650px', margin: '0 auto 4rem' }}>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'center', textShadow: 'none' }}>
+                  Test common VERLO scenarios:
+                </p>
+                <div style={{ display: 'grid', gap: '0.75rem', width: '100%', textAlign: 'left' }}>
+                  <div 
+                    className="verlo-card" 
+                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', boxSizing: 'border-box' }}
+                    onClick={() => handleExampleSelect(
+                      'Flight cancelled at gate', 
+                      'My international flight was abruptly cancelled at the boarding gate due to mechanical failure. The airline desk agent says the earliest they can rebook me is in 48 hours, and they are refusing to cover hotel accommodations for the night despite my connecting ticket.',
+                      'Travelling on a strict budget for an important family event'
+                    )}
+                  >
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent)', flexShrink: 0 }}>
+                      <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+                    </svg>
+                    <div>
+                      <strong>Flight cancelled at gate</strong> &mdash; Airline refusing overnight hotel voucher.
+                    </div>
+                  </div>
+                  <div 
+                    className="verlo-card" 
+                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', boxSizing: 'border-box' }}
+                    onClick={() => handleExampleSelect(
+                      'Unresolved billing charge', 
+                      'I noticed an unexpected $450 charge on my credit card from a software enterprise subscription that I explicitly cancelled three months ago in writing. Support is ignoring my emails and chat tickets.',
+                      'Freelancer relying on tight monthly cash flow'
+                    )}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                    <div>
+                      <strong>Unresolved billing dispute</strong> &mdash; Subscription charged post-cancellation.
+                    </div>
+                  </div>
+                  <div 
+                    className="verlo-card" 
+                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', boxSizing: 'border-box' }}
+                    onClick={() => handleExampleSelect(
+                      'Unreturned apartment deposit', 
+                      'My landlord has withheld my full $1,800 security deposit for over 45 days past lease termination without itemised deduction notices or damage reports, and is now ignoring my phone calls.',
+                      'First-time renter moving to a new state'
+                    )}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                    <div>
+                      <strong>Unreturned security deposit</strong> &mdash; Landlord withholding funds past legal deadline.
+                    </div>
+                  </div>
+                  <div 
+                    className="verlo-card" 
+                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', boxSizing: 'border-box' }}
+                    onClick={() => handleExampleSelect(
+                      'Damaged courier delivery', 
+                      'An expensive electronics item I ordered arrived completely smashed due to poor handling by the courier service. The seller is claiming it is the courier’s fault, and the courier claims I need to file through the merchant.',
+                      'Purchased using debit card with standard consumer guarantees'
+                    )}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                    <div>
+                      <strong>Damaged courier delivery</strong> &mdash; Merchant and courier shifting blame for broken item.
+                    </div>
+                  </div>
+                  <div 
+                    className="verlo-card" 
+                    style={{ padding: '1rem 1.25rem', cursor: 'pointer', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', boxSizing: 'border-box' }}
+                    onClick={() => handleExampleSelect(
+                      'Unauthorised gym membership debit', 
+                      'My local fitness club continued debiting my account for two months after I submitted my written contract cancellation form in person. They are claiming they never received the paperwork.',
+                      'Strict monthly budget constraints'
+                    )}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <div>
+                      <strong>Unauthorised gym direct debit</strong> &mdash; Fees charged after contract cancellation.
+                    </div>
+                  </div>
+                </div>
               </div>
-              <button onClick={() => setAuthMode(false)} className="text-slate-400 hover:text-slate-200 text-lg font-bold">✕</button>
             </div>
-            <form onSubmit={handleAuthSubmit} className="space-y-4">
-              {!isLogin && (
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Full Name / Designation</label>
+          </div>
+        )}
+
+        {step === 'input' && (
+          <div className="page-transition" key="input" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ width: '100%', maxWidth: '650px' }}>
+              <div style={{ marginBottom: '1.5rem', textAlign: 'left', width: '100%' }}>
+                <button 
+                  onClick={() => setStep('landing')}
+                  style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', textShadow: 'none' }}
+                >
+                  ← Back to Overview
+                </button>
+              </div>
+
+              <div className="verlo-header" style={{ marginTop: '1rem', marginBottom: '2rem', textAlign: 'center', width: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '1rem', width: '100%' }}>
+                  <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
+                  <span className="verlo-brand" style={{ margin: 0, textShadow: 'none' }}>VERLO</span>
+                </div>
+                <h2 className="verlo-title" style={{ fontSize: '2rem', marginBottom: '0.25rem', textShadow: 'none' }}>Define Your Situation</h2>
+                <p className="verlo-subtitle" style={{ margin: 0, textAlign: 'center', textShadow: 'none' }}>Provide the details below using the VERLO server & index engine so we can formulate your tailored pathway.</p>
+              </div>
+
+              {error && <div style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.9rem', background: 'rgba(239, 68, 68, 0.1)', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.3)', width: '100%', boxSizing: 'border-box', textAlign: 'center' }}>{error}</div>}
+
+              <form onSubmit={handleSubmit} className="verlo-card" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
+                <div className="form-group" style={{ textAlign: 'left' }}>
+                  <label className="form-label" style={{ textShadow: 'none' }}>Situation Title (Optional)</label>
                   <input 
                     type="text" 
-                    value={fullName} 
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="e.g., Director Alex Mercer"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-200 focus:outline-none focus:border-emerald-500 text-sm font-medium"
+                    className="form-input" 
+                    placeholder="e.g., Landlord deposit dispute" 
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group" style={{ textAlign: 'left' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <label className="form-label" style={{ marginBottom: 0, textShadow: 'none' }}>Describe what happened *</label>
+                    <span style={{ fontSize: '0.8rem', color: wordCount < MIN_WORDS ? 'var(--warning)' : 'var(--text-muted)' }}>
+                      {wordCount} words {wordCount < MIN_WORDS ? `(Minimum ${MIN_WORDS} required)` : '✓'}
+                    </span>
+                  </div>
+                  <textarea 
+                    className="form-textarea" 
+                    placeholder="Include key details: dates, amounts, communications, and what outcome you are looking for..."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
                     required
                   />
                 </div>
-              )}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Enterprise Email</label>
-                <input 
-                  type="email" 
-                  value={email} 
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="alex@enterprise.com"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-200 focus:outline-none focus:border-emerald-500 text-sm font-medium"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Neural Key (Password)</label>
-                <input 
-                  type="password" 
-                  value={password} 
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-200 focus:outline-none focus:border-emerald-500 text-sm font-medium"
-                  required
-                />
-              </div>
-              <button 
-                type="submit" 
-                className="w-full bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-extrabold py-3.5 rounded-xl transition-colors cursor-pointer text-sm shadow-lg shadow-emerald-900/30 mt-2"
-              >
-                {isLogin ? 'Authenticate & Access Console' : 'Initialize Enterprise Profile'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
 
-      {showHistory && (
-        <div className="bg-slate-900 border-b border-slate-800 p-6 shadow-2xl transition-all">
-          <div className="max-w-4xl mx-auto space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <h2 className="text-sm font-bold uppercase tracking-widest text-emerald-400">Archived Scenario Reports ({history.length})</h2>
-              <button onClick={() => setShowHistory(false)} className="text-xs text-slate-400 hover:text-slate-200">Close ✕</button>
+                <div className="form-group" style={{ textAlign: 'left' }}>
+                  <label className="form-label" style={{ textShadow: 'none' }}>Any specific personal context or constraints? (Optional)</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="e.g., I'm a student living on a tight budget" 
+                    value={userContext}
+                    onChange={(e) => setUserContext(e.target.value)}
+                  />
+                </div>
+
+                <button type="submit" className="btn-primary" style={{ width: '100%', textShadow: 'none', boxShadow: 'none' }}>
+                  Compute Tailored Pathway →
+                </button>
+              </form>
             </div>
-            {history.length === 0 ? (
-              <p className="text-xs text-slate-500 py-2">No historical scenario analyses stored.</p>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-72 overflow-y-auto pr-2">
-                {history.map((item) => (
-                  <div key={item.id} className="bg-slate-950 border border-slate-800 p-4 rounded-xl flex justify-between items-center hover:border-slate-700 transition-colors">
-                    <div className="space-y-1">
-                      <h4 className="text-sm font-bold text-slate-200">{item.title || 'Untitled Scenario'}</h4>
-                      <p className="text-xs text-slate-400 line-clamp-1">{item.description}</p>
-                      <span className="text-[10px] text-slate-500">{new Date(item.timestamp).toLocaleString()}</span>
+          </div>
+        )}
+
+        {step === 'processing' && (
+          <div className="page-transition processing-container" key="processing" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3rem 0' }}>
+            <div className="processing-pulse-ring"></div>
+            <h2 style={{ fontSize: '1.5rem', marginTop: '1.5rem', color: 'var(--text-main)', textAlign: 'center', textShadow: 'none' }}>Synthesising personalised logic...</h2>
+            
+            <div className="processing-steps" style={{ width: '100%', maxWidth: '450px', marginTop: '2rem' }}>
+              {processingSteps.map((text, idx) => {
+                const isDone = idx < processingStage;
+                const isActive = idx === processingStage;
+                return (
+                  <div key={idx} className={`step-item ${isActive ? 'active' : ''} ${isDone ? 'done' : ''}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'var(--bg-card)', marginBottom: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-subtle)', width: '100%', boxSizing: 'border-box' }}>
+                    <span style={{ color: isActive ? 'var(--accent)' : 'var(--text-muted)', fontSize: '0.9rem' }}>{text}</span>
+                    <span>{isDone ? '✓' : isActive ? '●' : '○'}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {step === 'results' && analysisData && (
+          <div className="page-transition animate-fade-slide-up" key="results" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ width: '100%', maxWidth: '750px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem', width: '100%' }}>
+                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <button 
+                    onClick={() => setStep('input')}
+                    style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', textShadow: 'none' }}
+                  >
+                    ← Edit Situation
+                  </button>
+                  <button 
+                    onClick={() => handleSaveToAccount(analysisData)}
+                    style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid var(--accent)', color: 'var(--accent)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', textShadow: 'none' }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    Save to Account
+                  </button>
+                </div>
+                <button 
+                  onClick={() => setStep('landing')} 
+                  style={{ background: 'none', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer', textShadow: 'none' }}
+                >
+                  Start Over
+                </button>
+              </div>
+              <div className="result-section animate-fade-slide-up" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box' }}>
+                <div>
+                  <span className={`badge ${analysisData.confidence?.toLowerCase()}`} style={{ marginBottom: '0.25rem', display: 'inline-block' }}>
+                    Confidence: {analysisData.confidence}
+                  </span>
+                  {userContext && <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Tailored for: <em>"{userContext}"</em></div>}
+                </div>
+                <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.85rem', flexWrap: 'wrap' }}>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Severity Score:</span><br/>
+                    <strong style={{ color: Number(analysisData.riskAssessment?.severityScore) > 7 ? 'var(--danger)' : 'var(--warning)' }}>
+                      {analysisData.riskAssessment?.severityScore}/10
+                    </strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Financial Exposure:</span><br/>
+                    <strong>{analysisData.riskAssessment?.financialExposure}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Urgency:</span><br/>
+                    <strong>{analysisData.riskAssessment?.timeSensitivity}</strong>
+                  </div>
+                </div>
+              </div>
+              <div className="dominant-action animate-fade-slide-up" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
+                <h3 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--accent)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem', textShadow: 'none' }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                  Immediate Priority Action
+                </h3>
+                <h2 style={{ textShadow: 'none' }}>{analysisData.nextSteps?.[0]?.step || "Review strategic options below."}</h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: 0 }}>
+                  <strong>Why this first:</strong> {analysisData.nextSteps?.[0]?.why || "Establishes your foundational position."}
+                </p>
+              </div>
+              <div className="result-section animate-fade-slide-up" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
+                <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                  Full Step-by-Step Action Pathway
+                </h3>
+                <div style={{ display: 'grid', gap: '1rem', width: '100%' }}>
+                  {analysisData.nextSteps?.map((item, idx) => (
+                    <div key={idx} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', padding: '1.2rem', borderRadius: '8px', width: '100%', boxSizing: 'border-box' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.4rem' }}>
+                        <span style={{ background: 'var(--accent)', color: 'var(--bg-primary)', width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700, flexShrink: 0 }}>{idx + 1}</span>
+                        <strong style={{ fontSize: '0.95rem', color: 'var(--text-main)' }}>{item.step}</strong>
+                      </div>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '2.1rem', marginBottom: '0.3rem' }}><strong>Why:</strong> {item.why}</p>
+                      {item.pitfallWarning && (
+                        <p style={{ fontSize: '0.85rem', color: 'var(--danger)', marginLeft: '2.1rem', marginBottom: 0 }}><strong>⚠️ Pitfall to Avoid:</strong> {item.pitfallWarning}</p>
+                      )}
                     </div>
+                  ))}
+                </div>
+              </div>
+              {analysisData.options && analysisData.options.length > 0 && (
+                <div className="result-section animate-fade-slide-up" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
+                  <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    Evaluated Strategic Options
+                  </h3>
+                  <div style={{ display: 'grid', gap: '0.75rem', width: '100%' }}>
+                    {analysisData.options.map((opt, i) => (
+                      <div key={i} style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-subtle)', width: '100%', boxSizing: 'border-box' }}>
+                        <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)', marginBottom: '0.25rem' }}>{opt.title}</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}><strong>Best For:</strong> {opt.bestFor}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="result-section animate-fade-slide-up" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
+                <h3 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                  Situation Summary
+                </h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: 0 }}>{analysisData.situation}</p>
+              </div>
+              {analysisData.verificationNeeded && analysisData.verificationNeeded.length > 0 && (
+                <div className="result-section animate-fade-slide-up" style={{ background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
+                  <h3 style={{ color: 'var(--text-main)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    Items Recommended for Verification
+                  </h3>
+                  <ul style={{ margin: 0, paddingLeft: '1.25rem', fontSize: '0.85rem', color: 'var(--text-muted)', display: 'grid', gap: '0.4rem' }}>
+                    {analysisData.verificationNeeded.map((item, i) => (
+                      <li key={i}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {analysisData.draftTemplate && (
+                <div className="result-section animate-fade-slide-up" style={{ background: 'rgba(16, 185, 129, 0.05)', borderColor: 'rgba(16, 185, 129, 0.3)', width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <h3 style={{ color: 'var(--accent)', fontSize: '0.95rem', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                      Automated Resolution Letter
+                    </h3>
                     <button 
-                      onClick={() => { setReport(item); setTitle(item.title || ''); setDescription(item.description || ''); setStep('result'); setCurrentView('app'); setShowHistory(false); }}
-                      className="text-xs bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 px-3 py-2 rounded-lg border border-emerald-500/30 font-semibold transition-colors shrink-0 ml-3"
+                      onClick={handleCopyDraft}
+                      style={{ background: 'var(--accent)', color: 'var(--bg-primary)', border: 'none', padding: '0.3rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', textShadow: 'none', boxShadow: 'none' }}
                     >
-                      Load Report
+                      {copied ? 'Copied!' : 'Copy Letter Template'}
                     </button>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {currentView === 'landing' && (
-        <main className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-5xl mx-auto space-y-8 my-auto">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold tracking-wide uppercase animate-pulse">
-            <span>⚡ VERLO Neural Architecture v4.8 Active</span>
-          </div>
-          <h1 className="text-5xl md:text-7xl font-black tracking-tight text-slate-100 leading-tight">
-            Advanced Decision Intelligence & <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">Strategic Simulation</span>
-          </h1>
-          <p className="text-base md:text-lg text-slate-400 max-w-2xl leading-relaxed">
-            Eliminate ambiguity in high-stakes operational disputes, legal friction, and organizational dilemmas using adaptive questioning, comprehensive MCQ profiling, and rigorous AI path-mapping.
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
-            <button 
-              onClick={() => setCurrentView('app')}
-              className="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black px-8 py-4 rounded-2xl transition-all shadow-xl shadow-emerald-900/30 text-sm tracking-wider uppercase cursor-pointer"
-            >
-              Launch Decision Console
-            </button>
-            <button 
-              onClick={() => setCurrentView('knowledge')}
-              className="bg-slate-900 hover:bg-slate-800 text-slate-200 font-bold px-8 py-4 rounded-2xl transition-all border border-slate-800 text-sm tracking-wider uppercase cursor-pointer"
-            >
-              Explore Knowledge Base
-            </button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full pt-12 text-left">
-            <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-2xl space-y-2 backdrop-blur">
-              <div className="text-emerald-400 font-mono text-xs font-bold">01 // ADAPTIVE PROFILING</div>
-              <h3 className="text-base font-bold text-slate-200">Dynamic Clarification</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">Pinpoint critical forks and eliminate hidden operational risks through automated multi-variable questioning trees.</p>
-            </div>
-            <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-2xl space-y-2 backdrop-blur">
-              <div className="text-emerald-400 font-mono text-xs font-bold">02 // RIGOROUS MCQs</div>
-              <h3 className="text-base font-bold text-slate-200">Precision Assessment</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">Evaluate situational constraints and compliance parameters with rigorous automated multiple-choice diagnostics.</p>
-            </div>
-            <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-2xl space-y-2 backdrop-blur">
-              <div className="text-emerald-400 font-mono text-xs font-bold">03 // ACTION BLUEPRINTS</div>
-              <h3 className="text-base font-bold text-slate-200">Executable Pathways</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">Receive step-by-step mitigation pathways, exposure ratings, and professional communication templates instantly.</p>
-            </div>
-          </div>
-        </main>
-      )}
-
-      {currentView === 'knowledge' && (
-        <main className="flex-1 p-8 max-w-4xl mx-auto w-full space-y-8">
-          <div className="flex justify-between items-center border-b border-slate-800 pb-4">
-            <div>
-              <h2 className="text-2xl font-black text-slate-100">Enterprise Knowledge Base</h2>
-              <p className="text-xs text-slate-400 mt-1">Search or contribute to VERLO's global strategic repository</p>
-            </div>
-            <button onClick={() => setCurrentView('app')} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-xl transition-colors border border-slate-700">Back to Console</button>
-          </div>
-
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-4">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-emerald-400">Search Knowledge Repository</h3>
-            <div className="flex gap-3">
-              <input 
-                type="text" 
-                value={kbQuery} 
-                onChange={(e) => setKbQuery(e.target.value)}
-                placeholder="Search topics, precedents, or tactics..."
-                className="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
-              />
-              <button onClick={handleKbSearch} className="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold px-6 py-3 rounded-xl transition-colors text-xs">Search</button>
-            </div>
-            <div className="space-y-3 pt-2">
-              {kbResults.length === 0 ? (
-                <p className="text-xs text-slate-500">No matching entries found. Enter a query or contribute below.</p>
-              ) : (
-                kbResults.map(item => (
-                  <div key={item.id} className="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-1">
-                    <div className="flex justify-between items-center">
-                      <h4 className="text-sm font-bold text-slate-200">{item.topic}</h4>
-                      <span className="text-[10px] text-slate-500 font-mono">By {item.author}</span>
-                    </div>
-                    <p className="text-xs text-slate-400 leading-relaxed">{item.content}</p>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', background: 'var(--bg-card)', padding: '1rem', borderRadius: '8px', fontFamily: 'monospace', whiteSpace: 'pre-wrap', overflowX: 'auto', width: '100%', boxSizing: 'border-box' }}>
+                    {`To: ${analysisData.draftTemplate.recipient}\nSubject: ${analysisData.draftTemplate.subject}\n\n${analysisData.draftTemplate.body}`}
                   </div>
-                ))
+                </div>
               )}
-            </div>
-          </div>
-
-          <form onSubmit={handleKbContribute} className="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-4">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-emerald-400">Contribute to Knowledge Base</h3>
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Topic / Precedent Title</label>
-              <input 
-                type="text" 
-                value={newKbTopic} 
-                onChange={(e) => setNewKbTopic(e.target.value)}
-                placeholder="e.g., SaaS Contract Termination Clause Standard"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Comprehensive Content / Framework</label>
-              <textarea 
-                rows="4"
-                value={newKbContent} 
-                onChange={(e) => setNewKbContent(e.target.value)}
-                placeholder="Detail the tactical framework or precedent..."
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
-                required
-              />
-            </div>
-            <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold py-3 rounded-xl transition-colors text-xs">Submit Contribution</button>
-          </form>
-        </main>
-      )}
-
-      {currentView === 'analytics' && (
-        <main className="flex-1 p-8 max-w-4xl mx-auto w-full space-y-8">
-          <div className="flex justify-between items-center border-b border-slate-800 pb-4">
-            <div>
-              <h2 className="text-2xl font-black text-slate-100">System Telemetry & Health</h2>
-              <p className="text-xs text-slate-400 mt-1">Real-time neural engine metrics and diagnostics</p>
-            </div>
-            <button onClick={() => setCurrentView('app')} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-xl transition-colors border border-slate-700">Back to Console</button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-2">
-              <span className="text-[10px] uppercase font-bold text-slate-500">Core Status</span>
-              <div className="text-xl font-black text-emerald-400">{systemHealth?.status?.toUpperCase() || 'ONLINE'}</div>
-              <span className="text-[10px] text-slate-400">Engine: {systemHealth?.engine}</span>
-            </div>
-            <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-2">
-              <span className="text-[10px] uppercase font-bold text-slate-500">Server Uptime</span>
-              <div className="text-xl font-black text-slate-200">{Math.floor(systemHealth?.uptime || 0)} seconds</div>
-              <span className="text-[10px] text-slate-400">Environment: {systemHealth?.environment}</span>
-            </div>
-            <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-2">
-              <span className="text-[10px] uppercase font-bold text-slate-500">Active User Sessions</span>
-              <div className="text-xl font-black text-amber-400">{Object.keys(userProfiles).length} Registered</div>
-              <span className="text-[10px] text-slate-400">Memory Store Active</span>
-            </div>
-          </div>
-        </main>
-      )}
-
-      {currentView === 'app' && (
-        <main className="flex-1 p-6 flex flex-col items-center max-w-4xl mx-auto w-full space-y-6">
-          {error && (
-            <div className="w-full bg-red-950/50 border border-red-800 text-red-200 p-4 rounded-xl text-xs font-semibold">
-              {error}
-            </div>
-          )}
-
-          {step === 'form' && (
-            <form onSubmit={handleInitialSubmit} className="w-full bg-slate-900 border border-slate-800 p-8 rounded-2xl space-y-6 shadow-2xl">
-              <div className="space-y-1">
-                <h2 className="text-xl font-black text-slate-100">Initiate Decision Simulation</h2>
-                <p className="text-xs text-slate-400">Provide complete context for your operational dilemma or dispute.</p>
-              </div>
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Scenario Title</label>
-                <input 
-                  type="text" 
-                  value={title} 
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g., Vendor breach of contract dispute"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-200 focus:outline-none focus:border-emerald-500 text-sm font-medium"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Detailed Description *</label>
-                <textarea 
-                  rows="5"
-                  value={description} 
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Detail all terms, dates, financial exposure, and current roadblocks..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-200 focus:outline-none focus:border-emerald-500 text-sm font-medium"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Additional Context / Constraints (Optional)</label>
-                <input 
-                  type="text" 
-                  value={context} 
-                  onChange={(e) => setContext(e.target.value)}
-                  placeholder="e.g., Hard deadline in 48 hours, strict confidentiality"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-200 focus:outline-none focus:border-emerald-500 text-sm font-medium"
-                />
-              </div>
-              <button 
-                type="submit" 
-                disabled={loading}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black py-4 rounded-xl transition-colors cursor-pointer disabled:opacity-50 text-sm shadow-xl shadow-emerald-900/30 uppercase tracking-wider"
-              >
-                {loading ? 'Evaluating Scenario Complexity...' : 'Begin Adaptive Assessment & MCQ'}
-              </button>
-            </form>
-          )}
-
-          {step === 'wizard' && (
-            <form onSubmit={handleWizardSubmit} className="w-full bg-slate-900 border border-slate-800 p-8 rounded-2xl space-y-6 shadow-2xl">
-              <div className="border-b border-slate-800 pb-4">
-                <h2 className="text-xl font-black text-emerald-400">Adaptive Clarification & MCQ Diagnostic</h2>
-                <p className="text-xs text-slate-400 mt-1">Answer the following diagnostic questions to calibrate the final simulation blueprint.</p>
-              </div>
-
-              {questions.map((q, idx) => (
-                <div key={q.id || idx} className="space-y-3 bg-slate-950 p-5 rounded-xl border border-slate-800">
-                  <p className="text-sm font-bold text-slate-200">Adaptive Q{idx + 1}: {q.question}</p>
-                  <div className="space-y-2">
-                    {q.options.map((opt, oIdx) => (
-                      <label key={oIdx} className="flex items-center gap-3 p-3 bg-slate-900 border border-slate-800 rounded-lg cursor-pointer hover:border-slate-700 transition-colors">
-                        <input 
-                          type="radio" 
-                          name={q.id || `q_${idx}`} 
-                          value={opt}
-                          onChange={(e) => setUserAnswers({ ...userAnswers, [q.id || `q_${idx}`]: e.target.value })}
-                          required
-                          className="text-emerald-500 focus:ring-emerald-500"
-                        />
-                        <span className="text-xs text-slate-300 font-medium">{opt}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              ))}
-
-              {mcqList.map((mcq, idx) => (
-                <div key={mcq.id || idx} className="space-y-3 bg-slate-950 p-5 rounded-xl border border-slate-800">
-                  <p className="text-sm font-bold text-emerald-400">MCQ Diagnostic {idx + 1}: {mcq.stem}</p>
-                  <div className="space-y-2">
-                    {mcq.choices.map((choice, cIdx) => (
-                      <label key={cIdx} className="flex items-center gap-3 p-3 bg-slate-900 border border-slate-800 rounded-lg cursor-pointer hover:border-slate-700 transition-colors">
-                        <input 
-                          type="radio" 
-                          name={mcq.id || `mcq_${idx}`} 
-                          value={choice}
-                          onChange={(e) => setMcqAnswers({ ...mcqAnswers, [mcq.id || `mcq_${idx}`]: e.target.value })}
-                          required
-                          className="text-emerald-500 focus:ring-emerald-500"
-                        />
-                        <span className="text-xs text-slate-300 font-medium">{choice}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              ))}
-
-              <button 
-                type="submit" 
-                disabled={loading}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black py-4 rounded-xl transition-colors cursor-pointer disabled:opacity-50 text-sm shadow-xl shadow-emerald-900/30 uppercase tracking-wider"
-              >
-                {loading ? 'Synthesizing Strategic Blueprint...' : 'Compute Final Strategic Blueprint'}
-              </button>
-            </form>
-          )}
-
-          {step === 'result' && report && (
-            <div className="w-full space-y-6 bg-slate-900 border border-slate-800 p-8 rounded-2xl shadow-2xl">
-              <div className="flex justify-between items-center border-b border-slate-800 pb-4">
-                <div>
-                  <span className="text-xs font-black uppercase tracking-wider text-emerald-400">Confidence Rating: {report.confidence}</span>
-                  <h2 className="text-2xl font-black text-slate-100">{title || 'Simulation Report'}</h2>
-                </div>
-                <button 
-                  onClick={() => { setStep('form'); setReport(null); setDescription(''); setTitle(''); setContext(''); setUserAnswers({}); setMcqAnswers({}); }}
-                  className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-xl transition-colors border border-slate-700 font-semibold"
-                >
-                  New Scenario
-                </button>
-              </div>
-
-              <div className="flex border-b border-slate-800 gap-6 overflow-x-auto">
-                <button 
-                  onClick={() => setActiveTab('pathway')}
-                  className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer whitespace-nowrap ${activeTab === 'pathway' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
-                >
-                  Action Pathway & Risk
-                </button>
-                <button 
-                  onClick={() => setActiveTab('template')}
-                  className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer whitespace-nowrap ${activeTab === 'template' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
-                >
-                  Communication Template
-                </button>
-                <button 
-                  onClick={() => setActiveTab('chat')}
-                  className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer whitespace-nowrap ${activeTab === 'chat' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
-                >
-                  Consult VERLO AI ({chatMessages.length})
-                </button>
-              </div>
-
-              {activeTab === 'pathway' && (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-950 p-5 rounded-xl border border-slate-800">
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-500 block">Severity Score</span>
-                      <span className="text-xl font-black text-amber-400">{report.riskAssessment?.severityScore}/10</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-500 block">Financial Exposure</span>
-                      <span className="text-xs text-slate-300 font-semibold">{report.riskAssessment?.financialExposure}</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-500 block">Time Sensitivity</span>
-                      <span className="text-xs text-slate-300 font-semibold">{report.riskAssessment?.timeSensitivity}</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Situation Summary</h3>
-                    <p className="text-sm text-slate-300 bg-slate-950 p-4 rounded-xl border border-slate-800 leading-relaxed font-medium">{report.situation}</p>
-                  </div>
-
-                  <div className="space-y-3">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Step-by-Step Action Pathway</h3>
-                    {report.nextSteps?.map((stepItem, idx) => (
-                      <div key={idx} className="bg-slate-950 p-5 rounded-xl border border-slate-800 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span className="bg-emerald-500/10 text-emerald-400 text-xs px-2.5 py-0.5 rounded font-mono border border-emerald-500/20 font-bold">Step {idx + 1}</span>
-                          <h4 className="text-sm font-bold text-slate-200">{stepItem.step}</h4>
-                        </div>
-                        <p className="text-xs text-slate-400 leading-relaxed"><strong className="text-slate-300">Why:</strong> {stepItem.why}</p>
-                        {stepItem.pitfallWarning && (
-                          <p className="text-xs text-amber-400/90 bg-amber-950/20 p-2.5 rounded-lg border border-amber-900/30"><strong className="text-amber-400 font-bold">Watch out:</strong> {stepItem.pitfallWarning}</p>
+              <div className="result-section animate-fade-slide-up" style={{ background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
+                <h3 style={{ color: 'var(--text-main)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  Consult VERLO AI Assistant
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>Have questions about this pathway or need to draft a follow-up response? Ask below:</p>
+                {chatHistory.length > 0 && (
+                  <div style={{ display: 'grid', gap: '0.75rem', marginBottom: '1rem', maxHeight: '300px', overflowY: 'auto', paddingRight: '0.5rem', width: '100%', boxSizing: 'border-box' }}>
+                    {chatHistory.map((msg, index) => (
+                      <div 
+                        key={index} 
+                        style={{ 
+                          background: msg.role === 'user' ? 'var(--bg-card)' : 'rgba(16, 185, 129, 0.08)', 
+                          padding: '0.85rem', 
+                          borderRadius: '8px', 
+                          border: '1px solid var(--border-subtle)',
+                          fontSize: '0.85rem',
+                          marginLeft: msg.role === 'user' ? '1rem' : '0',
+                          marginRight: msg.role === 'user' ? '0' : '1rem',
+                          width: 'calc(100% - 1rem)',
+                          boxSizing: 'border-box'
+                        }}
+                      >
+                        <strong style={{ display: 'block', marginBottom: '0.2rem', color: msg.role === 'user' ? 'var(--text-main)' : 'var(--accent)' }}>
+                          {msg.role === 'user' ? 'You' : 'VERLO AI'}
+                        </strong>
+                        {msg.role === 'user' ? (
+                          <div style={{ color: 'var(--text-muted)', whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+                        ) : (
+                          <div 
+                            style={{ color: 'var(--text-muted)' }} 
+                            dangerouslySetInnerHTML={{ __html: renderMarkdownToHTML(msg.content) }} 
+                          />
                         )}
                       </div>
                     ))}
                   </div>
+                )}
 
-                  {report.options?.length > 0 && (
-                    <div className="space-y-3">
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Strategic Alternatives</h3>
-                      {report.options.map((opt, idx) => (
-                        <div key={idx} className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-1">
-                          <h4 className="text-xs font-bold text-slate-200">{opt.title}</h4>
-                          <p className="text-xs text-slate-400"><strong className="text-slate-300">Best For:</strong> {opt.bestFor}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+                <form onSubmit={handleChatSubmit} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', width: '100%', boxSizing: 'border-box' }}>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="e.g., What should I do if they don't reply within 3 days?" 
+                    value={chatQuestion}
+                    onChange={(e) => setChatQuestion(e.target.value)}
+                    disabled={isChatLoading}
+                    style={{ marginBottom: 0, flex: '1 1 250px' }}
+                  />
+                  <button 
+                    type="submit" 
+                    className="btn-primary" 
+                    style={{ width: 'auto', padding: '0.5rem 1.25rem', marginTop: 0, textShadow: 'none', boxShadow: 'none' }}
+                    disabled={isChatLoading}
+                  >
+                    {isChatLoading ? 'Thinking...' : 'Send'}
+                  </button>
+                </form>
+              </div>
 
-              {activeTab === 'template' && (
-                <div className="space-y-4">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Formal Communication Template</h3>
-                  {report.draftTemplate ? (
-                    <div className="bg-slate-950 p-6 rounded-xl border border-slate-800 space-y-3 font-mono text-xs text-slate-300">
-                      <p><strong className="text-slate-400">To:</strong> {report.draftTemplate.recipient}</p>
-                      <p><strong className="text-slate-400">Subject:</strong> {report.draftTemplate.subject}</p>
-                      <hr className="border-slate-800 my-3" />
-                      <p className="whitespace-pre-wrap font-sans text-slate-300 leading-relaxed font-medium">{report.draftTemplate.body}</p>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-slate-500">No template generated for this pathway.</p>
-                  )}
+              <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.5)', padding: '1rem 1.25rem', borderRadius: '8px', marginTop: '1.5rem', fontSize: '0.85rem', color: '#ef4444', display: 'flex', gap: '0.75rem', alignItems: 'flex-start', width: '100%', boxSizing: 'border-box', textAlign: 'left' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: '2px' }}>
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/>
+                  <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                <div>
+                  <strong style={{ display: 'block', marginBottom: '0.2rem', color: '#ef4444' }}>Ethical Notice & Information Verification Required</strong>
+                  VERLO is an AI decision-intelligence assistant designed to structure administrative pathways. AI models can occasionally misstate rules, statutes, or deadlines. Please independently verify all critical claims, contract terms, legal deadlines, or financial obligations before executing high-stakes actions.
                 </div>
-              )}
+              </div>
 
-              {activeTab === 'chat' && (
-                <div className="space-y-4">
-                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 h-96 overflow-y-auto space-y-4 flex flex-col">
-                    {chatMessages.map((msg, idx) => (
-                      <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[80%] p-4 rounded-2xl text-xs leading-relaxed font-medium ${msg.role === 'user' ? 'bg-emerald-600 text-slate-950 font-bold' : 'bg-slate-900 text-slate-200 border border-slate-800'}`}>
-                          {msg.content}
-                        </div>
-                      </div>
-                    ))}
-                    {chatLoading && (
-                      <div className="flex justify-start">
-                        <div className="bg-slate-900 text-slate-400 border border-slate-800 p-3 rounded-2xl text-xs animate-pulse font-medium">
-                          VERLO AI is analyzing follow-up telemetry...
-                        </div>
-                      </div>
-                    )}
-                    <div ref={chatBottomRef} />
-                  </div>
-                  <form onSubmit={handleChatSubmit} className="flex gap-2">
-                    <input 
-                      type="text" 
-                      value={chatInput} 
-                      onChange={(e) => setChatInput(e.target.value)}
-                      placeholder="Ask a tactical follow-up question..."
-                      className="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-medium"
-                    />
-                    <button 
-                      type="submit" 
-                      disabled={chatLoading}
-                      className="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-extrabold px-6 rounded-xl transition-colors cursor-pointer text-xs uppercase tracking-wider"
-                    >
-                      Send
-                    </button>
-                  </form>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <footer style={{ borderTop: '1px solid var(--border-subtle)', padding: '2rem 1rem', background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', marginTop: 'auto', textAlign: 'center', flexShrink: 0 }}>
+        <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '20px', height: '20px', objectFit: 'contain' }} />
+            <span style={{ fontWeight: 700, letterSpacing: '0.05em', fontSize: '0.9rem', color: 'var(--text-main)', textShadow: 'none' }}>VERLO</span>
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+            &copy; {new Date().getFullYear()} VERLO Engine. All rights reserved. Crafted with 🌶️. 
+          </div>
+        </div>
+      </footer>
+
+      {showHistoryDrawer && (
+        <div className="animate-slide-in-right" style={{ position: 'fixed', top: 0, right: 0, width: '100%', maxWidth: '380px', height: '100%', background: 'var(--bg-card)', borderLeft: '1px solid var(--border-subtle)', zIndex: 100, padding: '1.5rem', overflowY: 'auto', boxShadow: '-5px 0 25px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <h3 style={{ margin: 0, fontSize: '1.1rem', textShadow: 'none' }}>Your Saved Pathways</h3>
+            <button onClick={() => setShowHistoryDrawer(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+          </div>
+          {userHistory.length === 0 ? (
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No saved reports yet. Click "Save to Account" on any result screen!</p>
+          ) : (
+            <div style={{ display: 'grid', gap: '0.75rem' }}>
+              {userHistory.map((item, idx) => (
+                <div 
+                  key={idx} 
+                  onClick={() => {
+                    setTitle(item.title);
+                    setDescription(item.description);
+                    setAnalysisData(item.result);
+                    setStep('results');
+                    setShowHistoryDrawer(false);
+                  }}
+                  style={{ background: 'var(--bg-surface)', padding: '0.85rem', borderRadius: '8px', border: '1px solid var(--border-subtle)', cursor: 'pointer', textAlign: 'left' }}
+                >
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.2rem' }}>{item.title}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{new Date(item.timestamp).toLocaleDateString()}</div>
                 </div>
-              )}
+              ))}
             </div>
           )}
-        </main>
+        </div>
       )}
+      {showAuthModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 200, padding: '1rem', boxSizing: 'border-box' }}>
+          <div style={{ background: 'var(--bg-card)', padding: '2rem', borderRadius: '12px', border: '1px solid var(--border-subtle)', width: '100%', maxWidth: '400px', boxSizing: 'border-box', textAlign: 'left' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h3 style={{ margin: '0', textShadow: 'none' }}>{authMode === 'login' ? 'Log in to VERLO' : 'Create an Account'}</h3>
+              <button onClick={() => setShowAuthModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+            </div>
+            {authError && <div style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.85rem', background: 'rgba(239, 68, 68, 0.1)', padding: '0.5rem', borderRadius: '6px' }}>{authError}</div>}
+            <form onSubmit={handleAuthSubmit}>
+              <div className="form-group">
+                <label className="form-label" style={{ textShadow: 'none' }}>Email Address</label>
+                <input 
+                  type="email" 
+                  className="form-input" 
+                  value={authEmail} 
+                  onChange={(e) => setAuthEmail(e.target.value)} 
+                  required 
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label" style={{ textShadow: 'none' }}>Password</label>
+                <input 
+                  type="password" 
+                  className="form-input" 
+                  value={authPassword} 
+                  onChange={(e) => setAuthPassword(e.target.value)} 
+                  required 
+                />
+              </div>
+
+              <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '1rem', textShadow: 'none', boxShadow: 'none' }}>
+                {authMode === 'login' ? 'Log In' : 'Sign Up'}
+              </button>
+            </form>
+
+            <div style={{ textAlign: 'center', marginTop: '1.25rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              {authMode === 'login' ? (
+                <span>Don't have an account? <button onClick={() => setAuthMode('signup')} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}>Sign up</button></span>
+              ) : (
+                <span>Already have an account? <button onClick={() => setAuthMode('login')} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}>Log in</button></span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

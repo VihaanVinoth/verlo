@@ -185,7 +185,7 @@ app.post('/api/assess', async (req, res) => {
         }
       ]
     }
-    Ensure response contains absolutely no markdown wrappers like json and is valid raw JSON.```;
+    Ensure response contains absolutely no markdown wrappers like json and is valid raw JSON.`;
 
     const userPrompt = `Title: ${title || 'Untitled Situation'} Description: ${description}`;
     const completion = await groq.chat.completions.create({
