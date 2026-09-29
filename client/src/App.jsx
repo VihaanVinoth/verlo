@@ -195,10 +195,6 @@ export default function App() {
       });
   }, []);
 
-  /*
-   * Complete the Google OAuth login after
-   * Express redirects back to the Vite app.
-   */
   useEffect(() => {
     const params =
       new URLSearchParams(
@@ -2717,17 +2713,32 @@ ${analysisData.draftTemplate.body}`}
             <button
               type="button"
               className="google-login-button"
-              onClick={
-                handleGoogleLogin
-              }
+              onClick={handleGoogleLogin}
+              disabled={isAuthLoading}
             >
-              <span className="google-logo">
-                G
-              </span>
-
-              <span>
-                Continue with Google
-              </span>
+              <svg
+                className="google-login-icon"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  fill="#4285F4"
+                  d="M21.35 12.27c0-.79-.07-1.55-.22-2.27H12v4.3h5.23a4.47 4.47 0 0 1-1.94 2.94v2.45h3.14c1.84-1.69 2.92-4.18 2.92-7.42z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 21.7c2.63 0 4.84-.87 6.45-2.35l-3.14-2.45c-.87.58-1.98.92-3.31.92-2.54 0-4.69-1.72-5.46-4.03H3.3v2.53A9.75 9.75 0 0 0 12 21.7z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M6.54 13.79A5.86 5.86 0 0 1 6.23 12c0-.62.11-1.22.31-1.79V7.68H3.3A9.73 9.73 0 0 0 2.25 12c0 1.57.38 3.05 1.05 4.32l3.24-2.53z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 6.18c1.43 0 2.71.49 3.72 1.45l2.79-2.79C16.84 3.29 14.63 2.3 12 2.3a9.75 9.75 0 0 0-8.7 5.38l3.24 2.53c.77-2.31 2.92-4.03 5.46-4.03z"
+                />
+              </svg>
+              <span>Continue with Google</span>
             </button>
 
             <div className="auth-divider">
