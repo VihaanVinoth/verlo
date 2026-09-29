@@ -140,14 +140,12 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-indigo-500 selection:text-white flex flex-col">
-      {/* Toast Notification */}
       {toast && (
         <div className="fixed top-5 right-5 z-50 bg-indigo-600 text-white px-4 py-2 rounded-xl shadow-lg border border-indigo-400 text-sm animate-bounce">
           {toast}
         </div>
       )}
 
-      {/* Header */}
       <header className="border-b border-slate-800 bg-slate-900/50 backdrop-blur sticky top-0 z-40 px-6 py-4 flex justify-between items-center">
         <div className="flex items-center space-x-2 cursor-pointer" onClick={() => setCurrentView('landing')}>
           <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center font-bold text-lg">V</div>
@@ -158,10 +156,8 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Content Area */}
       <main className="flex-1 flex flex-col items-center justify-center p-6 max-w-5xl mx-auto w-full">
         
-        {/* LANDING VIEW */}
         {currentView === 'landing' && (
           <div className="text-center space-y-6 max-w-2xl py-12">
             <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight">
@@ -181,7 +177,6 @@ export default function App() {
           </div>
         )}
 
-        {/* INPUT VIEW */}
         {currentView === 'input' && (
           <div className="w-full max-w-2xl space-y-6 py-8">
             <div className="space-y-2">
@@ -212,8 +207,6 @@ export default function App() {
             </div>
           </div>
         )}
-
-        {/* PROCESSING VIEW */}
         {currentView === 'processing' && (
           <div className="text-center space-y-6 py-20">
             <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
@@ -223,8 +216,6 @@ export default function App() {
             </div>
           </div>
         )}
-
-        {/* RESULTS VIEW */}
         {currentView === 'results' && resultsData && (
           <div className="w-full space-y-8 py-6">
             <div className="flex justify-between items-start border-b border-slate-800 pb-4">
@@ -236,8 +227,6 @@ export default function App() {
                 Risk: {resultsData.riskScore}
               </div>
             </div>
-
-            {/* Pathways Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {resultsData.pathways.map((path) => (
                 <div key={path.id} className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-3">
@@ -252,8 +241,6 @@ export default function App() {
                 </div>
               ))}
             </div>
-
-            {/* Letter Template Section */}
             <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="font-bold text-lg">Automated Resolution Letter</h3>
@@ -268,8 +255,6 @@ export default function App() {
                 {resultsData.letter}
               </pre>
             </div>
-
-            {/* Interactive Chat Drawer / Section */}
             <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
               <h3 className="font-bold text-lg">Follow-up Assistant</h3>
               <div className="max-h-60 overflow-y-auto space-y-3 pr-2">
