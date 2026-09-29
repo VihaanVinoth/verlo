@@ -31,12 +31,6 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
 
-/*
-==================================================
-SERVER CONFIGURATION
-==================================================
-*/
-
 app.use(cors());
 
 app.use(
@@ -44,12 +38,6 @@ app.use(
     limit: '2mb'
   })
 );
-
-/*
-==================================================
-DATA STORAGE
-==================================================
-*/
 
 const dataDir = path.join(
   __dirname,
@@ -125,12 +113,6 @@ function writeJson(file, data) {
   );
 }
 
-/*
-==================================================
-UPLOADS
-==================================================
-*/
-
 const uploadDir = path.join(
   __dirname,
   'uploads'
@@ -182,12 +164,6 @@ const upload = multer({
       15 * 1024 * 1024
   }
 });
-
-/*
-==================================================
-GENERAL HELPERS
-==================================================
-*/
 
 function cleanJson(text) {
   if (!text) {
@@ -312,12 +288,6 @@ function safeString(value) {
   return String(value);
 }
 
-/*
-==================================================
-AUTHENTICATION HELPERS
-==================================================
-*/
-
 function safeUser(user) {
   return {
     id: user.id,
@@ -423,12 +393,6 @@ function requireAuth(
   next();
 }
 
-/*
-==================================================
-GOOGLE OAUTH
-==================================================
-*/
-
 const googleClient =
   new OAuth2Client(
     process.env.GOOGLE_CLIENT_ID,
@@ -436,21 +400,8 @@ const googleClient =
     process.env.GOOGLE_REDIRECT_URI
   );
 
-/*
-Short-lived codes used after Google
-redirects back to the backend.
-
-The actual JWT is NOT placed in
-the URL.
-*/
-
 const pendingGoogleExchanges =
   new Map();
-
-/*
-Clean expired Google exchange
-codes every minute.
-*/
 
 setInterval(() => {
   const now =
@@ -472,12 +423,6 @@ setInterval(() => {
     }
   }
 }, 60 * 1000);
-
-/*
---------------------------------------------------
-START GOOGLE LOGIN
---------------------------------------------------
-*/
 
 app.get(
   '/api/auth/google',
@@ -529,12 +474,6 @@ app.get(
     }
   }
 );
-
-/*
---------------------------------------------------
-GOOGLE CALLBACK
---------------------------------------------------
-*/
 
 app.get(
   '/api/auth/google/callback',
@@ -626,11 +565,6 @@ app.get(
         );
 
       if (user) {
-        /*
-        If an existing local account
-        has the same verified Google
-        email, link Google to it.
-        */
 
         user.googleId =
           googleId;
@@ -727,12 +661,6 @@ app.get(
   }
 );
 
-/*
---------------------------------------------------
-GOOGLE TOKEN EXCHANGE
---------------------------------------------------
-*/
-
 app.post(
   '/api/auth/google/exchange',
   (req, res) => {
@@ -820,12 +748,6 @@ app.post(
     }
   }
 );
-
-/*
-==================================================
-EMAIL/PASSWORD SIGNUP
-==================================================
-*/
 
 app.post(
   '/api/auth/signup',
@@ -974,12 +896,6 @@ app.post(
   }
 );
 
-/*
-==================================================
-EMAIL/PASSWORD LOGIN
-==================================================
-*/
-
 app.post(
   '/api/auth/login',
   async (
@@ -1069,12 +985,6 @@ app.post(
   }
 );
 
-/*
-==================================================
-CURRENT USER
-==================================================
-*/
-
 app.get(
   '/api/auth/me',
   requireAuth,
@@ -1088,12 +998,6 @@ app.get(
     });
   }
 );
-
-/*
-==================================================
-HISTORY
-==================================================
-*/
 
 app.get(
   '/api/history',
@@ -1191,11 +1095,6 @@ app.post(
         entry
       );
 
-      /*
-      Keep the latest 50
-      reports per account.
-      */
-
       history[
         req.user.id
       ] =
@@ -1230,12 +1129,6 @@ app.post(
   }
 );
 
-/*
-==================================================
-HEALTH
-==================================================
-*/
-
 app.get(
   '/api/health',
   (req, res) => {
@@ -1248,12 +1141,6 @@ app.get(
     });
   }
 );
-
-/*
-==================================================
-ADAPTIVE QUESTION
-==================================================
-*/
 
 app.post(
   '/api/adaptive-question',
@@ -1450,12 +1337,6 @@ Generate the next single adaptive question.
     }
   }
 );
-
-/*
-==================================================
-ANALYSIS
-==================================================
-*/
 
 app.post(
   '/api/analyze',
@@ -1807,12 +1688,6 @@ Generate the final personalised analysis.
   }
 );
 
-/*
-==================================================
-CHAT
-==================================================
-*/
-
 app.post(
   '/api/chat',
   async (
@@ -1945,12 +1820,6 @@ ${
     }
   }
 );
-
-/*
-==================================================
-COMPATIBILITY ASSESSMENT
-==================================================
-*/
 
 app.post(
   '/api/assess',
@@ -2104,12 +1973,6 @@ app.use(
   }
 );
 
-/*
-==================================================
-ERROR HANDLER
-==================================================
-*/
-
 app.use(
   (
     error,
@@ -2139,12 +2002,6 @@ app.use(
     });
   }
 );
-
-/*
-==================================================
-START SERVER
-==================================================
-*/
 
 app.listen(
   PORT,
