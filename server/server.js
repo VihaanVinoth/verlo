@@ -5,6 +5,10 @@ import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { randomUUID } from 'crypto';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { OAuth2Client } from 'google-auth-library';
 import Groq from 'groq-sdk';
 
 dotenv.config();
@@ -13,11 +17,25 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+
 const PORT = process.env.PORT || 5001;
+
+const CLIENT_URL =
+  process.env.CLIENT_URL ||
+  'http://localhost:5173';
+
+const JWT_SECRET =
+  process.env.JWT_SECRET;
 
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
+
+/*
+==================================================
+SERVER CONFIGURATION
+==================================================
+*/
 
 app.use(cors());
 
@@ -27,57 +45,185 @@ app.use(
   })
 );
 
-const uploadDir = path.join(__dirname, 'uploads');
+/*
+==================================================
+DATA STORAGE
+==================================================
+*/
+
+const dataDir = path.join(
+  __dirname,
+  'data'
+);
+
+const usersFile = path.join(
+  dataDir,
+  'users.json'
+);
+
+const historyFile = path.join(
+  dataDir,
+  'history.json'
+);
+
+fs.mkdirSync(dataDir, {
+  recursive: true
+});
+
+if (!fs.existsSync(usersFile)) {
+  fs.writeFileSync(
+    usersFile,
+    '[]',
+    'utf8'
+  );
+}
+
+if (!fs.existsSync(historyFile)) {
+  fs.writeFileSync(
+    historyFile,
+    '{}',
+    'utf8'
+  );
+}
+
+function readJson(file, fallback) {
+  try {
+    if (!fs.existsSync(file)) {
+      return fallback;
+    }
+
+    const content =
+      fs.readFileSync(
+        file,
+        'utf8'
+      );
+
+    if (!content.trim()) {
+      return fallback;
+    }
+
+    return JSON.parse(content);
+  } catch (error) {
+    console.error(
+      `Could not read ${file}:`,
+      error
+    );
+
+    return fallback;
+  }
+}
+
+function writeJson(file, data) {
+  fs.writeFileSync(
+    file,
+    JSON.stringify(
+      data,
+      null,
+      2
+    ),
+    'utf8'
+  );
+}
+
+/*
+==================================================
+UPLOADS
+==================================================
+*/
+
+const uploadDir = path.join(
+  __dirname,
+  'uploads'
+);
 
 fs.mkdirSync(uploadDir, {
   recursive: true
 });
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
+const storage =
+  multer.diskStorage({
+    destination: (
+      req,
+      file,
+      cb
+    ) => {
+      cb(
+        null,
+        uploadDir
+      );
+    },
 
-  filename: (req, file, cb) => {
-    const uniqueSuffix =
-      Date.now() + '-' + Math.round(Math.random() * 1e9);
+    filename: (
+      req,
+      file,
+      cb
+    ) => {
+      const uniqueSuffix =
+        Date.now() +
+        '-' +
+        Math.round(
+          Math.random() * 1e9
+        );
 
-    cb(
-      null,
-      uniqueSuffix + '-' + file.originalname
-    );
-  }
-});
+      cb(
+        null,
+        uniqueSuffix +
+          '-' +
+          file.originalname
+      );
+    }
+  });
 
 const upload = multer({
   storage,
 
   limits: {
-    fileSize: 15 * 1024 * 1024
+    fileSize:
+      15 * 1024 * 1024
   }
 });
+
+/*
+==================================================
+GENERAL HELPERS
+==================================================
+*/
 
 function cleanJson(text) {
   if (!text) {
     return null;
   }
 
-  let cleaned = String(text).trim();
+  let cleaned =
+    String(text).trim();
 
-  // Remove markdown code fences
   cleaned = cleaned
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/\s*```$/i, '')
+    .replace(
+      /^```json\s*/i,
+      ''
+    )
+    .replace(
+      /^```\s*/i,
+      ''
+    )
+    .replace(
+      /\s*```$/i,
+      ''
+    )
     .trim();
 
   try {
-    return JSON.parse(cleaned);
+    return JSON.parse(
+      cleaned
+    );
   } catch (error) {
   }
 
-  const firstBrace = cleaned.indexOf('{');
-  const lastBrace = cleaned.lastIndexOf('}');
+  const firstBrace =
+    cleaned.indexOf('{');
+
+  const lastBrace =
+    cleaned.lastIndexOf('}');
 
   if (
     firstBrace !== -1 &&
@@ -86,7 +232,10 @@ function cleanJson(text) {
   ) {
     try {
       return JSON.parse(
-        cleaned.slice(firstBrace, lastBrace + 1)
+        cleaned.slice(
+          firstBrace,
+          lastBrace + 1
+        )
       );
     } catch (error) {
     }
@@ -95,11 +244,20 @@ function cleanJson(text) {
   return null;
 }
 
-function normaliseQuestion(question, questionNumber) {
-  if (!question || typeof question !== 'object') {
+function normaliseQuestion(
+  question,
+  questionNumber
+) {
+  if (
+    !question ||
+    typeof question !== 'object'
+  ) {
     return {
-      id: `adaptive-${questionNumber}`,
+      id:
+        `adaptive-${questionNumber}`,
+
       type: 'text',
+
       question:
         'What is the most important outcome you want from this situation?'
     };
@@ -130,7 +288,9 @@ function normaliseQuestion(question, questionNumber) {
 
   if (
     type === 'mcq' &&
-    Array.isArray(question.choices)
+    Array.isArray(
+      question.choices
+    )
   ) {
     normalized.choices =
       question.choices
@@ -142,63 +302,1013 @@ function normaliseQuestion(question, questionNumber) {
 }
 
 function safeString(value) {
-  if (value === undefined || value === null) {
+  if (
+    value === undefined ||
+    value === null
+  ) {
     return '';
   }
 
   return String(value);
 }
 
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    timestamp: new Date().toISOString()
-  });
-});
+/*
+==================================================
+AUTHENTICATION HELPERS
+==================================================
+*/
 
+function safeUser(user) {
+  return {
+    id: user.id,
+    email: user.email,
+    name:
+      user.name ||
+      user.email?.split('@')[0] ||
+      'User',
+    picture:
+      user.picture ||
+      null,
+    provider:
+      user.provider ||
+      'local',
+    createdAt:
+      user.createdAt
+  };
+}
 
-app.post('/api/adaptive-question', async (req, res) => {
-  try {
-    const {
-      title,
-      description,
-      context,
-      previousAnswers,
-      questionNumber = 1,
-      maxQuestions = 6
-    } = req.body || {};
+function createToken(user) {
+  if (!JWT_SECRET) {
+    throw new Error(
+      'JWT_SECRET is not configured.'
+    );
+  }
 
-    if (!description) {
-      return res.status(400).json({
-        success: false,
-        error: 'A situation or prompt is required.'
-      });
+  return jwt.sign(
+    {
+      sub: user.id
+    },
+    JWT_SECRET,
+    {
+      expiresIn: '7d'
     }
+  );
+}
 
-    if (!process.env.GROQ_API_KEY) {
-      return res.status(500).json({
+function getAuthenticatedUser(
+  req
+) {
+  const authorization =
+    req.headers.authorization;
+
+  if (
+    !authorization ||
+    !authorization.startsWith(
+      'Bearer '
+    )
+  ) {
+    return null;
+  }
+
+  const token =
+    authorization.substring(
+      7
+    );
+
+  try {
+    const decoded =
+      jwt.verify(
+        token,
+        JWT_SECRET
+      );
+
+    const users =
+      readJson(
+        usersFile,
+        []
+      );
+
+    return (
+      users.find(
+        user =>
+          user.id ===
+          decoded.sub
+      ) || null
+    );
+  } catch (error) {
+    return null;
+  }
+}
+
+function requireAuth(
+  req,
+  res,
+  next
+) {
+  const user =
+    getAuthenticatedUser(
+      req
+    );
+
+  if (!user) {
+    return res.status(401).json({
+      success: false,
+      error:
+        'You must be logged in to access this endpoint.'
+    });
+  }
+
+  req.user = user;
+
+  next();
+}
+
+/*
+==================================================
+GOOGLE OAUTH
+==================================================
+*/
+
+const googleClient =
+  new OAuth2Client(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    process.env.GOOGLE_REDIRECT_URI
+  );
+
+/*
+Short-lived codes used after Google
+redirects back to the backend.
+
+The actual JWT is NOT placed in
+the URL.
+*/
+
+const pendingGoogleExchanges =
+  new Map();
+
+/*
+Clean expired Google exchange
+codes every minute.
+*/
+
+setInterval(() => {
+  const now =
+    Date.now();
+
+  for (
+    const [
+      code,
+      data
+    ] of pendingGoogleExchanges
+  ) {
+    if (
+      data.expiresAt <=
+      now
+    ) {
+      pendingGoogleExchanges.delete(
+        code
+      );
+    }
+  }
+}, 60 * 1000);
+
+/*
+--------------------------------------------------
+START GOOGLE LOGIN
+--------------------------------------------------
+*/
+
+app.get(
+  '/api/auth/google',
+  (req, res) => {
+    try {
+      if (
+        !process.env.GOOGLE_CLIENT_ID ||
+        !process.env.GOOGLE_CLIENT_SECRET ||
+        !process.env.GOOGLE_REDIRECT_URI
+      ) {
+        return res.status(500).json({
+          success: false,
+          error:
+            'Google OAuth is not configured on the server.'
+        });
+      }
+
+      const authUrl =
+        googleClient.generateAuthUrl(
+          {
+            access_type:
+              'online',
+
+            scope: [
+              'openid',
+              'email',
+              'profile'
+            ],
+
+            prompt:
+              'select_account'
+          }
+        );
+
+      res.redirect(
+        authUrl
+      );
+    } catch (error) {
+      console.error(
+        'Google login start error:',
+        error
+      );
+
+      res.status(500).json({
         success: false,
         error:
-          'GROQ_API_KEY is not configured in the server environment.'
+          'Could not start Google sign-in.'
       });
     }
+  }
+);
 
-    const answers =
-      previousAnswers &&
-      typeof previousAnswers === 'object'
-        ? previousAnswers
-        : {};
+/*
+--------------------------------------------------
+GOOGLE CALLBACK
+--------------------------------------------------
+*/
 
-    const answerText =
-      Object.keys(answers).length > 0
-        ? JSON.stringify(
-            answers,
+app.get(
+  '/api/auth/google/callback',
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const {
+        code
+      } = req.query;
+
+      if (!code) {
+        return res.redirect(
+          `${CLIENT_URL}/?auth_error=${encodeURIComponent(
+            'Google did not return an authorization code.'
+          )}`
+        );
+      }
+
+      const {
+        tokens
+      } =
+        await googleClient.getToken(
+          code
+        );
+
+      if (
+        !tokens.id_token
+      ) {
+        throw new Error(
+          'Google did not provide an ID token.'
+        );
+      }
+
+      const ticket =
+        await googleClient.verifyIdToken(
+          {
+            idToken:
+              tokens.id_token,
+
+            audience:
+              process.env.GOOGLE_CLIENT_ID
+          }
+        );
+
+      const payload =
+        ticket.getPayload();
+
+      if (
+        !payload ||
+        !payload.email
+      ) {
+        throw new Error(
+          'Google did not provide an email address.'
+        );
+      }
+
+      if (
+        payload.email_verified !==
+        true
+      ) {
+        throw new Error(
+          'Your Google email is not verified.'
+        );
+      }
+
+      const email =
+        payload.email
+          .toLowerCase()
+          .trim();
+
+      const googleId =
+        payload.sub;
+
+      let users =
+        readJson(
+          usersFile,
+          []
+        );
+
+      let user =
+        users.find(
+          existingUser =>
+            existingUser.googleId ===
+              googleId ||
+            existingUser.email ===
+              email
+        );
+
+      if (user) {
+        /*
+        If an existing local account
+        has the same verified Google
+        email, link Google to it.
+        */
+
+        user.googleId =
+          googleId;
+
+        user.name =
+          payload.name ||
+          user.name ||
+          email.split('@')[0];
+
+        user.picture =
+          payload.picture ||
+          user.picture ||
+          null;
+
+        user.provider =
+          'google';
+      } else {
+        user = {
+          id:
+            `user_${randomUUID()}`,
+
+          email,
+
+          passwordHash:
             null,
-            2
-          )
-        : 'No previous answers yet.';
 
-    const systemPrompt = `
+          googleId,
+
+          name:
+            payload.name ||
+            email.split('@')[0],
+
+          picture:
+            payload.picture ||
+            null,
+
+          provider:
+            'google',
+
+          createdAt:
+            new Date().toISOString()
+        };
+
+        users.push(
+          user
+        );
+      }
+
+      writeJson(
+        usersFile,
+        users
+      );
+
+      const token =
+        createToken(
+          user
+        );
+
+      const exchangeCode =
+        randomUUID();
+
+      pendingGoogleExchanges.set(
+        exchangeCode,
+        {
+          token,
+
+          userId:
+            user.id,
+
+          expiresAt:
+            Date.now() +
+            60 * 1000
+        }
+      );
+
+      res.redirect(
+        `${CLIENT_URL}/?auth_code=${encodeURIComponent(
+          exchangeCode
+        )}`
+      );
+    } catch (error) {
+      console.error(
+        'Google OAuth callback error:',
+        error
+      );
+
+      res.redirect(
+        `${CLIENT_URL}/?auth_error=${encodeURIComponent(
+          error?.message ||
+            'Google sign-in failed.'
+        )}`
+      );
+    }
+  }
+);
+
+/*
+--------------------------------------------------
+GOOGLE TOKEN EXCHANGE
+--------------------------------------------------
+*/
+
+app.post(
+  '/api/auth/google/exchange',
+  (req, res) => {
+    try {
+      const {
+        code
+      } =
+        req.body || {};
+
+      if (!code) {
+        return res.status(400).json({
+          success: false,
+          error:
+            'Missing Google authentication code.'
+        });
+      }
+
+      const pending =
+        pendingGoogleExchanges.get(
+          code
+        );
+
+      if (!pending) {
+        return res.status(400).json({
+          success: false,
+          error:
+            'This Google authentication code is invalid or has already been used.'
+        });
+      }
+
+      pendingGoogleExchanges.delete(
+        code
+      );
+
+      if (
+        Date.now() >
+        pending.expiresAt
+      ) {
+        return res.status(400).json({
+          success: false,
+          error:
+            'This Google authentication code has expired.'
+        });
+      }
+
+      const users =
+        readJson(
+          usersFile,
+          []
+        );
+
+      const user =
+        users.find(
+          existingUser =>
+            existingUser.id ===
+            pending.userId
+        );
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          error:
+            'User account could not be found.'
+        });
+      }
+
+      res.json({
+        success: true,
+        token:
+          pending.token,
+        user:
+          safeUser(user)
+      });
+    } catch (error) {
+      console.error(
+        'Google exchange error:',
+        error
+      );
+
+      res.status(500).json({
+        success: false,
+        error:
+          'Could not complete Google sign-in.'
+      });
+    }
+  }
+);
+
+/*
+==================================================
+EMAIL/PASSWORD SIGNUP
+==================================================
+*/
+
+app.post(
+  '/api/auth/signup',
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const {
+        email,
+        password,
+        name
+      } =
+        req.body || {};
+
+      const normalizedEmail =
+        safeString(email)
+          .trim()
+          .toLowerCase();
+
+      if (
+        !normalizedEmail ||
+        !normalizedEmail.includes(
+          '@'
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          error:
+            'Please enter a valid email address.'
+        });
+      }
+
+      if (
+        !password ||
+        password.length < 8
+      ) {
+        return res.status(400).json({
+          success: false,
+          error:
+            'Password must be at least 8 characters.'
+        });
+      }
+
+      let users =
+        readJson(
+          usersFile,
+          []
+        );
+
+      const existingUser =
+        users.find(
+          user =>
+            user.email ===
+            normalizedEmail
+        );
+
+      if (existingUser) {
+        if (
+          existingUser.provider ===
+            'google' &&
+          !existingUser.passwordHash
+        ) {
+          return res.status(409).json({
+            success: false,
+            error:
+              'This email is already connected to Google. Please continue with Google.'
+          });
+        }
+
+        return res.status(409).json({
+          success: false,
+          error:
+            'An account with this email already exists.'
+        });
+      }
+
+      const passwordHash =
+        await bcrypt.hash(
+          password,
+          12
+        );
+
+      const user = {
+        id:
+          `user_${randomUUID()}`,
+
+        email:
+          normalizedEmail,
+
+        passwordHash,
+
+        googleId:
+          null,
+
+        name:
+          safeString(name)
+            .trim() ||
+          normalizedEmail.split(
+            '@'
+          )[0],
+
+        picture:
+          null,
+
+        provider:
+          'local',
+
+        createdAt:
+          new Date().toISOString()
+      };
+
+      users.push(
+        user
+      );
+
+      writeJson(
+        usersFile,
+        users
+      );
+
+      const token =
+        createToken(
+          user
+        );
+
+      res.status(201).json({
+        success: true,
+        token,
+        user:
+          safeUser(user)
+      });
+    } catch (error) {
+      console.error(
+        'Signup error:',
+        error
+      );
+
+      res.status(500).json({
+        success: false,
+        error:
+          error?.message ||
+          'Could not create your account.'
+      });
+    }
+  }
+);
+
+/*
+==================================================
+EMAIL/PASSWORD LOGIN
+==================================================
+*/
+
+app.post(
+  '/api/auth/login',
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const {
+        email,
+        password
+      } =
+        req.body || {};
+
+      const normalizedEmail =
+        safeString(email)
+          .trim()
+          .toLowerCase();
+
+      const users =
+        readJson(
+          usersFile,
+          []
+        );
+
+      const user =
+        users.find(
+          existingUser =>
+            existingUser.email ===
+            normalizedEmail
+        );
+
+      if (!user) {
+        return res.status(401).json({
+          success: false,
+          error:
+            'Incorrect email or password.'
+        });
+      }
+
+      if (
+        !user.passwordHash
+      ) {
+        return res.status(401).json({
+          success: false,
+          error:
+            'This account uses Google sign-in. Please continue with Google.'
+        });
+      }
+
+      const valid =
+        await bcrypt.compare(
+          password || '',
+          user.passwordHash
+        );
+
+      if (!valid) {
+        return res.status(401).json({
+          success: false,
+          error:
+            'Incorrect email or password.'
+        });
+      }
+
+      const token =
+        createToken(
+          user
+        );
+
+      res.json({
+        success: true,
+        token,
+        user:
+          safeUser(user)
+      });
+    } catch (error) {
+      console.error(
+        'Login error:',
+        error
+      );
+
+      res.status(500).json({
+        success: false,
+        error:
+          'Could not log you in.'
+      });
+    }
+  }
+);
+
+/*
+==================================================
+CURRENT USER
+==================================================
+*/
+
+app.get(
+  '/api/auth/me',
+  requireAuth,
+  (req, res) => {
+    res.json({
+      success: true,
+      user:
+        safeUser(
+          req.user
+        )
+    });
+  }
+);
+
+/*
+==================================================
+HISTORY
+==================================================
+*/
+
+app.get(
+  '/api/history',
+  requireAuth,
+  (req, res) => {
+    try {
+      const history =
+        readJson(
+          historyFile,
+          {}
+        );
+
+      res.json({
+        success: true,
+
+        history:
+          Array.isArray(
+            history[
+              req.user.id
+            ]
+          )
+            ? history[
+                req.user.id
+              ]
+            : []
+      });
+    } catch (error) {
+      console.error(
+        'History load error:',
+        error
+      );
+
+      res.status(500).json({
+        success: false,
+        error:
+          'Could not load account history.'
+      });
+    }
+  }
+);
+
+app.post(
+  '/api/history/save',
+  requireAuth,
+  (req, res) => {
+    try {
+      const {
+        report
+      } =
+        req.body || {};
+
+      if (
+        !report ||
+        typeof report !==
+          'object'
+      ) {
+        return res.status(400).json({
+          success: false,
+          error:
+            'A report is required.'
+        });
+      }
+
+      const history =
+        readJson(
+          historyFile,
+          {}
+        );
+
+      if (
+        !Array.isArray(
+          history[
+            req.user.id
+          ]
+        )
+      ) {
+        history[
+          req.user.id
+        ] = [];
+      }
+
+      const entry = {
+        id:
+          `report_${randomUUID()}`,
+
+        savedAt:
+          new Date().toISOString(),
+
+        report
+      };
+
+      history[
+        req.user.id
+      ].unshift(
+        entry
+      );
+
+      /*
+      Keep the latest 50
+      reports per account.
+      */
+
+      history[
+        req.user.id
+      ] =
+        history[
+          req.user.id
+        ].slice(
+          0,
+          50
+        );
+
+      writeJson(
+        historyFile,
+        history
+      );
+
+      res.status(201).json({
+        success: true,
+        entry
+      });
+    } catch (error) {
+      console.error(
+        'History save error:',
+        error
+      );
+
+      res.status(500).json({
+        success: false,
+        error:
+          'Could not save the report.'
+      });
+    }
+  }
+);
+
+/*
+==================================================
+HEALTH
+==================================================
+*/
+
+app.get(
+  '/api/health',
+  (req, res) => {
+    res.json({
+      status:
+        'healthy',
+
+      timestamp:
+        new Date().toISOString()
+    });
+  }
+);
+
+/*
+==================================================
+ADAPTIVE QUESTION
+==================================================
+*/
+
+app.post(
+  '/api/adaptive-question',
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const {
+        title,
+        description,
+        context,
+        previousAnswers,
+        questionNumber = 1,
+        maxQuestions = 6
+      } =
+        req.body || {};
+
+      if (!description) {
+        return res.status(400).json({
+          success: false,
+          error:
+            'A situation or prompt is required.'
+        });
+      }
+
+      if (
+        !process.env.GROQ_API_KEY
+      ) {
+        return res.status(500).json({
+          success: false,
+          error:
+            'GROQ_API_KEY is not configured in the server environment.'
+        });
+      }
+
+      const answers =
+        previousAnswers &&
+        typeof previousAnswers ===
+          'object'
+          ? previousAnswers
+          : {};
+
+      const answerText =
+        Object.keys(
+          answers
+        ).length > 0
+          ? JSON.stringify(
+              answers,
+              null,
+              2
+            )
+          : 'No previous answers yet.';
+
+      const systemPrompt = `
 You are Verlo, an adaptive decision-support questionnaire engine.
 
 Your job is to ask ONE useful follow-up question at a time.
@@ -248,7 +1358,7 @@ For a multiple-choice question:
 Question ${questionNumber} of approximately ${maxQuestions}.
 `;
 
-    const userPrompt = `
+      const userPrompt = `
 Category/title:
 ${safeString(title) || 'General'}
 
@@ -264,70 +1374,96 @@ ${answerText}
 Generate the next single adaptive question.
 `;
 
-    const completion =
-      await groq.chat.completions.create({
-        model: 'openai/gpt-oss-120b',
-
-        temperature: 0.35,
-
-        messages: [
+      const completion =
+        await groq.chat.completions.create(
           {
-            role: 'system',
-            content: systemPrompt
-          },
-          {
-            role: 'user',
-            content: userPrompt
+            model:
+              'openai/gpt-oss-120b',
+
+            temperature:
+              0.35,
+
+            messages: [
+              {
+                role:
+                  'system',
+
+                content:
+                  systemPrompt
+              },
+
+              {
+                role:
+                  'user',
+
+                content:
+                  userPrompt
+              }
+            ]
           }
-        ]
+        );
+
+      const raw =
+        completion
+          .choices?.[0]
+          ?.message
+          ?.content ||
+        '';
+
+      const parsed =
+        cleanJson(
+          raw
+        );
+
+      if (!parsed) {
+        return res.status(500).json({
+          success: false,
+          error:
+            'The AI returned an invalid adaptive question.'
+        });
+      }
+
+      const question =
+        normaliseQuestion(
+          parsed,
+          questionNumber
+        );
+
+      res.json({
+        success: true,
+        question,
+        questionNumber,
+        maxQuestions
       });
-
-    const raw =
-      completion.choices?.[0]?.message?.content ||
-      '';
-
-    const parsed = cleanJson(raw);
-
-    if (!parsed) {
-      return res.status(500).json({
-        success: false,
-        error:
-          'The AI returned an invalid adaptive question.'
-      });
-    }
-
-    const question =
-      normaliseQuestion(
-        parsed,
-        questionNumber
+    } catch (error) {
+      console.error(
+        'Adaptive question error:',
+        error
       );
 
-    res.json({
-      success: true,
-      question,
-      questionNumber,
-      maxQuestions
-    });
-
-  } catch (error) {
-    console.error(
-      'Adaptive question error:',
-      error
-    );
-
-    res.status(500).json({
-      success: false,
-      error:
-        error?.message ||
-        'Failed to generate adaptive question.'
-    });
+      res.status(500).json({
+        success: false,
+        error:
+          error?.message ||
+          'Failed to generate adaptive question.'
+      });
+    }
   }
-});
+);
+
+/*
+==================================================
+ANALYSIS
+==================================================
+*/
 
 app.post(
   '/api/analyze',
   upload.array('files'),
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     try {
       const {
         prompt,
@@ -335,7 +1471,8 @@ app.post(
         category,
         context,
         answers
-      } = req.body || {};
+      } =
+        req.body || {};
 
       if (!prompt) {
         return res.status(400).json({
@@ -345,7 +1482,9 @@ app.post(
         });
       }
 
-      if (!process.env.GROQ_API_KEY) {
+      if (
+        !process.env.GROQ_API_KEY
+      ) {
         return res.status(500).json({
           success: false,
           error:
@@ -353,17 +1492,25 @@ app.post(
         });
       }
 
-      let parsedAnswers = {};
+      let parsedAnswers =
+        {};
 
       try {
-        if (typeof answers === 'string') {
+        if (
+          typeof answers ===
+          'string'
+        ) {
           parsedAnswers =
-            JSON.parse(answers);
+            JSON.parse(
+              answers
+            );
         } else if (
           answers &&
-          typeof answers === 'object'
+          typeof answers ===
+            'object'
         ) {
-          parsedAnswers = answers;
+          parsedAnswers =
+            answers;
         }
       } catch (error) {
         console.warn(
@@ -372,20 +1519,30 @@ app.post(
         );
       }
 
-      const files = req.files
-        ? req.files.map(file => ({
-            name: file.originalname,
-            size:
-              (
-                file.size /
-                (1024 * 1024)
-              ).toFixed(2) + ' MB',
-            path: file.path
-          }))
-        : [];
+      const files =
+        req.files
+          ? req.files.map(
+              file => ({
+                name:
+                  file.originalname,
+
+                size:
+                  (
+                    file.size /
+                    (1024 * 1024)
+                  ).toFixed(2) +
+                  ' MB',
+
+                path:
+                  file.path
+              })
+            )
+          : [];
 
       const adaptiveContext =
-        Object.keys(parsedAnswers).length > 0
+        Object.keys(
+          parsedAnswers
+        ).length > 0
           ? `
 Adaptive questionnaire responses:
 
@@ -403,10 +1560,15 @@ ${JSON.stringify(
 Uploaded files:
 
 ${JSON.stringify(
-  files.map(file => ({
-    name: file.name,
-    size: file.size
-  })),
+  files.map(
+    file => ({
+      name:
+        file.name,
+
+      size:
+        file.size
+    })
+  ),
   null,
   2
 )}
@@ -519,46 +1681,67 @@ Generate the final personalised analysis.
 `;
 
       const completion =
-        await groq.chat.completions.create({
-          model: 'openai/gpt-oss-120b',
+        await groq.chat.completions.create(
+          {
+            model:
+              'openai/gpt-oss-120b',
 
-          temperature: 0.3,
+            temperature:
+              0.3,
 
-          messages: [
-            {
-              role: 'system',
-              content: systemPrompt
-            },
-            {
-              role: 'user',
-              content: userPrompt
-            }
-          ]
-        });
+            messages: [
+              {
+                role:
+                  'system',
+
+                content:
+                  systemPrompt
+              },
+
+              {
+                role:
+                  'user',
+
+                content:
+                  userPrompt
+              }
+            ]
+          }
+        );
 
       const raw =
-        completion.choices?.[0]?.message?.content ||
+        completion
+          .choices?.[0]
+          ?.message
+          ?.content ||
         '';
 
       const parsed =
-        cleanJson(raw);
+        cleanJson(
+          raw
+        );
 
       if (!parsed) {
         return res.json({
           success: true,
 
-          analysis: raw,
+          analysis:
+            raw,
 
           result: {
             situation:
               'The AI returned an unstructured analysis.',
 
-            confidence: 'Low',
+            confidence:
+              'Low',
 
             riskAssessment: {
-              severityScore: 'N/A',
+              severityScore:
+                'N/A',
+
               financialExposure:
                 'Not established',
+
               timeSensitivity:
                 'Review the generated analysis for relevant deadlines.'
             },
@@ -573,31 +1756,41 @@ Generate the final personalised analysis.
               }
             ],
 
-            personalizedPanels: [],
+            personalizedPanels:
+              [],
 
             draftTemplate: {
-              recipient: '',
-              subject: '',
-              body: ''
+              recipient:
+                '',
+
+              subject:
+                '',
+
+              body:
+                ''
             },
 
-            resources: []
+            resources:
+              []
           },
 
-          filesProcessed: files
+          filesProcessed:
+            files
         });
       }
 
       res.json({
         success: true,
 
-        analysis: raw,
+        analysis:
+          raw,
 
-        result: parsed,
+        result:
+          parsed,
 
-        filesProcessed: files
+        filesProcessed:
+          files
       });
-
     } catch (error) {
       console.error(
         'AI analysis error:',
@@ -614,31 +1807,184 @@ Generate the final personalised analysis.
   }
 );
 
-app.post('/api/assess', async (req, res) => {
-  try {
-    const {
-      title,
-      description,
-      attachment
-    } = req.body || {};
+/*
+==================================================
+CHAT
+==================================================
+*/
 
-    if (!description) {
-      return res.status(400).json({
+app.post(
+  '/api/chat',
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const {
+        question,
+        currentSituation,
+        attachment
+      } =
+        req.body || {};
+
+      if (
+        !question &&
+        !attachment
+      ) {
+        return res.status(400).json({
+          success: false,
+          error:
+            'A question is required.'
+        });
+      }
+
+      if (
+        !process.env.GROQ_API_KEY
+      ) {
+        return res.status(500).json({
+          success: false,
+          error:
+            'GROQ_API_KEY is not configured.'
+        });
+      }
+
+      const systemPrompt = `
+You are Verlo's follow-up assistant.
+
+Help the user understand the personalised analysis they just received.
+
+Be clear, concise and practical.
+
+Use the information supplied by the user.
+
+Do not invent missing facts.
+
+If the topic involves law, medicine, finance, safety or another professional field, explain uncertainty clearly and avoid presenting yourself as a professional.
+
+Answer the user's actual question rather than restarting the entire analysis.
+`;
+
+      const userPrompt = `
+Current situation:
+
+${safeString(
+  currentSituation
+) || 'Not provided'}
+
+User question:
+
+${safeString(
+  question
+)}
+
+Attachment information:
+
+${
+  attachment
+    ? JSON.stringify(
+        attachment,
+        null,
+        2
+      )
+    : 'None'
+}
+`;
+
+      const completion =
+        await groq.chat.completions.create(
+          {
+            model:
+              'openai/gpt-oss-120b',
+
+            temperature:
+              0.35,
+
+            messages: [
+              {
+                role:
+                  'system',
+
+                content:
+                  systemPrompt
+              },
+
+              {
+                role:
+                  'user',
+
+                content:
+                  userPrompt
+              }
+            ]
+          }
+        );
+
+      const reply =
+        completion
+          .choices?.[0]
+          ?.message
+          ?.content ||
+        'I could not generate a response right now.';
+
+      res.json({
+        success: true,
+        reply
+      });
+    } catch (error) {
+      console.error(
+        'Chat error:',
+        error
+      );
+
+      res.status(500).json({
         success: false,
         error:
-          'A description is required.'
+          error?.message ||
+          'Failed to answer the question.'
       });
     }
+  }
+);
 
-    if (!process.env.GROQ_API_KEY) {
-      return res.status(500).json({
-        success: false,
-        error:
-          'GROQ_API_KEY is not configured.'
-      });
-    }
+/*
+==================================================
+COMPATIBILITY ASSESSMENT
+==================================================
+*/
 
-    const prompt = `
+app.post(
+  '/api/assess',
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const {
+        title,
+        description,
+        attachment
+      } =
+        req.body || {};
+
+      if (!description) {
+        return res.status(400).json({
+          success: false,
+          error:
+            'A description is required.'
+        });
+      }
+
+      if (
+        !process.env.GROQ_API_KEY
+      ) {
+        return res.status(500).json({
+          success: false,
+          error:
+            'GROQ_API_KEY is not configured.'
+        });
+      }
+
+      const prompt = `
 Create a short adaptive questionnaire for this situation.
 
 Category:
@@ -664,91 +2010,129 @@ Create between 4 and 6 useful questions.
 The questions must be specific to the situation rather than generic.
 `;
 
-    const completion =
-      await groq.chat.completions.create({
-        model: 'openai/gpt-oss-120b',
-
-        temperature: 0.35,
-
-        messages: [
+      const completion =
+        await groq.chat.completions.create(
           {
-            role: 'system',
-            content:
-              'You create adaptive questionnaires. Return only valid JSON.'
-          },
-          {
-            role: 'user',
-            content: prompt
+            model:
+              'openai/gpt-oss-120b',
+
+            temperature:
+              0.35,
+
+            messages: [
+              {
+                role:
+                  'system',
+
+                content:
+                  'You create adaptive questionnaires. Return only valid JSON.'
+              },
+
+              {
+                role:
+                  'user',
+
+                content:
+                  prompt
+              }
+            ]
           }
-        ]
+        );
+
+      const raw =
+        completion
+          .choices?.[0]
+          ?.message
+          ?.content ||
+        '';
+
+      const parsed =
+        cleanJson(
+          raw
+        );
+
+      if (!parsed) {
+        return res.status(500).json({
+          success: false,
+          error:
+            'Could not parse questionnaire.'
+        });
+      }
+
+      res.json({
+        success: true,
+
+        data: {
+          adaptiveQuestions:
+            Array.isArray(
+              parsed.adaptiveQuestions
+            )
+              ? parsed.adaptiveQuestions
+              : []
+        }
       });
+    } catch (error) {
+      console.error(
+        'Assessment error:',
+        error
+      );
 
-    const raw =
-      completion.choices?.[0]?.message?.content ||
-      '';
-
-    const parsed =
-      cleanJson(raw);
-
-    if (!parsed) {
-      return res.status(500).json({
+      res.status(500).json({
         success: false,
         error:
-          'Could not parse questionnaire.'
+          error?.message ||
+          'Failed to create assessment.'
       });
     }
-
-    res.json({
-      success: true,
-
-      data: {
-        adaptiveQuestions:
-          Array.isArray(
-            parsed.adaptiveQuestions
-          )
-            ? parsed.adaptiveQuestions
-            : []
-      }
-    });
-
-  } catch (error) {
-    console.error(
-      'Assessment error:',
-      error
-    );
-
-    res.status(500).json({
-      success: false,
-      error:
-        error?.message ||
-        'Failed to create assessment.'
-    });
   }
-});
+);
+
+/*
+==================================================
+404
+==================================================
+*/
 
 app.use(
   (req, res) => {
     res.status(404).json({
       success: false,
+
       error:
         `Endpoint ${req.method} ${req.originalUrl} was not found.`
     });
   }
 );
 
+/*
+==================================================
+ERROR HANDLER
+==================================================
+*/
+
 app.use(
-  (error, req, res, next) => {
+  (
+    error,
+    req,
+    res,
+    next
+  ) => {
     console.error(
       'Server error:',
       error
     );
 
-    if (res.headersSent) {
-      return next(error);
+    if (
+      res.headersSent
+    ) {
+      return next(
+        error
+      );
     }
 
     res.status(500).json({
       success: false,
+
       error:
         error?.message ||
         'Internal server error.'
@@ -756,24 +2140,126 @@ app.use(
   }
 );
 
+/*
+==================================================
+START SERVER
+==================================================
+*/
 
-app.listen(PORT, () => {
-  console.log('');
-  console.log('======================================');
-  console.log('VERLO SERVER');
-  console.log('======================================');
-  console.log(`Server: http://127.0.0.1:${PORT}`);
-  console.log(`Health: http://127.0.0.1:${PORT}/api/health`);
-  console.log('');
-  console.log(
-    'Adaptive endpoint: POST /api/adaptive-question'
-  );
-  console.log(
-    'Analysis endpoint: POST /api/analyze'
-  );
-  console.log(
-    'Compatibility endpoint: POST /api/assess'
-  );
-  console.log('======================================');
-  console.log('');
-});
+app.listen(
+  PORT,
+  () => {
+    console.log('');
+    console.log(
+      '======================================'
+    );
+    console.log(
+      'VERLO SERVER'
+    );
+    console.log(
+      '======================================'
+    );
+
+    console.log(
+      `Server: http://127.0.0.1:${PORT}`
+    );
+
+    console.log(
+      `Health: http://127.0.0.1:${PORT}/api/health`
+    );
+
+    console.log('');
+
+    console.log(
+      'AUTH'
+    );
+
+    console.log(
+      'Google: GET /api/auth/google'
+    );
+
+    console.log(
+      'Login: POST /api/auth/login'
+    );
+
+    console.log(
+      'Signup: POST /api/auth/signup'
+    );
+
+    console.log(
+      'Current user: GET /api/auth/me'
+    );
+
+    console.log('');
+
+    console.log(
+      'AI'
+    );
+
+    console.log(
+      'Adaptive: POST /api/adaptive-question'
+    );
+
+    console.log(
+      'Analysis: POST /api/analyze'
+    );
+
+    console.log(
+      'Chat: POST /api/chat'
+    );
+
+    console.log(
+      'Assessment: POST /api/assess'
+    );
+
+    console.log('');
+
+    console.log(
+      'HISTORY'
+    );
+
+    console.log(
+      'GET /api/history'
+    );
+
+    console.log(
+      'POST /api/history/save'
+    );
+
+    console.log(
+      '======================================'
+    );
+
+    console.log('');
+
+    if (!JWT_SECRET) {
+      console.warn(
+        'WARNING: JWT_SECRET is not configured.'
+      );
+    }
+
+    if (
+      !process.env.GOOGLE_CLIENT_ID
+    ) {
+      console.warn(
+        'WARNING: GOOGLE_CLIENT_ID is not configured.'
+      );
+    }
+
+    if (
+      !process.env.GOOGLE_CLIENT_SECRET
+    ) {
+      console.warn(
+        'WARNING: GOOGLE_CLIENT_SECRET is not configured.'
+      );
+    }
+
+    if (
+      !process.env.GOOGLE_REDIRECT_URI
+    ) {
+      console.warn(
+        'WARNING: GOOGLE_REDIRECT_URI is not configured.'
+      );
+    }
+  }
+);
