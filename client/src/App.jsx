@@ -24,6 +24,7 @@ const tabs = [
 
 export default function App() {
   const [step, setStep] = useState("landing");
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [userContext, setUserContext] = useState("");
@@ -32,56 +33,118 @@ export default function App() {
     adaptiveQuestions: [],
   });
 
-  const [selectedMcqAnswers, setSelectedMcqAnswers] = useState({});
-  const [adaptiveTextAnswers, setAdaptiveTextAnswers] = useState({});
-  const [activeAssessmentIndex, setActiveAssessmentIndex] = useState(0);
+  const [selectedMcqAnswers, setSelectedMcqAnswers] =
+    useState({});
 
-  const [isAdaptiveLoading, setIsAdaptiveLoading] = useState(false);
-  const [adaptiveQuestionCount, setAdaptiveQuestionCount] = useState(0);
+  const [adaptiveTextAnswers, setAdaptiveTextAnswers] =
+    useState({});
 
-  const [assessmentAttachment, setAssessmentAttachment] = useState(null);
-  const [chatAttachment, setChatAttachment] = useState(null);
+  const [activeAssessmentIndex, setActiveAssessmentIndex] =
+    useState(0);
 
-  const [analysisData, setAnalysisData] = useState(null);
-  const [activeTab, setActiveTab] = useState("overview");
+  const [isAdaptiveLoading, setIsAdaptiveLoading] =
+    useState(false);
 
-  const [processingStage, setProcessingStage] = useState(0);
+  const [adaptiveQuestionCount, setAdaptiveQuestionCount] =
+    useState(0);
+
+  const [assessmentAttachment, setAssessmentAttachment] =
+    useState(null);
+
+  const [chatAttachment, setChatAttachment] =
+    useState(null);
+
+  const [analysisData, setAnalysisData] =
+    useState(null);
+
+  const [activeTab, setActiveTab] =
+    useState("overview");
+
+  const [processingStage, setProcessingStage] =
+    useState(0);
+
   const [error, setError] = useState(null);
 
-  const [copied, setCopied] = useState(false);
-  const [copyCount, setCopyCount] = useState(0);
+  const [copied, setCopied] =
+    useState(false);
 
-  const [customAlert, setCustomAlert] = useState(null);
-  const [alertExiting, setAlertExiting] = useState(false);
+  const [copyCount, setCopyCount] =
+    useState(0);
 
-  const [chatQuestion, setChatQuestion] = useState("");
-  const [chatHistory, setChatHistory] = useState([]);
-  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [customAlert, setCustomAlert] =
+    useState(null);
 
-  const [currentUser, setCurrentUser] = useState(() => {
-    try {
-      const saved = localStorage.getItem("verlo_user");
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
+  const [alertExiting, setAlertExiting] =
+    useState(false);
 
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState("login");
-  const [authEmail, setAuthEmail] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
-  const [authError, setAuthError] = useState(null);
-  const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [chatQuestion, setChatQuestion] =
+    useState("");
 
-  const [userHistory, setUserHistory] = useState([]);
-  const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
+  const [chatHistory, setChatHistory] =
+    useState([]);
+
+  const [isChatLoading, setIsChatLoading] =
+    useState(false);
+
+  const [currentUser, setCurrentUser] =
+    useState(() => {
+      try {
+        const saved =
+          localStorage.getItem("verlo_user");
+
+        return saved
+          ? JSON.parse(saved)
+          : null;
+      } catch {
+        return null;
+      }
+    });
+
+  const [showAuthModal, setShowAuthModal] =
+    useState(false);
+
+  const [authMode, setAuthMode] =
+    useState("login");
+
+  const [authEmail, setAuthEmail] =
+    useState("");
+
+  const [authPassword, setAuthPassword] =
+    useState("");
+
+  const [authError, setAuthError] =
+    useState(null);
+
+  /*
+   * IMPORTANT:
+   * This was missing previously and caused:
+   *
+   * ReferenceError:
+   * isAuthLoading is not defined
+   */
+  const [isAuthLoading, setIsAuthLoading] =
+    useState(false);
+
+  const [userHistory, setUserHistory] =
+    useState([]);
+
+  const [showHistoryDrawer, setShowHistoryDrawer] =
+    useState(false);
 
   const wordCount = description.trim()
     ? description.trim().split(/\s+/).length
     : 0;
 
-  const triggerCustomAlert = (message, type = "success") => {
+  /*
+   * --------------------------------------------------
+   * CUSTOM ALERT
+   * --------------------------------------------------
+   */
+
+  const triggerCustomAlert = (
+    message,
+    type = "success"
+  ) => {
     setCustomAlert({
       message,
       type,
@@ -100,148 +163,313 @@ export default function App() {
   };
 
   /*
-   * Restore the account session when VERLO starts.
+   * --------------------------------------------------
+   * RESTORE EXISTING SESSION
+   * --------------------------------------------------
    */
+
   useEffect(() => {
-    const token = localStorage.getItem("verlo_token");
+    const token =
+      localStorage.getItem("verlo_token");
 
-    if (!token) return;
+    if (!token) {
+      return;
+    }
 
-    fetch(`${API_URL}/api/auth/me`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then(async (res) => {
+    const restoreSession = async () => {
+      try {
+        const res = await fetch(
+          `${API_URL}/api/auth/me`,
+          {
+            headers: {
+              Authorization:
+                `Bearer ${token}`,
+            },
+          }
+        );
+
         const data = await res.json();
 
         if (!res.ok) {
           throw new Error(
-            data.error || "Your session has expired.",
+            data.error ||
+              "Your session has expired."
           );
         }
 
-        return data;
-      })
-      .then((data) => {
         if (data.user) {
           setCurrentUser(data.user);
 
           localStorage.setItem(
             "verlo_user",
-            JSON.stringify(data.user),
+            JSON.stringify(data.user)
           );
         }
-      })
-      .catch(() => {
-        localStorage.removeItem("verlo_token");
-        localStorage.removeItem("verlo_user");
+      } catch (err) {
+        console.error(
+          "[VERLO] Session restore failed:",
+          err
+        );
+
+        localStorage.removeItem(
+          "verlo_token"
+        );
+
+        localStorage.removeItem(
+          "verlo_user"
+        );
+
         setCurrentUser(null);
-      });
+      }
+    };
+
+    restoreSession();
   }, []);
 
   /*
-   * Complete Google OAuth exchange after the backend
-   * redirects back to the frontend.
+   * --------------------------------------------------
+   * GOOGLE OAUTH CALLBACK
+   *
+   * Flow:
+   *
+   * Google
+   *   ↓
+   * backend callback
+   *   ↓
+   * /?auth_code=XXXX
+   *   ↓
+   * /api/auth/google/exchange
+   *   ↓
+   * JWT
+   *   ↓
+   * logged in
+   * --------------------------------------------------
    */
+
   useEffect(() => {
-    const params = new URLSearchParams(
-      window.location.search,
-    );
+    const params =
+      new URLSearchParams(
+        window.location.search
+      );
 
-    const authCode = params.get("auth_code");
-    const authErrorFromUrl = params.get("auth_error");
+    const authCode =
+      params.get("auth_code");
 
+    const authErrorFromUrl =
+      params.get("auth_error");
+
+    /*
+     * Google authentication failed on
+     * the backend.
+     */
     if (authErrorFromUrl) {
-      setAuthError(authErrorFromUrl);
+      console.error(
+        "[VERLO] Google OAuth error:",
+        authErrorFromUrl
+      );
+
+      setAuthError(
+        authErrorFromUrl
+      );
+
       setAuthMode("login");
       setShowAuthModal(true);
 
       window.history.replaceState(
         {},
         document.title,
-        window.location.pathname,
+        window.location.pathname
       );
 
       return;
     }
 
-    if (!authCode) return;
+    /*
+     * No auth code means this is
+     * a normal page load.
+     */
+    if (!authCode) {
+      return;
+    }
 
-    const completeGoogleLogin = async () => {
-      setIsAuthLoading(true);
-
-      try {
-        const res = await fetch(
-          `${API_URL}/api/auth/google/exchange`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              code: authCode,
-            }),
-          },
+    const completeGoogleLogin =
+      async () => {
+        console.log(
+          "[VERLO] Google auth code received."
         );
 
-        const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(
-            data.error || "Google login failed.",
-          );
-        }
-
-        if (!data.token || !data.user) {
-          throw new Error(
-            "Google authentication returned an invalid response.",
-          );
-        }
-
-        localStorage.setItem(
-          "verlo_token",
-          data.token,
+        console.log(
+          "[VERLO] API URL:",
+          API_URL
         );
 
-        localStorage.setItem(
-          "verlo_user",
-          JSON.stringify(data.user),
-        );
-
-        setCurrentUser(data.user);
-        setShowAuthModal(false);
+        setIsAuthLoading(true);
         setAuthError(null);
 
-        triggerCustomAlert(
-          data.user.name
-            ? `Welcome, ${data.user.name}!`
-            : "Logged in with Google successfully!",
-        );
-      } catch (err) {
-        setAuthError(
-          err.message || "Google login failed.",
-        );
+        try {
+          console.log(
+            "[VERLO] Exchanging Google auth code..."
+          );
 
-        setAuthMode("login");
-        setShowAuthModal(true);
-      } finally {
-        setIsAuthLoading(false);
+          const res =
+            await fetch(
+              `${API_URL}/api/auth/google/exchange`,
+              {
+                method: "POST",
 
-        window.history.replaceState(
-          {},
-          document.title,
-          window.location.pathname,
-        );
-      }
-    };
+                headers: {
+                  "Content-Type":
+                    "application/json",
+                },
+
+                body: JSON.stringify({
+                  code: authCode,
+                }),
+              }
+            );
+
+          /*
+           * Handle non-JSON server
+           * responses gracefully.
+           */
+          const rawText =
+            await res.text();
+
+          let data = {};
+
+          try {
+            data =
+              rawText
+                ? JSON.parse(
+                    rawText
+                  )
+                : {};
+          } catch {
+            console.error(
+              "[VERLO] Server returned non-JSON:",
+              rawText
+            );
+
+            throw new Error(
+              `Authentication server returned an invalid response (${res.status}).`
+            );
+          }
+
+          console.log(
+            "[VERLO] Google exchange response:",
+            data
+          );
+
+          if (!res.ok) {
+            throw new Error(
+              data.error ||
+                `Google authentication failed (${res.status}).`
+            );
+          }
+
+          if (
+            !data.token ||
+            !data.user
+          ) {
+            console.error(
+              "[VERLO] Invalid exchange response:",
+              data
+            );
+
+            throw new Error(
+              "Google authentication returned an invalid response."
+            );
+          }
+
+          /*
+           * Store authenticated session.
+           */
+          localStorage.setItem(
+            "verlo_token",
+            data.token
+          );
+
+          localStorage.setItem(
+            "verlo_user",
+            JSON.stringify(
+              data.user
+            )
+          );
+
+          setCurrentUser(
+            data.user
+          );
+
+          setShowAuthModal(
+            false
+          );
+
+          setAuthError(null);
+
+          /*
+           * Clean:
+           *
+           * ?auth_code=XXXX
+           *
+           * from the browser URL.
+           */
+          window.history.replaceState(
+            {},
+            document.title,
+            window.location.pathname
+          );
+
+          triggerCustomAlert(
+            data.user.name
+              ? `Welcome, ${data.user.name}!`
+              : "Logged in with Google successfully!"
+          );
+
+          console.log(
+            "[VERLO] Google login complete."
+          );
+        } catch (err) {
+          console.error(
+            "[VERLO] Google exchange failed:",
+            err
+          );
+
+          setAuthError(
+            err.message ||
+              "Google login failed."
+          );
+
+          setAuthMode("login");
+
+          setShowAuthModal(
+            true
+          );
+        } finally {
+          setIsAuthLoading(false);
+
+          /*
+           * Make absolutely sure the
+           * auth_code is removed from
+           * the address bar even if
+           * something fails.
+           */
+          window.history.replaceState(
+            {},
+            document.title,
+            window.location.pathname
+          );
+        }
+      };
 
     completeGoogleLogin();
   }, []);
 
   /*
-   * Load account history using the authenticated JWT.
+   * --------------------------------------------------
+   * LOAD HISTORY
+   * --------------------------------------------------
    */
+
   useEffect(() => {
     if (!currentUser) {
       setUserHistory([]);
@@ -250,435 +478,651 @@ export default function App() {
 
     localStorage.setItem(
       "verlo_user",
-      JSON.stringify(currentUser),
+      JSON.stringify(
+        currentUser
+      )
     );
 
-    const token = localStorage.getItem("verlo_token");
+    const token =
+      localStorage.getItem(
+        "verlo_token"
+      );
 
     if (!token) {
       setUserHistory([]);
       return;
     }
 
-    fetch(`${API_URL}/api/history`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then(async (res) => {
-        const data = await res.json();
+    const loadHistory =
+      async () => {
+        try {
+          const res =
+            await fetch(
+              `${API_URL}/api/history`,
+              {
+                headers: {
+                  Authorization:
+                    `Bearer ${token}`,
+                },
+              }
+            );
 
-        if (!res.ok) {
-          throw new Error(
-            data.error || "Could not load history.",
+          const data =
+            await res.json();
+
+          if (!res.ok) {
+            throw new Error(
+              data.error ||
+                "Could not load history."
+            );
+          }
+
+          setUserHistory(
+            data.history || []
+          );
+        } catch (err) {
+          console.error(
+            "[VERLO] Failed to load history:",
+            err
           );
         }
+      };
 
-        return data;
-      })
-      .then((data) => {
-        setUserHistory(data.history || []);
-      })
-      .catch((err) => {
-        console.error(
-          "Failed to load history:",
-          err,
-        );
-      });
+    loadHistory();
   }, [currentUser]);
 
-  const renderMarkdownToHTML = (content) => {
-    if (!content) return "";
+  /*
+   * --------------------------------------------------
+   * MARKDOWN
+   * --------------------------------------------------
+   */
 
-    let html = String(content)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-
-    html = html.replace(
-      /```([\s\S]*?)```/g,
-      '<pre class="markdown-code"><code>$1</code></pre>',
-    );
-
-    html = html.replace(
-      /\*\*(.*?)\*\*/g,
-      "<strong>$1</strong>",
-    );
-
-    html = html.replace(
-      /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
-      '<a href="$2" target="_blank" rel="noopener noreferrer" class="markdown-link">$1</a>',
-    );
-
-    const lines = html.split("\n");
-    let inList = false;
-
-    const output = lines.map((line) => {
-      if (
-        line.trim().startsWith("- ") ||
-        line.trim().startsWith("* ")
-      ) {
-        const item = line.trim().substring(2);
-
-        if (!inList) {
-          inList = true;
-          return `<ul class="markdown-list"><li>${item}</li>`;
-        }
-
-        return `<li>${item}</li>`;
+  const renderMarkdownToHTML =
+    (content) => {
+      if (!content) {
+        return "";
       }
+
+      let html =
+        String(content)
+          .replace(
+            /&/g,
+            "&amp;"
+          )
+          .replace(
+            /</g,
+            "&lt;"
+          )
+          .replace(
+            />/g,
+            "&gt;"
+          );
+
+      html =
+        html.replace(
+          /```([\s\S]*?)```/g,
+          '<pre class="markdown-code"><code>$1</code></pre>'
+        );
+
+      html =
+        html.replace(
+          /\*\*(.*?)\*\*/g,
+          "<strong>$1</strong>"
+        );
+
+      html =
+        html.replace(
+          /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
+          '<a href="$2" target="_blank" rel="noopener noreferrer" class="markdown-link">$1</a>'
+        );
+
+      const lines =
+        html.split("\n");
+
+      let inList = false;
+
+      const output =
+        lines.map((line) => {
+          if (
+            line.trim().startsWith(
+              "- "
+            ) ||
+            line
+              .trim()
+              .startsWith("* ")
+          ) {
+            const item =
+              line
+                .trim()
+                .substring(2);
+
+            if (!inList) {
+              inList = true;
+
+              return `<ul class="markdown-list"><li>${item}</li>`;
+            }
+
+            return `<li>${item}</li>`;
+          }
+
+          if (inList) {
+            inList = false;
+
+            return `</ul><p>${line}</p>`;
+          }
+
+          return line.trim()
+            ? `<p>${line}</p>`
+            : "";
+        });
 
       if (inList) {
-        inList = false;
-        return `</ul><p>${line}</p>`;
+        output.push("</ul>");
       }
 
-      return line.trim() ? `<p>${line}</p>` : "";
-    });
-
-    if (inList) {
-      output.push("</ul>");
-    }
-
-    return output.join("");
-  };
-
-  const handleExampleSelect = (
-    exampleTitle,
-    desc,
-    context,
-  ) => {
-    setTitle(exampleTitle);
-    setDescription(desc);
-    setUserContext(context);
-    setStep("input");
-    setError(null);
-  };
+      return output.join("");
+    };
 
   /*
-   * Google login.
+   * --------------------------------------------------
+   * EXAMPLE SITUATIONS
+   * --------------------------------------------------
    */
-  const handleGoogleLogin = () => {
-    setAuthError(null);
-    setIsAuthLoading(true);
 
-    window.location.href =
-      `${API_URL}/api/auth/google`;
-  };
-
-  /*
-   * Email/password login and signup.
-   */
-  const handleAuthSubmit = async (e) => {
-    e.preventDefault();
-
-    setAuthError(null);
-    setIsAuthLoading(true);
-
-    const endpoint =
-      authMode === "login"
-        ? "/api/auth/login"
-        : "/api/auth/signup";
-
-    try {
-      const res = await fetch(
-        `${API_URL}${endpoint}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email: authEmail.trim(),
-            password: authPassword,
-          }),
-        },
+  const handleExampleSelect =
+    (
+      exampleTitle,
+      desc,
+      context
+    ) => {
+      setTitle(
+        exampleTitle
       );
 
-      const data = await res.json();
+      setDescription(
+        desc
+      );
 
-      if (!res.ok) {
-        if (
-          authMode === "signup" &&
-          (
-            res.status === 400 ||
-            res.status === 409 ||
-            data.error
-              ?.toLowerCase()
-              .includes("exist")
-          )
-        ) {
+      setUserContext(
+        context
+      );
+
+      setStep("input");
+
+      setError(null);
+    };
+
+  /*
+   * --------------------------------------------------
+   * GOOGLE LOGIN
+   * --------------------------------------------------
+   */
+
+  const handleGoogleLogin =
+    () => {
+      setAuthError(null);
+
+      setIsAuthLoading(true);
+
+      console.log(
+        "[VERLO] Starting Google login..."
+      );
+
+      window.location.href =
+        `${API_URL}/api/auth/google`;
+    };
+
+  /*
+   * --------------------------------------------------
+   * EMAIL AUTH
+   * --------------------------------------------------
+   */
+
+  const handleAuthSubmit =
+    async (e) => {
+      e.preventDefault();
+
+      setAuthError(null);
+      setIsAuthLoading(true);
+
+      const endpoint =
+        authMode === "login"
+          ? "/api/auth/login"
+          : "/api/auth/signup";
+
+      try {
+        const res =
+          await fetch(
+            `${API_URL}${endpoint}`,
+            {
+              method: "POST",
+
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+
+              body: JSON.stringify({
+                email:
+                  authEmail.trim(),
+                password:
+                  authPassword,
+              }),
+            }
+          );
+
+        const data =
+          await res.json();
+
+        if (!res.ok) {
+          const message =
+            String(
+              data.error || ""
+            ).toLowerCase();
+
+          if (
+            authMode ===
+              "signup" &&
+            (
+              res.status ===
+                409 ||
+              message.includes(
+                "already"
+              ) ||
+              message.includes(
+                "exist"
+              ) ||
+              message.includes(
+                "registered"
+              )
+            )
+          ) {
+            throw new Error(
+              "This email address is already registered. Please log in instead."
+            );
+          }
+
           throw new Error(
-            "This email address is already registered. Please log in instead.",
+            data.error ||
+              "Authentication failed."
           );
         }
 
-        throw new Error(
-          data.error || "Authentication failed.",
+        if (!data.token) {
+          throw new Error(
+            "The server did not return a login token."
+          );
+        }
+
+        localStorage.setItem(
+          "verlo_token",
+          data.token
         );
-      }
 
-      if (!data.token) {
-        throw new Error(
-          "The server did not return a login token.",
+        localStorage.setItem(
+          "verlo_user",
+          JSON.stringify(
+            data.user
+          )
         );
+
+        setCurrentUser(
+          data.user
+        );
+
+        setShowAuthModal(
+          false
+        );
+
+        setAuthEmail("");
+        setAuthPassword("");
+        setAuthError(null);
+
+        triggerCustomAlert(
+          authMode ===
+            "signup"
+            ? "Account created successfully!"
+            : "Logged in successfully!"
+        );
+      } catch (err) {
+        setAuthError(
+          err.message ||
+            "Authentication failed."
+        );
+      } finally {
+        setIsAuthLoading(false);
       }
+    };
 
-      localStorage.setItem(
-        "verlo_token",
-        data.token,
-      );
-
-      localStorage.setItem(
-        "verlo_user",
-        JSON.stringify(data.user),
-      );
-
-      setCurrentUser(data.user);
-      setShowAuthModal(false);
-      setAuthEmail("");
-      setAuthPassword("");
-      setAuthError(null);
-
-      triggerCustomAlert(
-        authMode === "signup"
-          ? "Account created successfully!"
-          : "Logged in successfully!",
-      );
-    } catch (err) {
-      setAuthError(
-        err.message || "Authentication failed.",
-      );
-    } finally {
-      setIsAuthLoading(false);
-    }
-  };
+  /*
+   * --------------------------------------------------
+   * LOGOUT
+   * --------------------------------------------------
+   */
 
   const handleLogout = () => {
     setCurrentUser(null);
 
-    localStorage.removeItem("verlo_user");
-    localStorage.removeItem("verlo_token");
+    localStorage.removeItem(
+      "verlo_user"
+    );
+
+    localStorage.removeItem(
+      "verlo_token"
+    );
 
     setUserHistory([]);
     setShowHistoryDrawer(false);
     setStep("landing");
 
     triggerCustomAlert(
-      "Logged out successfully.",
+      "Logged out successfully."
     );
-  };
-
-  const handleSaveToAccount = async (resultData) => {
-    if (!currentUser) {
-      setAuthMode("login");
-      setAuthError(null);
-      setShowAuthModal(true);
-      return;
-    }
-
-    const token = localStorage.getItem(
-      "verlo_token",
-    );
-
-    if (!token) {
-      setAuthMode("login");
-      setAuthError(
-        "Your login session has expired. Please log in again.",
-      );
-      setShowAuthModal(true);
-      return;
-    }
-
-    try {
-      const res = await fetch(
-        `${API_URL}/api/history/save`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            report: {
-              title: title || "Untitled Report",
-              description,
-              result: resultData,
-            },
-          }),
-        },
-      );
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(
-          data.error || "Could not save pathway.",
-        );
-      }
-
-      setUserHistory(data.history || []);
-
-      triggerCustomAlert(
-        "Pathway saved successfully to your account history!",
-      );
-    } catch (err) {
-      console.error(
-        "Failed to save history:",
-        err,
-      );
-
-      triggerCustomAlert(
-        "Error saving pathway to account history.",
-        "error",
-      );
-    }
   };
 
   /*
-   * This currently stores file metadata only.
-   * It does not upload the actual file contents.
+   * --------------------------------------------------
+   * SAVE HISTORY
+   * --------------------------------------------------
    */
-  const handleSecureFileUpload = async (
-    file,
-    target,
-  ) => {
-    if (!file) return;
 
-    if (file.size > 15 * 1024 * 1024) {
-      triggerCustomAlert(
-        "File exceeds maximum size limit (15MB).",
-        "error",
-      );
+  const handleSaveToAccount =
+    async (resultData) => {
+      if (!currentUser) {
+        setAuthMode("login");
+        setAuthError(null);
+        setShowAuthModal(true);
+        return;
+      }
 
-      return;
-    }
+      const token =
+        localStorage.getItem(
+          "verlo_token"
+        );
 
-    try {
-      triggerCustomAlert(
-        "Attaching file...",
-      );
+      if (!token) {
+        setAuthMode("login");
 
-      await new Promise((resolve) =>
-        setTimeout(resolve, 500),
-      );
+        setAuthError(
+          "Your login session has expired. Please log in again."
+        );
 
-      const fileMeta = {
-        name: file.name,
-        size: `${(
-          file.size / 1024
-        ).toFixed(1)} KB`,
-        type:
-          file.type ||
-          "application/octet-stream",
-        uploadedAt:
-          new Date().toISOString(),
-      };
+        setShowAuthModal(true);
 
-      if (target === "assessment") {
-        setAssessmentAttachment(fileMeta);
+        return;
+      }
+
+      try {
+        const res =
+          await fetch(
+            `${API_URL}/api/history/save`,
+            {
+              method: "POST",
+
+              headers: {
+                "Content-Type":
+                  "application/json",
+
+                Authorization:
+                  `Bearer ${token}`,
+              },
+
+              body: JSON.stringify({
+                report: {
+                  title:
+                    title ||
+                    "Untitled Report",
+
+                  description,
+
+                  result:
+                    resultData,
+                },
+              }),
+            }
+          );
+
+        const data =
+          await res.json();
+
+        if (!res.ok) {
+          throw new Error(
+            data.error ||
+              "Could not save pathway."
+          );
+        }
+
+        setUserHistory(
+          data.history || []
+        );
 
         triggerCustomAlert(
-          `File "${file.name}" attached to assessment context.`,
+          "Pathway saved successfully to your account history!"
+        );
+      } catch (err) {
+        console.error(
+          "[VERLO] Failed to save history:",
+          err
+        );
+
+        triggerCustomAlert(
+          "Error saving pathway to account history.",
+          "error"
+        );
+      }
+    };
+
+  /*
+   * --------------------------------------------------
+   * FILE ATTACHMENTS
+   * --------------------------------------------------
+   */
+
+  const handleSecureFileUpload =
+    async (
+      file,
+      target
+    ) => {
+      if (!file) {
+        return;
+      }
+
+      if (
+        file.size >
+        15 * 1024 * 1024
+      ) {
+        triggerCustomAlert(
+          "File exceeds maximum size limit (15MB).",
+          "error"
+        );
+
+        return;
+      }
+
+      try {
+        triggerCustomAlert(
+          "Attaching file..."
+        );
+
+        await new Promise(
+          (resolve) =>
+            setTimeout(
+              resolve,
+              500
+            )
+        );
+
+        const fileMeta = {
+          name: file.name,
+
+          size: `${(
+            file.size / 1024
+          ).toFixed(1)} KB`,
+
+          type:
+            file.type ||
+            "application/octet-stream",
+
+          uploadedAt:
+            new Date().toISOString(),
+        };
+
+        if (
+          target ===
+          "assessment"
+        ) {
+          setAssessmentAttachment(
+            fileMeta
+          );
+
+          triggerCustomAlert(
+            `File "${file.name}" attached to assessment context.`
+          );
+        }
+
+        if (
+          target === "chat"
+        ) {
+          setChatAttachment(
+            fileMeta
+          );
+
+          triggerCustomAlert(
+            `File "${file.name}" attached to chat prompt.`
+          );
+        }
+      } catch {
+        triggerCustomAlert(
+          "Failed to attach file.",
+          "error"
+        );
+      }
+    };
+
+  const removeAttachment =
+    (target) => {
+      if (
+        target ===
+        "assessment"
+      ) {
+        setAssessmentAttachment(
+          null
+        );
+
+        triggerCustomAlert(
+          "Assessment attachment removed."
         );
       }
 
-      if (target === "chat") {
-        setChatAttachment(fileMeta);
+      if (
+        target === "chat"
+      ) {
+        setChatAttachment(
+          null
+        );
 
         triggerCustomAlert(
-          `File "${file.name}" attached to chat prompt.`,
+          "Chat attachment removed."
         );
       }
-    } catch {
-      triggerCustomAlert(
-        "Failed to attach file.",
-        "error",
+    };
+
+  /*
+   * --------------------------------------------------
+   * NORMALISE ADAPTIVE QUESTIONS
+   * --------------------------------------------------
+   */
+
+  const getAllAssessmentItems =
+    () => {
+      const source =
+        assessmentData?.adaptiveQuestions ||
+        assessmentData?.adaptive_questions ||
+        assessmentData?.questions ||
+        [];
+
+      if (
+        !Array.isArray(source)
+      ) {
+        return [];
+      }
+
+      return source.map(
+        (item, index) => ({
+          type:
+            item.type ===
+            "mcq"
+              ? "mcq"
+              : "text",
+
+          ...item,
+
+          id:
+            item.id ||
+            item.questionId ||
+            `adaptive-${index}`,
+
+          question:
+            item.question ||
+            item.text ||
+            item.prompt ||
+            item.stem ||
+            "Please provide more information.",
+
+          stem:
+            item.stem ||
+            item.question ||
+            item.text ||
+            item.prompt ||
+            "Please choose an option.",
+
+          choices:
+            Array.isArray(
+              item.choices
+            )
+              ? item.choices
+              : [],
+        })
       );
-    }
-  };
-
-  const removeAttachment = (target) => {
-    if (target === "assessment") {
-      setAssessmentAttachment(null);
-
-      triggerCustomAlert(
-        "Assessment attachment removed.",
-      );
-    }
-
-    if (target === "chat") {
-      setChatAttachment(null);
-
-      triggerCustomAlert(
-        "Chat attachment removed.",
-      );
-    }
-  };
-
-  const getAllAssessmentItems = () => {
-    const source =
-      assessmentData?.adaptiveQuestions ||
-      assessmentData?.adaptive_questions ||
-      assessmentData?.questions ||
-      [];
-
-    if (!Array.isArray(source)) {
-      return [];
-    }
-
-    return source.map((item, index) => ({
-      type:
-        item.type === "mcq"
-          ? "mcq"
-          : "text",
-
-      ...item,
-
-      id:
-        item.id ||
-        item.questionId ||
-        `adaptive-${index}`,
-
-      question:
-        item.question ||
-        item.text ||
-        item.prompt ||
-        item.stem ||
-        "Please provide more information.",
-
-      stem:
-        item.stem ||
-        item.question ||
-        item.text ||
-        item.prompt ||
-        "Please choose an option.",
-
-      choices:
-        Array.isArray(item.choices)
-          ? item.choices
-          : [],
-    }));
-  };
+    };
 
   const assessmentItems =
     getAllAssessmentItems();
 
-  const buildAllAnswers = (
-    key,
-    value,
-  ) => ({
-    ...adaptiveTextAnswers,
-    ...selectedMcqAnswers,
-    ...(key !== undefined
-      ? {
-          [key]: value,
-        }
-      : {}),
-  });
+  /*
+   * --------------------------------------------------
+   * BUILD ANSWERS
+   * --------------------------------------------------
+   */
+
+  const buildAllAnswers =
+    (
+      key,
+      value
+    ) => ({
+      ...adaptiveTextAnswers,
+
+      ...selectedMcqAnswers,
+
+      ...(key !==
+        undefined
+        ? {
+            [key]:
+              value,
+          }
+        : {}),
+    });
+
+  /*
+   * --------------------------------------------------
+   * REQUEST NEXT ADAPTIVE QUESTION
+   * --------------------------------------------------
+   */
 
   const requestAdaptiveQuestion =
-    async (previousAnswers = {}) => {
+    async (
+      previousAnswers = {}
+    ) => {
       if (
         isAdaptiveLoading ||
         adaptiveQuestionCount >=
@@ -687,44 +1131,54 @@ export default function App() {
         return null;
       }
 
-      setIsAdaptiveLoading(true);
+      setIsAdaptiveLoading(
+        true
+      );
+
       setError(null);
 
       try {
         const questionNumber =
-          adaptiveQuestionCount + 1;
+          adaptiveQuestionCount +
+          1;
 
-        const res = await fetch(
-          `${API_URL}/api/adaptive-question`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              title,
-              description,
-              context: userContext,
-              previousAnswers,
-              questionNumber,
-              maxQuestions:
-                MAX_ADAPTIVE_QUESTIONS,
-            }),
-          },
-        );
+        const res =
+          await fetch(
+            `${API_URL}/api/adaptive-question`,
+            {
+              method: "POST",
 
-        const result = await res.json();
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+
+              body: JSON.stringify({
+                title,
+                description,
+                context:
+                  userContext,
+                previousAnswers,
+                questionNumber,
+                maxQuestions:
+                  MAX_ADAPTIVE_QUESTIONS,
+              }),
+            }
+          );
+
+        const result =
+          await res.json();
 
         if (!res.ok) {
           throw new Error(
             result.error ||
-              "Could not generate the adaptive question.",
+              "Could not generate the adaptive question."
           );
         }
 
         if (!result.question) {
           throw new Error(
-            "The adaptive engine returned no question.",
+            "The adaptive engine returned no question."
           );
         }
 
@@ -734,15 +1188,16 @@ export default function App() {
         ];
 
         setAssessmentData({
-          adaptiveQuestions: questions,
+          adaptiveQuestions:
+            questions,
         });
 
         setAdaptiveQuestionCount(
-          questions.length,
+          questions.length
         );
 
         setActiveAssessmentIndex(
-          questions.length - 1,
+          questions.length - 1
         );
 
         setStep("assessment");
@@ -751,128 +1206,206 @@ export default function App() {
       } catch (err) {
         setError(
           err.message ||
-            "Could not generate the next adaptive question.",
+            "Could not generate the next adaptive question."
         );
 
         return null;
       } finally {
-        setIsAdaptiveLoading(false);
+        setIsAdaptiveLoading(
+          false
+        );
       }
     };
 
-  const handleInitialSubmit = async (e) => {
-    e.preventDefault();
+  /*
+   * --------------------------------------------------
+   * FIRST SUBMISSION
+   * --------------------------------------------------
+   */
 
-    if (wordCount < MIN_WORDS) {
-      setError(
-        `Please provide a bit more detail (at least ${MIN_WORDS} words) so VERLO can build a reliable pathway.`,
-      );
-
-      return;
-    }
-
-    setError(null);
-    setStep("processing");
-    setProcessingStage(0);
-
-    setAssessmentData({
-      adaptiveQuestions: [],
-    });
-
-    setSelectedMcqAnswers({});
-    setAdaptiveTextAnswers({});
-    setActiveAssessmentIndex(0);
-    setAdaptiveQuestionCount(0);
-
-    let currentStage = 0;
-
-    const interval = setInterval(() => {
-      currentStage += 1;
+  const handleInitialSubmit =
+    async (e) => {
+      e.preventDefault();
 
       if (
-        currentStage <
-        processingSteps.length
+        wordCount <
+        MIN_WORDS
       ) {
-        setProcessingStage(currentStage);
-      }
-    }, 550);
-
-    try {
-      await new Promise((resolve) =>
-        setTimeout(resolve, 1800),
-      );
-
-      const res = await fetch(
-        `${API_URL}/api/adaptive-question`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            title,
-            description,
-            context: userContext,
-            previousAnswers: {},
-            questionNumber: 1,
-            maxQuestions:
-              MAX_ADAPTIVE_QUESTIONS,
-          }),
-        },
-      );
-
-      const result = await res.json();
-
-      if (!res.ok) {
-        throw new Error(
-          result.error ||
-            "Adaptive engine failed to create the first question.",
+        setError(
+          `Please provide a bit more detail (at least ${MIN_WORDS} words) so VERLO can build a reliable pathway.`
         );
+
+        return;
       }
 
-      if (!result.question) {
-        throw new Error(
-          "The adaptive engine returned no first question.",
-        );
-      }
+      setError(null);
+
+      setStep("processing");
+
+      setProcessingStage(0);
 
       setAssessmentData({
-        adaptiveQuestions: [
-          result.question,
-        ],
+        adaptiveQuestions: [],
       });
 
-      setAdaptiveQuestionCount(1);
-      setActiveAssessmentIndex(0);
-      setStep("assessment");
-    } catch (err) {
-      setError(
-        err.message ||
-          "Could not connect to the adaptive engine.",
+      setSelectedMcqAnswers(
+        {}
       );
 
-      setStep("input");
-    } finally {
-      clearInterval(interval);
-    }
-  };
+      setAdaptiveTextAnswers(
+        {}
+      );
 
-  const getCurrentAnswer = () => {
-    const item =
-      assessmentItems[
-        activeAssessmentIndex
-      ];
+      setActiveAssessmentIndex(
+        0
+      );
 
-    if (!item) return "";
+      setAdaptiveQuestionCount(
+        0
+      );
 
-    const key =
-      item.id ||
-      activeAssessmentIndex;
+      let currentStage = 0;
 
-    return item.type === "mcq"
-      ? selectedMcqAnswers[key] || ""
-      : adaptiveTextAnswers[key] || "";
-  };
+      const interval =
+        setInterval(() => {
+          currentStage +=
+            1;
+
+          if (
+            currentStage <
+            processingSteps.length
+          ) {
+            setProcessingStage(
+              currentStage
+            );
+          }
+        }, 550);
+
+      try {
+        await new Promise(
+          (resolve) =>
+            setTimeout(
+              resolve,
+              1800
+            )
+        );
+
+        const res =
+          await fetch(
+            `${API_URL}/api/adaptive-question`,
+            {
+              method: "POST",
+
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+
+              body: JSON.stringify({
+                title,
+                description,
+                context:
+                  userContext,
+                previousAnswers:
+                  {},
+                questionNumber: 1,
+                maxQuestions:
+                  MAX_ADAPTIVE_QUESTIONS,
+              }),
+            }
+          );
+
+        const result =
+          await res.json();
+
+        if (!res.ok) {
+          throw new Error(
+            result.error ||
+              "Adaptive engine failed to create the first question."
+          );
+        }
+
+        if (!result.question) {
+          throw new Error(
+            "The adaptive engine returned no first question."
+          );
+        }
+
+        setAssessmentData({
+          adaptiveQuestions: [
+            result.question,
+          ],
+        });
+
+        setAdaptiveQuestionCount(
+          1
+        );
+
+        setActiveAssessmentIndex(
+          0
+        );
+
+        setStep(
+          "assessment"
+        );
+      } catch (err) {
+        setError(
+          err.message ||
+            "Could not connect to the adaptive engine."
+        );
+
+        setStep("input");
+      } finally {
+        clearInterval(
+          interval
+        );
+      }
+    };
+
+  /*
+   * --------------------------------------------------
+   * CURRENT ANSWER
+   * --------------------------------------------------
+   */
+
+  const getCurrentAnswer =
+    () => {
+      const item =
+        assessmentItems[
+          activeAssessmentIndex
+        ];
+
+      if (!item) {
+        return "";
+      }
+
+      const key =
+        item.id ||
+        activeAssessmentIndex;
+
+      if (
+        item.type ===
+        "mcq"
+      ) {
+        return (
+          selectedMcqAnswers[
+            key
+          ] || ""
+        );
+      }
+
+      return (
+        adaptiveTextAnswers[
+          key
+        ] || ""
+      );
+    };
+
+  /*
+   * --------------------------------------------------
+   * NEXT ASSESSMENT QUESTION
+   * --------------------------------------------------
+   */
 
   const handleAssessmentNext =
     async () => {
@@ -891,10 +1424,14 @@ export default function App() {
       const answer =
         getCurrentAnswer();
 
-      if (!String(answer).trim()) {
+      if (
+        !String(
+          answer
+        ).trim()
+      ) {
         triggerCustomAlert(
           "Please answer this question before continuing.",
-          "error",
+          "error"
         );
 
         return;
@@ -904,26 +1441,31 @@ export default function App() {
         item.id ||
         activeAssessmentIndex;
 
-      if (item.type === "mcq") {
+      if (
+        item.type ===
+        "mcq"
+      ) {
         setSelectedMcqAnswers(
           (prev) => ({
             ...prev,
-            [key]: answer,
-          }),
+            [key]:
+              answer,
+          })
         );
       } else {
         setAdaptiveTextAnswers(
           (prev) => ({
             ...prev,
-            [key]: answer,
-          }),
+            [key]:
+              answer,
+          })
         );
       }
 
       const allAnswers =
         buildAllAnswers(
           key,
-          answer,
+          answer
         );
 
       if (
@@ -931,32 +1473,56 @@ export default function App() {
         MAX_ADAPTIVE_QUESTIONS
       ) {
         await handleFinalAssessmentSubmit(
-          allAnswers,
+          allAnswers
         );
 
         return;
       }
 
       await requestAdaptiveQuestion(
-        allAnswers,
+        allAnswers
       );
     };
 
-  const handleAssessmentPrev = () => {
-    if (isAdaptiveLoading) return;
+  /*
+   * --------------------------------------------------
+   * PREVIOUS ASSESSMENT QUESTION
+   * --------------------------------------------------
+   */
 
-    if (activeAssessmentIndex > 0) {
-      setActiveAssessmentIndex(
-        (prev) => prev - 1,
-      );
-    } else {
-      setStep("input");
-    }
-  };
+  const handleAssessmentPrev =
+    () => {
+      if (
+        isAdaptiveLoading
+      ) {
+        return;
+      }
+
+      if (
+        activeAssessmentIndex >
+        0
+      ) {
+        setActiveAssessmentIndex(
+          (prev) =>
+            prev - 1
+        );
+      } else {
+        setStep("input");
+      }
+    };
+
+  /*
+   * --------------------------------------------------
+   * FINAL ANALYSIS
+   * --------------------------------------------------
+   */
 
   const handleFinalAssessmentSubmit =
-    async (answersOverride = null) => {
+    async (
+      answersOverride = null
+    ) => {
       setStep("processing");
+
       setProcessingStage(0);
 
       const finalAnswers =
@@ -965,59 +1531,77 @@ export default function App() {
 
       let currentStage = 0;
 
-      const interval = setInterval(() => {
-        currentStage += 1;
+      const interval =
+        setInterval(() => {
+          currentStage +=
+            1;
 
-        if (
-          currentStage <
-          processingSteps.length
-        ) {
-          setProcessingStage(currentStage);
-        }
-      }, 700);
+          if (
+            currentStage <
+            processingSteps.length
+          ) {
+            setProcessingStage(
+              currentStage
+            );
+          }
+        }, 700);
 
       try {
-        const [res] =
+        const [
+          res,
+        ] =
           await Promise.all([
             fetch(
               `${API_URL}/api/analyze`,
               {
                 method: "POST",
+
                 headers: {
                   "Content-Type":
                     "application/json",
                 },
+
                 body: JSON.stringify({
                   title,
-                  prompt: description,
+
+                  prompt:
+                    description,
+
                   category:
-                    title || "General",
-                  context: userContext,
+                    title ||
+                    "General",
+
+                  context:
+                    userContext,
+
                   answers:
                     JSON.stringify(
-                      finalAnswers,
+                      finalAnswers
                     ),
+
                   attachment:
                     assessmentAttachment,
                 }),
-              },
+              }
             ),
 
-            new Promise((resolve) =>
-              setTimeout(
-                resolve,
-                processingSteps.length *
-                  700,
-              ),
+            new Promise(
+              (resolve) =>
+                setTimeout(
+                  resolve,
+                  processingSteps.length *
+                    700
+                )
             ),
           ]);
 
-        const result = await res.json();
+        const result =
+          await res.json();
 
         if (!res.ok) {
           throw new Error(
             result.error ||
-              "Failed to compute final diagnostic pathway.",
+              "Failed to compute final diagnostic pathway."
           );
         }
 
@@ -1032,7 +1616,7 @@ export default function App() {
           try {
             finalData =
               JSON.parse(
-                result.analysis,
+                result.analysis
               );
           } catch {
             finalData = {
@@ -1043,178 +1627,254 @@ export default function App() {
                 "Moderate",
 
               riskAssessment: {
-                severityScore: "N/A",
+                severityScore:
+                  "N/A",
+
                 financialExposure:
                   "Not established",
+
                 timeSensitivity:
                   "Review required",
               },
 
               nextSteps: [],
-              personalizedPanels: [],
-              draftTemplate: null,
+
+              personalizedPanels:
+                [],
+
+              draftTemplate:
+                null,
+
               resources: [],
-              referenceLinks: [],
+
+              referenceLinks:
+                [],
             };
           }
         }
 
         if (!finalData) {
           throw new Error(
-            "The server returned no analysis.",
+            "The server returned no analysis."
           );
         }
 
         /*
-         * Support both the old "resources"
-         * property and the newer "referenceLinks"
-         * property.
+         * Support both names.
          */
         if (
           !finalData.referenceLinks &&
           Array.isArray(
-            finalData.resources,
+            finalData.resources
           )
         ) {
           finalData.referenceLinks =
             finalData.resources;
         }
 
-        setAnalysisData(finalData);
-        setChatHistory([]);
-        setActiveTab("overview");
-        setStep("results");
+        setAnalysisData(
+          finalData
+        );
+
+        setChatHistory(
+          []
+        );
+
+        setActiveTab(
+          "overview"
+        );
+
+        setStep(
+          "results"
+        );
       } catch (err) {
         setError(
           err.message ||
-            "Could not connect to the server.",
+            "Could not connect to the server."
         );
 
-        setStep("assessment");
+        setStep(
+          "assessment"
+        );
       } finally {
-        clearInterval(interval);
+        clearInterval(
+          interval
+        );
       }
     };
 
-  const handleCopyDraft = () => {
-    if (
-      !analysisData?.draftTemplate
-    ) {
-      return;
-    }
+  /*
+   * --------------------------------------------------
+   * COPY LETTER
+   * --------------------------------------------------
+   */
 
-    const draft =
-      analysisData.draftTemplate;
-
-    navigator.clipboard.writeText(
-      `To: ${draft.recipient}\nSubject: ${draft.subject}\n\n${draft.body}`,
-    );
-
-    setCopied(true);
-
-    const nextCount =
-      copyCount + 1;
-
-    setCopyCount(nextCount);
-
-    triggerCustomAlert(
-      nextCount === 1
-        ? "Letter template copied to clipboard!"
-        : `Letter copied (${nextCount}x multi-strike!)! 🎯`,
-    );
-
-    setTimeout(
-      () => setCopied(false),
-      3000,
-    );
-  };
-
-  const handleChatSubmit = async (e) => {
-    e.preventDefault();
-
-    if (
-      (!chatQuestion.trim() &&
-        !chatAttachment) ||
-      isChatLoading
-    ) {
-      return;
-    }
-
-    const questionText =
-      chatQuestion.trim() ||
-      `[Uploaded file: ${chatAttachment.name}]`;
-
-    const currentAttachment =
-      chatAttachment;
-
-    setChatQuestion("");
-    setChatAttachment(null);
-    setIsChatLoading(true);
-
-    const newHistory = [
-      ...chatHistory,
-      {
-        role: "user",
-        content: questionText,
-        attachment:
-          currentAttachment,
-      },
-    ];
-
-    setChatHistory(newHistory);
-
-    try {
-      const res = await fetch(
-        `${API_URL}/api/chat`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify({
-            question: questionText,
-            currentSituation:
-              description || title,
-            attachment:
-              currentAttachment,
-          }),
-        },
-      );
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(
-          data.error ||
-            "Failed to get chat response.",
-        );
+  const handleCopyDraft =
+    () => {
+      if (
+        !analysisData?.draftTemplate
+      ) {
+        return;
       }
 
-      setChatHistory([
-        ...newHistory,
+      const draft =
+        analysisData.draftTemplate;
+
+      navigator.clipboard.writeText(
+        `To: ${draft.recipient}\nSubject: ${draft.subject}\n\n${draft.body}`
+      );
+
+      setCopied(true);
+
+      const nextCount =
+        copyCount + 1;
+
+      setCopyCount(
+        nextCount
+      );
+
+      triggerCustomAlert(
+        nextCount === 1
+          ? "Letter template copied to clipboard!"
+          : `Letter copied (${nextCount}x multi-strike!)! 🎯`
+      );
+
+      setTimeout(
+        () =>
+          setCopied(false),
+        3000
+      );
+    };
+
+  /*
+   * --------------------------------------------------
+   * CHAT
+   * --------------------------------------------------
+   */
+
+  const handleChatSubmit =
+    async (e) => {
+      e.preventDefault();
+
+      if (
+        (
+          !chatQuestion.trim() &&
+          !chatAttachment
+        ) ||
+        isChatLoading
+      ) {
+        return;
+      }
+
+      const questionText =
+        chatQuestion.trim() ||
+        `[Uploaded file: ${chatAttachment.name}]`;
+
+      const currentAttachment =
+        chatAttachment;
+
+      setChatQuestion("");
+      setChatAttachment(
+        null
+      );
+
+      setIsChatLoading(
+        true
+      );
+
+      const newHistory = [
+        ...chatHistory,
+
         {
-          role: "assistant",
-          content: data.reply,
+          role: "user",
+          content:
+            questionText,
+
+          attachment:
+            currentAttachment,
         },
-      ]);
-    } catch (err) {
-      setChatHistory([
-        ...newHistory,
-        {
-          role: "assistant",
-          content: `⚠️ Error: ${err.message}`,
-        },
-      ]);
-    } finally {
-      setIsChatLoading(false);
-    }
-  };
+      ];
+
+      setChatHistory(
+        newHistory
+      );
+
+      try {
+        const res =
+          await fetch(
+            `${API_URL}/api/chat`,
+            {
+              method: "POST",
+
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+
+              body: JSON.stringify({
+                question:
+                  questionText,
+
+                currentSituation:
+                  description ||
+                  title,
+
+                attachment:
+                  currentAttachment,
+              }),
+            }
+          );
+
+        const data =
+          await res.json();
+
+        if (!res.ok) {
+          throw new Error(
+            data.error ||
+              "Failed to get chat response."
+          );
+        }
+
+        setChatHistory([
+          ...newHistory,
+
+          {
+            role:
+              "assistant",
+
+            content:
+              data.reply,
+          },
+        ]);
+      } catch (err) {
+        setChatHistory([
+          ...newHistory,
+
+          {
+            role:
+              "assistant",
+
+            content:
+              `⚠️ Error: ${err.message}`,
+          },
+        ]);
+      } finally {
+        setIsChatLoading(
+          false
+        );
+      }
+    };
 
   const currentAssessmentItem =
     assessmentItems[
       activeAssessmentIndex
     ];
+
+  /*
+   * --------------------------------------------------
+   * RENDER
+   * --------------------------------------------------
+   */
 
   return (
     <div className="verlo-app">
@@ -1234,7 +1894,9 @@ export default function App() {
           </span>
 
           <span>
-            {customAlert.message}
+            {
+              customAlert.message
+            }
           </span>
         </div>
       )}
@@ -1243,7 +1905,9 @@ export default function App() {
         <div
           className="verlo-logo"
           onClick={() =>
-            setStep("landing")
+            setStep(
+              "landing"
+            )
           }
         >
           <img
@@ -1260,27 +1924,34 @@ export default function App() {
               type="button"
               onClick={() =>
                 setShowHistoryDrawer(
-                  !showHistoryDrawer,
+                  !showHistoryDrawer
                 )
               }
             >
               <span>▣</span>{" "}
               History (
-              {userHistory.length})
+              {
+                userHistory.length
+              }
+              )
             </button>
 
             {currentUser.picture && (
               <img
-                src={currentUser.picture}
+                src={
+                  currentUser.picture
+                }
                 alt=""
                 className="user-avatar"
               />
             )}
 
             <span>
-              {currentUser.name ||
+              {
+                currentUser.name ||
                 currentUser.email ||
-                currentUser.id}
+                currentUser.id
+              }
             </span>
 
             <button
@@ -1298,9 +1969,17 @@ export default function App() {
             type="button"
             className="login-button"
             onClick={() => {
-              setAuthMode("login");
-              setAuthError(null);
-              setShowAuthModal(true);
+              setAuthMode(
+                "login"
+              );
+
+              setAuthError(
+                null
+              );
+
+              setShowAuthModal(
+                true
+              );
             }}
           >
             Login / Signup
@@ -1309,7 +1988,8 @@ export default function App() {
       </header>
 
       <main className="verlo-main">
-        {step === "landing" && (
+        {step ===
+          "landing" && (
           <section className="page-transition landing-page">
             <div className="verlo-header">
               <div className="landing-logo">
@@ -1332,21 +2012,25 @@ export default function App() {
                 Verlo is an adaptive
                 supercharged
                 decision-intelligence
-                engine that transforms
-                messy, stressful
-                situations into a fully
-                tailored, risk-scored
-                action pathway through
-                dynamic profiling.
+                engine that
+                transforms messy,
+                stressful situations
+                into a fully tailored,
+                risk-scored action
+                pathway through dynamic
+                profiling.
               </p>
 
               <button
                 className="btn-primary launch-button"
                 onClick={() =>
-                  setStep("input")
+                  setStep(
+                    "input"
+                  )
                 }
               >
-                Launch Decision Engine →
+                Launch Decision
+                Engine →
               </button>
 
               <div className="example-section">
@@ -1361,8 +2045,10 @@ export default function App() {
                     onClick={() =>
                       handleExampleSelect(
                         "Flight cancelled at gate",
+
                         "My international flight was abruptly cancelled at the boarding gate due to mechanical failure. The airline desk agent says the earliest they can rebook me is in 48 hours, and they are refusing to cover hotel accommodations for the night despite my connecting ticket.",
-                        "Travelling on a strict budget for an important family event",
+
+                        "Travelling on a strict budget for an important family event"
                       )
                     }
                   >
@@ -1372,7 +2058,8 @@ export default function App() {
 
                     <div>
                       <strong>
-                        Flight cancelled at
+                        Flight
+                        cancelled at
                         gate
                       </strong>{" "}
                       — Airline refusing
@@ -1386,8 +2073,10 @@ export default function App() {
                     onClick={() =>
                       handleExampleSelect(
                         "Unresolved billing charge",
+
                         "I noticed an unexpected $450 charge on my credit card from a software enterprise subscription that I explicitly cancelled three months ago in writing. Support is ignoring my emails and chat tickets.",
-                        "Freelancer relying on tight monthly cash flow",
+
+                        "Freelancer relying on tight monthly cash flow"
                       )
                     }
                   >
@@ -1397,8 +2086,8 @@ export default function App() {
 
                     <div>
                       <strong>
-                        Unresolved billing
-                        dispute
+                        Unresolved
+                        billing dispute
                       </strong>{" "}
                       — Subscription
                       charged
@@ -1411,8 +2100,10 @@ export default function App() {
                     onClick={() =>
                       handleExampleSelect(
                         "Landlord withholding bond",
+
                         "My tenancy agreement ended 3 weeks ago and my landlord is refusing to release my full $2,000 security deposit, claiming minor carpet scuffs that were already present when I moved in as documented on my condition report.",
-                        "First-time renter moving into a new apartment",
+
+                        "First-time renter moving into a new apartment"
                       )
                     }
                   >
@@ -1422,8 +2113,8 @@ export default function App() {
 
                     <div>
                       <strong>
-                        Landlord withholding
-                        bond
+                        Landlord
+                        withholding bond
                       </strong>{" "}
                       — Disputing false
                       wear-and-tear
@@ -1436,8 +2127,10 @@ export default function App() {
                     onClick={() =>
                       handleExampleSelect(
                         "Defective laptop warranty dispute",
+
                         "I purchased a high-end laptop 5 months ago that has suffered multiple motherboard failures. The manufacturer service center is claiming accidental liquid damage violation even though the machine has never been exposed to liquids.",
-                        "Student relying on laptop for coursework",
+
+                        "Student relying on laptop for coursework"
                       )
                     }
                   >
@@ -1467,7 +2160,9 @@ export default function App() {
               <button
                 className="secondary-button"
                 onClick={() =>
-                  setStep("landing")
+                  setStep(
+                    "landing"
+                  )
                 }
               >
                 ← Back to Overview
@@ -1486,7 +2181,8 @@ export default function App() {
                 </div>
 
                 <h2 className="verlo-title">
-                  Define Your Situation
+                  Define Your
+                  Situation
                 </h2>
 
                 <p className="verlo-subtitle">
@@ -1524,7 +2220,8 @@ export default function App() {
                     value={title}
                     onChange={(e) =>
                       setTitle(
-                        e.target.value,
+                        e.target
+                          .value
                       )
                     }
                   />
@@ -1545,7 +2242,8 @@ export default function App() {
                           : "word-count"
                       }
                     >
-                      {wordCount} words{" "}
+                      {wordCount}{" "}
+                      words{" "}
                       {wordCount <
                       MIN_WORDS
                         ? `(Minimum ${MIN_WORDS} required)`
@@ -1556,10 +2254,13 @@ export default function App() {
                   <textarea
                     className="form-textarea"
                     placeholder="Include key details: dates, amounts, communications, and what outcome you are looking for..."
-                    value={description}
+                    value={
+                      description
+                    }
                     onChange={(e) =>
                       setDescription(
-                        e.target.value,
+                        e.target
+                          .value
                       )
                     }
                     required
@@ -1569,18 +2270,21 @@ export default function App() {
                 <div className="form-group">
                   <label className="form-label">
                     Any specific
-                    personal context or
-                    constraints?
+                    personal context
+                    or constraints?
                     (Optional)
                   </label>
 
                   <input
                     className="form-input"
                     placeholder="e.g., I'm a student living on a tight budget"
-                    value={userContext}
+                    value={
+                      userContext
+                    }
                     onChange={(e) =>
                       setUserContext(
-                        e.target.value,
+                        e.target
+                          .value
                       )
                     }
                   />
@@ -1594,23 +2298,28 @@ export default function App() {
                   </label>
 
                   <label className="file-button">
-                    Browse File / Media
+                    Browse File /
+                    Media
 
                     <input
                       type="file"
                       hidden
-                      onChange={(e) =>
+                      onChange={(
+                        e
+                      ) =>
                         handleSecureFileUpload(
-                          e.target.files?.[0],
-                          "assessment",
+                          e.target
+                            .files?.[0],
+                          "assessment"
                         )
                       }
                     />
                   </label>
 
                   <span className="file-note">
-                    Attached locally for
-                    this assessment.
+                    Attached locally
+                    for this
+                    assessment.
                     Maximum 15MB.
                   </span>
 
@@ -1632,7 +2341,7 @@ export default function App() {
                         type="button"
                         onClick={() =>
                           removeAttachment(
-                            "assessment",
+                            "assessment"
                           )
                         }
                       >
@@ -1654,7 +2363,8 @@ export default function App() {
           </section>
         )}
 
-        {step === "assessment" &&
+        {step ===
+          "assessment" &&
           currentAssessmentItem && (
             <section className="page-transition animate-fade-slide-up assessment-page">
               <div className="content-narrow">
@@ -1692,7 +2402,7 @@ export default function App() {
                           1) /
                           MAX_ADAPTIVE_QUESTIONS) *
                           100,
-                        100,
+                        100
                       )}%`,
                     }}
                   />
@@ -1744,7 +2454,7 @@ export default function App() {
                         {currentAssessmentItem.choices.map(
                           (
                             choice,
-                            index,
+                            index
                           ) => {
                             const key =
                               currentAssessmentItem.id ||
@@ -1770,12 +2480,13 @@ export default function App() {
                                 onClick={() =>
                                   setSelectedMcqAnswers(
                                     (
-                                      prev,
+                                      prev
                                     ) => ({
                                       ...prev,
+
                                       [key]:
                                         choice,
-                                    }),
+                                    })
                                   )
                                 }
                               >
@@ -1785,10 +2496,12 @@ export default function App() {
                                   )}
                                 </span>
 
-                                {choice}
+                                {
+                                  choice
+                                }
                               </button>
                             );
-                          },
+                          }
                         )}
                       </div>
                     </div>
@@ -1807,30 +2520,35 @@ export default function App() {
                           adaptiveTextAnswers[
                             currentAssessmentItem.id ||
                               activeAssessmentIndex
-                          ] || ""
+                          ] ||
+                          ""
                         }
                         onChange={(e) =>
                           setAdaptiveTextAnswers(
                             (
-                              prev,
+                              prev
                             ) => ({
                               ...prev,
+
                               [
                                 currentAssessmentItem.id ||
                                   activeAssessmentIndex
                               ]:
                                 e.target
                                   .value,
-                            }),
+                            })
                           )
                         }
-                        onKeyDown={(e) => {
+                        onKeyDown={(
+                          e
+                        ) => {
                           if (
                             e.key ===
                               "Enter" &&
                             !isAdaptiveLoading
                           ) {
                             e.preventDefault();
+
                             handleAssessmentNext();
                           }
                         }}
@@ -1862,7 +2580,8 @@ export default function App() {
             </section>
           )}
 
-        {step === "processing" && (
+        {step ===
+          "processing" && (
           <section className="page-transition processing-container processing-page">
             <div className="processing-pulse-ring" />
 
@@ -1874,7 +2593,10 @@ export default function App() {
 
             <div className="processing-steps">
               {processingSteps.map(
-                (text, index) => {
+                (
+                  text,
+                  index
+                ) => {
                   const done =
                     index <
                     processingStage;
@@ -1913,13 +2635,14 @@ export default function App() {
                       </span>
                     </div>
                   );
-                },
+                }
               )}
             </div>
           </section>
         )}
 
-        {step === "results" &&
+        {step ===
+          "results" &&
           analysisData && (
             <section className="page-transition animate-fade-slide-up results-page">
               <div className="results-container">
@@ -1928,7 +2651,9 @@ export default function App() {
                     <button
                       className="secondary-button"
                       onClick={() =>
-                        setStep("input")
+                        setStep(
+                          "input"
+                        )
                       }
                     >
                       ← New Situation
@@ -1938,7 +2663,7 @@ export default function App() {
                       className="save-button"
                       onClick={() =>
                         handleSaveToAccount(
-                          analysisData,
+                          analysisData
                         )
                       }
                     >
@@ -1949,7 +2674,9 @@ export default function App() {
                   <button
                     className="secondary-button"
                     onClick={() =>
-                      setStep("landing")
+                      setStep(
+                        "landing"
+                      )
                     }
                   >
                     Start Over
@@ -2032,7 +2759,10 @@ export default function App() {
 
                 <nav className="result-tabs">
                   {tabs.map(
-                    ([id, label]) => (
+                    ([
+                      id,
+                      label,
+                    ]) => (
                       <button
                         key={id}
                         className={
@@ -2043,13 +2773,13 @@ export default function App() {
                         }
                         onClick={() =>
                           setActiveTab(
-                            id,
+                            id
                           )
                         }
                       >
                         {label}
                       </button>
-                    ),
+                    )
                   )}
                 </nav>
 
@@ -2058,8 +2788,8 @@ export default function App() {
                   <div className="result-content">
                     <div className="dominant-action">
                       <h3>
-                        Immediate Priority
-                        Action
+                        Immediate
+                        Priority Action
                       </h3>
 
                       <h2>
@@ -2107,9 +2837,8 @@ export default function App() {
                       <p>
                         Need immediate
                         clarification,
-                        follow-up
-                        response, or
-                        file attachment?
+                        follow-up response,
+                        or file attachment?
                       </p>
 
                       {chatHistory.length >
@@ -2118,7 +2847,7 @@ export default function App() {
                           {chatHistory.map(
                             (
                               msg,
-                              index,
+                              index
                             ) => (
                               <div
                                 key={
@@ -2157,13 +2886,13 @@ export default function App() {
                                     dangerouslySetInnerHTML={{
                                       __html:
                                         renderMarkdownToHTML(
-                                          msg.content,
+                                          msg.content
                                         ),
                                     }}
                                   />
                                 )}
                               </div>
-                            ),
+                            )
                           )}
                         </div>
                       )}
@@ -2181,7 +2910,7 @@ export default function App() {
                             type="button"
                             onClick={() =>
                               removeAttachment(
-                                "chat",
+                                "chat"
                               )
                             }
                           >
@@ -2203,11 +2932,11 @@ export default function App() {
                             chatQuestion
                           }
                           onChange={(
-                            e,
+                            e
                           ) =>
                             setChatQuestion(
                               e.target
-                                .value,
+                                .value
                             )
                           }
                           disabled={
@@ -2222,12 +2951,12 @@ export default function App() {
                             type="file"
                             hidden
                             onChange={(
-                              e,
+                              e
                             ) =>
                               handleSecureFileUpload(
                                 e.target
                                   .files?.[0],
-                                "chat",
+                                "chat"
                               )
                             }
                           />
@@ -2270,7 +2999,7 @@ export default function App() {
                         {analysisData.personalizedPanels.map(
                           (
                             panel,
-                            index,
+                            index
                           ) => (
                             <div
                               className="solution-panel"
@@ -2288,7 +3017,7 @@ export default function App() {
                                 dangerouslySetInnerHTML={{
                                   __html:
                                     renderMarkdownToHTML(
-                                      panel.insight,
+                                      panel.insight
                                     ),
                                 }}
                               />
@@ -2303,7 +3032,7 @@ export default function App() {
                                 }
                               </div>
                             </div>
-                          ),
+                          )
                         )}
                       </div>
                     )}
@@ -2322,7 +3051,7 @@ export default function App() {
                       {analysisData.nextSteps?.map(
                         (
                           item,
-                          index,
+                          index
                         ) => (
                           <div
                             className="action-item"
@@ -2362,7 +3091,7 @@ export default function App() {
                               </p>
                             )}
                           </div>
-                        ),
+                        )
                       )}
                     </div>
                   </div>
@@ -2431,7 +3160,7 @@ ${analysisData.draftTemplate.body}`}
                         ).map(
                           (
                             link,
-                            index,
+                            index
                           ) => (
                             <a
                               key={
@@ -2456,7 +3185,7 @@ ${analysisData.draftTemplate.body}`}
                                 Visit →
                               </span>
                             </a>
-                          ),
+                          )
                         )}
                       </div>
                     )}
@@ -2498,7 +3227,7 @@ ${analysisData.draftTemplate.body}`}
               type="button"
               onClick={() =>
                 setShowHistoryDrawer(
-                  false,
+                  false
                 )
               }
             >
@@ -2516,48 +3245,53 @@ ${analysisData.draftTemplate.body}`}
           ) : (
             <div className="history-list">
               {userHistory.map(
-                (item, index) => (
+                (
+                  item,
+                  index
+                ) => (
                   <button
                     type="button"
                     className="history-item"
                     key={index}
                     onClick={() => {
                       setTitle(
-                        item.title,
+                        item.title
                       );
 
                       setDescription(
-                        item.description,
+                        item.description
                       );
 
                       setAnalysisData(
-                        item.result,
+                        item.result
                       );
 
                       setStep(
-                        "results",
+                        "results"
                       );
 
                       setActiveTab(
-                        "overview",
+                        "overview"
                       );
 
                       setShowHistoryDrawer(
-                        false,
+                        false
                       );
                     }}
                   >
                     <strong>
-                      {item.title}
+                      {
+                        item.title
+                      }
                     </strong>
 
                     <span>
                       {new Date(
-                        item.timestamp,
+                        item.timestamp
                       ).toLocaleDateString()}
                     </span>
                   </button>
-                ),
+                )
               )}
             </div>
           )}
@@ -2577,12 +3311,13 @@ ${analysisData.draftTemplate.body}`}
 
               <button
                 type="button"
+                disabled={
+                  isAuthLoading
+                }
                 onClick={() => {
-                  if (!isAuthLoading) {
-                    setShowAuthModal(
-                      false,
-                    );
-                  }
+                  setShowAuthModal(
+                    false
+                  );
                 }}
               >
                 ✕
@@ -2598,8 +3333,12 @@ ${analysisData.draftTemplate.body}`}
             <button
               type="button"
               className="google-login-button"
-              onClick={handleGoogleLogin}
-              disabled={isAuthLoading}
+              onClick={
+                handleGoogleLogin
+              }
+              disabled={
+                isAuthLoading
+              }
             >
               <svg
                 className="google-login-icon"
@@ -2656,7 +3395,7 @@ ${analysisData.draftTemplate.body}`}
                   value={authEmail}
                   onChange={(e) =>
                     setAuthEmail(
-                      e.target.value,
+                      e.target.value
                     )
                   }
                   required
@@ -2674,10 +3413,13 @@ ${analysisData.draftTemplate.body}`}
                 <input
                   type="password"
                   className="form-input"
-                  value={authPassword}
+                  value={
+                    authPassword
+                  }
                   onChange={(e) =>
                     setAuthPassword(
-                      e.target.value,
+                      e.target
+                        .value
                     )
                   }
                   required
@@ -2696,7 +3438,8 @@ ${analysisData.draftTemplate.body}`}
               >
                 {isAuthLoading
                   ? "Please wait..."
-                  : authMode === "login"
+                  : authMode ===
+                      "login"
                     ? "Log In"
                     : "Sign Up"}
               </button>
@@ -2708,6 +3451,7 @@ ${analysisData.draftTemplate.body}`}
                 <>
                   Don't have an
                   account?{" "}
+
                   <button
                     type="button"
                     disabled={
@@ -2715,11 +3459,11 @@ ${analysisData.draftTemplate.body}`}
                     }
                     onClick={() => {
                       setAuthMode(
-                        "signup",
+                        "signup"
                       );
 
                       setAuthError(
-                        null,
+                        null
                       );
                     }}
                   >
@@ -2730,6 +3474,7 @@ ${analysisData.draftTemplate.body}`}
                 <>
                   Already have an
                   account?{" "}
+
                   <button
                     type="button"
                     disabled={
@@ -2737,11 +3482,11 @@ ${analysisData.draftTemplate.body}`}
                     }
                     onClick={() => {
                       setAuthMode(
-                        "login",
+                        "login"
                       );
 
                       setAuthError(
-                        null,
+                        null
                       );
                     }}
                   >
