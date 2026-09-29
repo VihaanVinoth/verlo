@@ -16,7 +16,6 @@ export default function App() {
   const [processingStage, setProcessingStage] = useState(0);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
-  const [copyCount, setCopyCount] = useState(0);
 
   const [customAlert, setCustomAlert] = useState(null);
   const [alertExiting, setAlertExiting] = useState(false);
@@ -24,7 +23,6 @@ export default function App() {
   const triggerCustomAlert = (message, type = 'success') => {
     setCustomAlert({ message, type });
     setAlertExiting(false);
-    
     setTimeout(() => {
       setAlertExiting(true);
       setTimeout(() => {
@@ -116,13 +114,6 @@ export default function App() {
     return processedLines.join('');
   };
 
-  const handleExampleSelect = (exTitle, exDesc, exContext) => {
-    setTitle(exTitle);
-    setDescription(exDesc);
-    setUserContext(exContext);
-    setError(null);
-  };
-
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
     setAuthError(null);
@@ -135,16 +126,9 @@ export default function App() {
         body: JSON.stringify({ email: authEmail.trim(), password: authPassword })
       });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Authentication failed');
 
-      if (!res.ok) {
-        if (authMode === 'signup' && (res.status === 400 || res.status === 409 || (data.error && data.error.toLowerCase().includes('exist')))) {
-          throw new Error('This email address is already registered. Please log in instead.');
-        }
-        throw new Error(data.error || 'Authentication failed');
-      }
-
-      const userData = data.user || { id: data.userId || authEmail, email: authEmail };
-      setCurrentUser(userData);
+      setCurrentUser(data.user);
       setShowAuthModal(false);
       setAuthEmail('');
       setAuthPassword('');
@@ -178,22 +162,17 @@ export default function App() {
         })
       });
       const data = await res.json();
-      if (data.history) {
-        setUserHistory(data.history);
-        triggerCustomAlert('Pathway saved successfully to your account history!', 'success');
-      } else {
-        triggerCustomAlert('Pathway saved successfully.', 'success');
-      }
+      if (data.history) setUserHistory(data.history);
+      triggerCustomAlert('Pathway saved successfully!', 'success');
     } catch (err) {
-      console.error('Failed to save history', err);
-      triggerCustomAlert('Error saving pathway to account history.', 'error');
+      triggerCustomAlert('Error saving pathway.', 'error');
     }
   };
 
   const handleInitialSubmit = async (e) => {
     e.preventDefault();
     if (wordCount < MIN_WORDS) {
-      setError(`Please provide a bit more detail (at least ${MIN_WORDS} words) so VERLO can configure your wizard.`);
+      setError(`Please provide at least ${MIN_WORDS} words so VERLO can configure your adaptive wizard.`);
       return;
     }
 
@@ -205,31 +184,34 @@ export default function App() {
       const res = await fetch(`${API_URL}/api/generate-questions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: `${title ? title + ': ' : ''}${description} ${userContext ? '(Context: ' + userContext + ')' : ''}` }),
+        body: JSON.stringify({ prompt: `${title ? title + ': ' : ''}${description}` }),
       });
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || 'Failed to generate wizard questions.');
+        setError(data.error || 'Failed to generate adaptive questions.');
         setStep('landing');
         return;
       }
 
-      setWizardQuestions(data.questions || [
-        "What is your primary timeline or deadline for this issue?",
-        "What are the main financial or resource constraints involved?",
-        "What is your ideal outcome or resolution?"
-      ]);
+      setWizardQuestions(data.questions || []);
       setWizardAnswers({});
       setStep('wizard');
     } catch (err) {
-      setError('Could not connect to server. Is the backend running?');
+      setError('Could not connect to server.');
       setStep('landing');
     }
   };
 
   const handleWizardSubmit = async (e) => {
     e.preventDefault();
+    
+    const unanswered = wiardQuestions.some((_, idx) => !wizardAnswers[idx]);
+    if (unanswered) {
+      triggerCustomAlert('Please select an option for all questions before proceeding.', 'error');
+      return;
+    }
+
     setStep('processing');
     setProcessingStage(0);
 
@@ -238,17 +220,14 @@ export default function App() {
 
     const interval = setInterval(() => {
       currentStage += 1;
-      if (currentStage < processingSteps.length) {
-        setProcessingStage(currentStage);
-      } else {
-        clearInterval(interval);
-      }
+      if (currentStage < processingSteps.length) setProcessingStage(currentStage);
+      else clearInterval(interval);
     }, intervalTime);
 
     try {
-      const formattedAnswers = wizardQuestions.map((q, idx) => ({
-        question: q,
-        answer: wizardAnswers[idx] || 'No specific detail provided.'
+      const formattedAnswers = wizardQuestions.map((qObj, idx) => ({
+        question: qObj.question,
+        answer: wizardAnswers[idx]
       }));
 
       const totalAnimationTime = processingSteps.length * intervalTime;
@@ -256,10 +235,7 @@ export default function App() {
         fetch(`${API_URL}/api/generate-report`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            prompt: `${title ? title + ': ' : ''}${description}`, 
-            answers: formattedAnswers 
-          }),
+          body: JSON.stringify({ prompt: `${title ? title + ': ' : ''}${description}`, answers: formattedAnswers }),
         }),
         new Promise(resolve => setTimeout(resolve, totalAnimationTime))
       ]);
@@ -288,7 +264,6 @@ export default function App() {
     const textToCopy = `To: ${analysisData.draftTemplate.recipient}\nSubject: ${analysisData.draftTemplate.subject}\n\n${analysisData.draftTemplate.body}`;
     navigator.clipboard.writeText(textToCopy);
     setCopied(true);
-    setCopyCount(c => c + 1);
     triggerCustomAlert('Letter template copied to clipboard!', 'success');
     setTimeout(() => setCopied(false), 3000);
   };
@@ -308,10 +283,7 @@ export default function App() {
       const res = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          question: questionText, 
-          currentSituation: description || title 
-        })
+        body: JSON.stringify({ question: questionText, currentSituation: description || title })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to get chat response.');
@@ -345,11 +317,11 @@ export default function App() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
             <button 
               onClick={() => setShowHistoryDrawer(!showHistoryDrawer)}
-              style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+              style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer' }}
             >
               Saved History ({userHistory.length})
             </button>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{currentUser.email || currentUser.id}</span>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{currentUser.email}</span>
             <button onClick={handleLogout} style={{ background: 'none', border: '1px solid var(--border-subtle)', color: 'var(--danger)', padding: '0.3rem 0.6rem', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}>Logout</button>
           </div>
         ) : (
@@ -360,6 +332,7 @@ export default function App() {
       </div>
 
       <div style={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '800px', margin: '0 auto', padding: '0 1.5rem 3rem 1.5rem', boxSizing: 'border-box', alignItems: 'center' }}>
+        
         {step === 'landing' && (
           <div className="page-transition" key="landing" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div className="verlo-header" style={{ marginTop: '1rem', textAlign: 'center', width: '100%' }}>
@@ -369,7 +342,7 @@ export default function App() {
               </div>
               <h1 className="verlo-title">Decision Intelligence Wizard</h1>
               <p className="verlo-subtitle" style={{ marginBottom: '2rem', maxWidth: '650px', marginInline: 'auto' }}>
-                Transform complex challenges into adaptive diagnostic questions, followed by a comprehensive master report dashboard and contextual AI assistant.
+                Transform complex challenges into dynamic, AI-generated multiple-choice clarification flows, culminating in a comprehensive master report dashboard.
               </p>
             </div>
 
@@ -379,7 +352,7 @@ export default function App() {
               <form onSubmit={handleInitialSubmit} className="verlo-card" style={{ width: '100%', boxSizing: 'border-box' }}>
                 <div className="form-group">
                   <label className="form-label">Situation Title (Optional)</label>
-                  <input type="text" className="form-input" placeholder="e.g., Landlord deposit dispute" value={title} onChange={(e) => setTitle(e.target.value)} />
+                  <input type="text" className="form-input" placeholder="e.g., Commercial contract dispute" value={title} onChange={(e) => setTitle(e.target.value)} />
                 </div>
 
                 <div className="form-group">
@@ -389,11 +362,11 @@ export default function App() {
                       {wordCount} words {wordCount < MIN_WORDS ? `(Min ${MIN_WORDS})` : '✓'}
                     </span>
                   </div>
-                  <textarea className="form-textarea" placeholder="Include timeline, amounts, and your goal..." value={description} onChange={(e) => setDescription(e.target.value)} required />
+                  <textarea className="form-textarea" placeholder="Include timeline, core issues, and your objective..." value={description} onChange={(e) => setDescription(e.target.value)} required />
                 </div>
 
                 <button type="submit" className="btn-primary" style={{ width: '100%' }}>
-                  Launch Wizard Engine →
+                  Launch Adaptive Wizard →
                 </button>
               </form>
             </div>
@@ -401,24 +374,55 @@ export default function App() {
         )}
         {step === 'wizard' && (
           <div className="page-transition" key="wizard" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{ width: '100%', maxWidth: '650px' }}>
+            <div style={{ width: '100%', maxWidth: '680px' }}>
               <div className="verlo-header" style={{ marginBottom: '2rem', textAlign: 'center' }}>
                 <h2 className="verlo-title" style={{ fontSize: '2rem' }}>Targeted Clarification</h2>
-                <p className="verlo-subtitle">VERLO has formulated these diagnostic questions based on your prompt. Answer below to build your master report.</p>
+                <p className="verlo-subtitle">VERLO generated these questions dynamically based on your situation. Select the best option for each:</p>
               </div>
 
               <form onSubmit={handleWizardSubmit} className="verlo-card" style={{ width: '100%', boxSizing: 'border-box' }}>
-                {wizardQuestions.map((q, idx) => (
-                  <div key={idx} className="form-group">
-                    <label className="form-label" style={{ color: 'var(--accent)', fontWeight: 600 }}>{idx + 1}. {q}</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      placeholder="Provide context..." 
-                      value={wizardAnswers[idx] || ''} 
-                      onChange={(e) => setWizardAnswers({ ...wizardAnswers, [idx]: e.target.value })} 
-                      required 
-                    />
+                {wizardQuestions.map((qObj, idx) => (
+                  <div key={idx} style={{ marginBottom: '2rem', borderBottom: idx < wizardQuestions.length - 1 ? '1px solid var(--border-subtle)' : 'none', paddingBottom: idx < wizardQuestions.length - 1 ? '1.5rem' : '0' }}>
+                    <label style={{ color: 'var(--text-main)', fontWeight: 600, fontSize: '0.95rem', display: 'block', marginBottom: '0.75rem' }}>
+                      {idx + 1}. {qObj.question}
+                    </label>
+                    
+                    <div style={{ display: 'grid', gap: '0.5rem' }}>
+                      {qObj.options?.map((opt, optIdx) => {
+                        const isSelected = wizardAnswers[idx] === opt;
+                        return (
+                          <button
+                            type="button"
+                            key={optIdx}
+                            onClick={() => setWizardAnswers({ ...wizardAnswers, [idx]: opt })}
+                            style={{
+                              background: isSelected ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
+                              color: isSelected ? 'var(--accent)' : 'var(--text-main)',
+                              border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                              padding: '0.75rem 1rem',
+                              borderRadius: '8px',
+                              textAlign: 'left',
+                              fontSize: '0.9rem',
+                              cursor: 'pointer',
+                              fontWeight: isSelected ? 600 : 400,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.75rem',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            <span style={{ 
+                              width: '16px', height: '16px', borderRadius: '50%', 
+                              border: `2px solid ${isSelected ? 'var(--accent)' : 'var(--text-muted)'}`,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px'
+                            }}>
+                              {isSelected && '✓'}
+                            </span>
+                            <span>{opt}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 ))}
 
@@ -434,6 +438,7 @@ export default function App() {
             </div>
           </div>
         )}
+
         {step === 'processing' && (
           <div className="page-transition processing-container" key="processing" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3rem 0' }}>
             <div className="processing-pulse-ring"></div>
@@ -443,7 +448,7 @@ export default function App() {
                 const isDone = idx < processingStage;
                 const isActive = idx === processingStage;
                 return (
-                  <div key={idx} className={`step-item ${isActive ? 'active' : ''} ${isDone ? 'done' : ''}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'var(--bg-card)', marginBottom: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-subtle)' }}>
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'var(--bg-card)', marginBottom: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-subtle)' }}>
                     <span style={{ color: isActive ? 'var(--accent)' : 'var(--text-muted)', fontSize: '0.9rem' }}>{text}</span>
                     <span>{isDone ? '✓' : isActive ? '●' : '○'}</span>
                   </div>
@@ -452,6 +457,7 @@ export default function App() {
             </div>
           </div>
         )}
+
         {step === 'results' && analysisData && (
           <div className="page-transition animate-fade-slide-up" key="results" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div style={{ width: '100%', maxWidth: '750px' }}>
@@ -460,11 +466,12 @@ export default function App() {
                   <button onClick={() => setStep('landing')} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer' }}>
                     ← New Analysis
                   </button>
-                  <button onClick={() => handleSaveToAccount(analysisData)} style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid var(--accent)', color: 'var(--accent)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <button onClick={() => handleSaveToAccount(analysisData)} style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid var(--accent)', color: 'var(--accent)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
                     Save to Account
                   </button>
                 </div>
               </div>
+
               <div className="result-section animate-fade-slide-up" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', background: 'var(--bg-surface)' }}>
                 <div>
                   <span className={`badge ${analysisData.confidence?.toLowerCase()}`} style={{ marginBottom: '0.25rem', display: 'inline-block' }}>
@@ -486,6 +493,7 @@ export default function App() {
                   </div>
                 </div>
               </div>
+
               <div className="dominant-action animate-fade-slide-up">
                 <h3 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--accent)', marginBottom: '0.5rem' }}>
                   Immediate Priority Action
@@ -495,6 +503,7 @@ export default function App() {
                   <strong>Why this first:</strong> {analysisData.nextSteps?.[0]?.why}
                 </p>
               </div>
+
               <div className="result-section animate-fade-slide-up">
                 <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem' }}>Full Step-by-Step Action Roadmap</h3>
                 <div style={{ display: 'grid', gap: '1rem' }}>
@@ -512,6 +521,7 @@ export default function App() {
                   ))}
                 </div>
               </div>
+
               {analysisData.draftTemplate && (
                 <div className="result-section animate-fade-slide-up" style={{ background: 'rgba(16, 185, 129, 0.05)', borderColor: 'rgba(16, 185, 129, 0.3)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
@@ -525,9 +535,10 @@ export default function App() {
                   </div>
                 </div>
               )}
+
               <div className="result-section animate-fade-slide-up" style={{ background: 'var(--bg-surface)' }}>
                 <h3 style={{ color: 'var(--text-main)', marginBottom: '0.5rem' }}>Consult VERLO AI Assistant</h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>Have questions about this report or need a follow-up response? Ask below:</p>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>Have questions about this report? Ask below:</p>
                 {chatHistory.length > 0 && (
                   <div style={{ display: 'grid', gap: '0.75rem', marginBottom: '1rem', maxHeight: '300px', overflowY: 'auto' }}>
                     {chatHistory.map((msg, index) => (
@@ -535,11 +546,7 @@ export default function App() {
                         <strong style={{ display: 'block', marginBottom: '0.2rem', color: msg.role === 'user' ? 'var(--text-main)' : 'var(--accent)' }}>
                           {msg.role === 'user' ? 'You' : 'VERLO AI'}
                         </strong>
-                        {msg.role === 'user' ? (
-                          <div style={{ color: 'var(--text-muted)' }}>{msg.content}</div>
-                        ) : (
-                          <div style={{ color: 'var(--text-muted)' }} dangerouslySetInnerHTML={{ __html: renderMarkdownToHTML(msg.content) }} />
-                        )}
+                        <div style={{ color: 'var(--text-muted)' }} dangerouslySetInnerHTML={{ __html: renderMarkdownToHTML(msg.content) }} />
                       </div>
                     ))}
                   </div>
@@ -556,6 +563,7 @@ export default function App() {
           </div>
         )}
       </div>
+
       {showHistoryDrawer && (
         <div style={{ position: 'fixed', top: 0, right: 0, width: '100%', maxWidth: '380px', height: '100%', background: 'var(--bg-card)', borderLeft: '1px solid var(--border-subtle)', zIndex: 100, padding: '1.5rem', overflowY: 'auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
@@ -576,6 +584,7 @@ export default function App() {
           )}
         </div>
       )}
+
       {showAuthModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 200, padding: '1rem' }}>
           <div style={{ background: 'var(--bg-card)', padding: '2rem', borderRadius: '12px', border: '1px solid var(--border-subtle)', width: '100%', maxWidth: '400px' }}>

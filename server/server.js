@@ -20,7 +20,7 @@ app.use(express.json());
 const openai = new OpenAI({ 
   apiKey: process.env.OPENAI_API_KEY || process.env.GROQ_API_KEY 
 });
-const MODEL_NAME = process.env.OPENAI_MODEL || 'gpt-4o';
+const AI_MODEL = 'gpt-4o';
 
 const DB_PATH = path.resolve(__dirname, 'verlo.db');
 let db = null;
@@ -33,7 +33,7 @@ function saveDatabase() {
   }
 }
 
-async function initializeDatabase() {
+async function initialiseDatabase() {
   const SQL = await initSqlJs();
   
   if (fs.existsSync(DB_PATH)) {
@@ -69,13 +69,12 @@ async function initializeDatabase() {
       ['user_demo_123', 'demo@verlo.com', defaultSalt, defaultHash]
     );
     saveDatabase();
-    console.log('Secure demo account ready: demo@verlo.com / password123');
   } catch (e) {
     console.error('Demo user init error:', e);
   }
 }
 
-initializeDatabase();
+initialiseDatabase();
 
 function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
   const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
@@ -97,7 +96,6 @@ function loadModerationRules() {
       const parsed = JSON.parse(rawData);
       if (Array.isArray(parsed)) restrictedWords = parsed;
       else if (parsed.blacklisted_words) restrictedWords = parsed.blacklisted_words;
-      console.log(`Successfully loaded ${restrictedWords.length} restricted terms.`);
     }
   } catch (err) {
     console.error('Failed to load moderation rules:', err);
@@ -119,9 +117,7 @@ function containsRestrictedContent(text) {
 
 app.post('/api/auth/signup', (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required.' });
-  }
+  if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
 
   const cleanEmail = email.trim().toLowerCase();
   const userId = 'user_' + Date.now();
@@ -133,7 +129,7 @@ app.post('/api/auth/signup', (req, res) => {
     stmt.step();
     stmt.free();
     saveDatabase();
-    res.json({ success: true, message: 'Account successfully created and encrypted in SQL!', user: { id: userId, email: cleanEmail } });
+    res.json({ success: true, user: { id: userId, email: cleanEmail } });
   } catch (err) {
     res.status(400).json({ error: 'An account with this email address already exists.' });
   }
@@ -141,9 +137,7 @@ app.post('/api/auth/signup', (req, res) => {
 
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required.' });
-  }
+  if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
 
   const cleanEmail = email.trim().toLowerCase();
 
@@ -159,8 +153,7 @@ app.post('/api/auth/login', (req, res) => {
     const user = stmt.getAsObject();
     stmt.free();
 
-    const isValid = verifyPassword(password, user.salt, user.password_hash);
-    if (!isValid) {
+    if (!verifyPassword(password, user.salt, user.password_hash)) {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
@@ -172,22 +165,14 @@ app.post('/api/auth/login', (req, res) => {
 
 app.get('/api/history/:userId', (req, res) => {
   const { userId } = req.params;
-  
   try {
     const stmt = db.prepare(`SELECT id, timestamp, report_data FROM history WHERE user_id = ? ORDER BY timestamp DESC`);
     stmt.bind([userId]);
-    
     const rows = [];
-    while (stmt.step()) {
-      rows.push(stmt.getAsObject());
-    }
+    while (stmt.step()) rows.push(stmt.getAsObject());
     stmt.free();
 
-    const history = rows.map(row => ({
-      id: row.id,
-      timestamp: row.timestamp,
-      ...JSON.parse(row.report_data)
-    }));
+    const history = rows.map(row => ({ id: row.id, timestamp: row.timestamp, ...JSON.parse(row.report_data) }));
     res.json({ history });
   } catch (err) {
     res.status(500).json({ error: 'Database read error.' });
@@ -196,17 +181,14 @@ app.get('/api/history/:userId', (req, res) => {
 
 app.post('/api/history/save', (req, res) => {
   const { userId, report } = req.body;
-  if (!userId || !report) {
-    return res.status(400).json({ error: 'Missing userId or report data.' });
-  }
+  if (!userId || !report) return res.status(400).json({ error: 'Missing userId or report data.' });
 
   const reportId = Date.now().toString();
   const timestamp = new Date().toISOString();
-  const reportString = JSON.stringify(report);
 
   try {
     const insertStmt = db.prepare(`INSERT INTO history (id, user_id, timestamp, report_data) VALUES (?, ?, ?, ?)`);
-    insertStmt.bind([reportId, userId, timestamp, reportString]);
+    insertStmt.bind([reportId, userId, timestamp, JSON.stringify(report)]);
     insertStmt.step();
     insertStmt.free();
     saveDatabase();
@@ -214,34 +196,30 @@ app.post('/api/history/save', (req, res) => {
     const selectStmt = db.prepare(`SELECT id, timestamp, report_data FROM history WHERE user_id = ? ORDER BY timestamp DESC`);
     selectStmt.bind([userId]);
     const rows = [];
-    while (selectStmt.step()) {
-      rows.push(selectStmt.getAsObject());
-    }
+    while (selectStmt.step()) rows.push(selectStmt.getAsObject());
     selectStmt.free();
 
-    const history = rows.map(row => ({
-      id: row.id,
-      timestamp: row.timestamp,
-      ...JSON.parse(row.report_data)
-    }));
-    res.json({ success: true, message: 'Report saved to SQL database!', history });
+    const history = rows.map(row => ({ id: row.id, timestamp: row.timestamp, ...JSON.parse(row.report_data) }));
+    res.json({ success: true, history });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to save report to database.' });
+    res.status(500).json({ error: 'Failed to save report.' });
   }
 });
 
-// 1. Adaptive Wizard Questions Generator Endpoint
 app.post('/api/generate-questions', async (req, res) => {
   try {
     const { prompt } = req.body;
-    if (!prompt) {
-      return res.status(400).json({ error: 'Prompt is required.' });
-    }
+    if (!prompt) return res.status(400).json({ error: 'Prompt is required.' });
 
-    const systemPrompt = `You are Verlo's diagnostic wizard engine. Analyze the user's situation and generate exactly 3 sharp, highly targeted, adaptive clarification questions that uncover missing critical details (such as timelines, constraints, or evidence). Return a JSON object with a "questions" key containing an array of 3 string questions. Return ONLY valid JSON.`;
+    const systemPrompt = `You are Verlo's adaptive diagnostic wizard engine. Analyse the user's specific situation and generate exactly 3 deeply tailored, context-specific multiple-choice questions to uncover critical missing constraints, timelines, or variables. 
+Each question must contain:
+- "question": string (the question text)
+- "options": array of 3 to 4 distinct, highly contextual multiple-choice string options.
+
+Return a strict JSON object with a "questions" key containing an array of these 3 question objects. Return ONLY valid JSON.`;
 
     const completion = await openai.chat.completions.create({
-      model: MODEL_NAME,
+      model: AI_MODEL,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: prompt }
@@ -250,31 +228,23 @@ app.post('/api/generate-questions', async (req, res) => {
     });
 
     const parsed = JSON.parse(completion.choices[0].message.content);
-    res.json({ questions: parsed.questions || [
-      "What is your primary timeline or deadline for this issue?",
-      "What are the main financial or resource constraints involved?",
-      "What is your ideal outcome or resolution?"
-    ] });
+    res.json({ questions: parsed.questions });
   } catch (error) {
     console.error('Generate Questions Error:', error);
     res.status(500).json({ error: 'Failed to generate adaptive questions.' });
   }
 });
 
-// 2. Comprehensive Master Report Generator Endpoint
 app.post('/api/generate-report', async (req, res) => {
   try {
     const { prompt, answers } = req.body;
-
-    if (!prompt) {
-      return res.status(400).json({ error: 'Prompt is required.' });
-    }
+    if (!prompt) return res.status(400).json({ error: 'Prompt is required.' });
 
     const formattedAnswersSummary = Array.isArray(answers) 
-      ? answers.map(a => `Q: ${a.question}\nA: ${a.answer}`).join('\n') 
+      ? answers.map(a => `Q: ${a.question}\nSelected Choice: ${a.answer}`).join('\n\n') 
       : 'None provided';
 
-    const systemPrompt = `You are Verlo, an elite enterprise decision intelligence and strategic simulation engine. Provide exhaustive, adversarial analysis and tactical blueprints. 
+    const systemPrompt = `You are Verlo, an elite enterprise decision intelligence and strategic simulation engine. Provide exhaustive, adversarial analysis and tactical blueprints based on the initial situation and user's chosen wizard option parameters. 
 
 Output a strict JSON object with the following keys:
 - confidence (string, e.g., "High Conviction", "Calculated Risk", or "High Uncertainty")
@@ -284,11 +254,11 @@ Output a strict JSON object with the following keys:
 Return ONLY valid JSON.`;
 
     const userPrompt = `Initial Situation: ${prompt}
-Clarification Wizard Answers:
+Clarification Wizard Selections:
 ${formattedAnswersSummary}`;
 
     const completion = await openai.chat.completions.create({
-      model: MODEL_NAME,
+      model: AI_MODEL,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
@@ -296,25 +266,20 @@ ${formattedAnswersSummary}`;
       response_format: { type: 'json_object' }
     });
 
-    const resultData = JSON.parse(completion.choices[0].message.content);
-    res.json({ data: resultData });
+    res.json({ data: JSON.parse(completion.choices[0].message.content) });
   } catch (error) {
     console.error('Generate Report Error:', error);
     res.status(500).json({ error: 'Report generation failed.' });
   }
 });
 
-// 3. Contextual Assistant Chat Endpoint
 app.post('/api/chat', async (req, res) => {
   try {
     const { question, currentSituation } = req.body;
-
-    if (!question) {
-      return res.status(400).json({ error: 'Question is required.' });
-    }
+    if (!question) return res.status(400).json({ error: 'Question is required.' });
 
     const completion = await openai.chat.completions.create({
-      model: MODEL_NAME,
+      model: AI_MODEL,
       messages: [
         { role: 'system', content: `You are Verlo AI, an elite strategic assistant answering follow-up questions regarding the situation: "${currentSituation || 'General inquiry'}". Provide direct, professional markdown guidance.` },
         { role: 'user', content: question }
@@ -329,5 +294,5 @@ app.post('/api/chat', async (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`VERLO running on port ${PORT} via OpenAI SDK (${MODEL_NAME})`);
+  console.log(`VERLO running on port ${PORT} via OpenAI SDK (${AI_MODEL})`);
 });
