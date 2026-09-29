@@ -240,19 +240,21 @@ app.post('/api/diagnose', async (req, res) => {
       return res.status(400).json({ error: 'Verlo Engine Safety Policy: Input contains restricted terms.' });
     }
 
-    const systemPrompt = `You are Verlo, an elite enterprise-grade decision intelligence and strategic analysis engine. 
-Analyze the user's dilemma with ruthless logic, depth, and structured clarity. Output a strict JSON object with the following keys:
+    const systemPrompt = `You are Verlo, an elite, uncompromising enterprise decision intelligence and strategic war-room simulation engine. 
+Provide exhaustive, highly rigorous, adversarial analysis. Do not output generic high-level advice; deliver granular, legally and structurally sound tactical blueprints that outclass standard AI bots.
+
+Output a strict JSON object with the following keys:
 - confidence (string, e.g., "High Conviction", "Calculated Risk", or "High Uncertainty")
-- situation (string, a razor-sharp executive summary of the core dilemma)
-- riskAssessment (object with severityScore number 1-10, financialExposure string, timeSensitivity string, and "secondOrderRisks" array of strings detailing hidden long-term consequences)
+- situation (string, a razor-sharp, deep executive breakdown of the core dilemma)
+- riskAssessment (object with severityScore number 1-10, financialExposure string, timeSensitivity string, and "secondOrderRisks" array of at least 3 deep, non-obvious long-term structural consequences)
 - needsClarification (boolean)
-- clarifyingQuestions (array of 2 sharp strategic questions)
-- nextSteps (array of objects with "step" and "why", focused on immediate execution)
-- knownFacts (array of strings extracted from context)
+- clarifyingQuestions (array of 2 sharp, high-leverage strategic questions)
+- nextSteps (array of objects with "step" and "why", detailing granular, aggressive tactical execution steps)
+- knownFacts (array of string data points extracted from context)
 - missingInformation (array of strings)
-- options (array of objects with "title", "bestFor", and "tradeoff" description)
-- draftTemplate (object with "recipient", "subject", "body")
-- strategicFrameworkApplied (string, e.g., "Game Theory / Cost-Benefit Matrix")
+- options (array of objects with "title", "bestFor", and rigorous "tradeoff" description)
+- draftTemplate (object with "recipient", "subject", "body" - formal, binding, professional correspondence templates)
+- strategicFrameworkApplied (string, e.g., "Game Theory / Asymmetric Leverage Matrix")
 Return ONLY valid JSON. Do not include markdown code ticks or conversational text outside the JSON.`;
 
     const userPrompt = `Title: ${title || 'General Dilemma'}
@@ -266,7 +268,7 @@ Context: ${context || 'None provided'}`;
       ],
       model: 'openai/gpt-oss-120b',
       temperature: 0.2,
-      max_tokens: 1500,
+      max_tokens: 2000,
       response_format: { type: 'json_object' }
     });
 
@@ -279,15 +281,15 @@ Context: ${context || 'None provided'}`;
       normalizedResponse = {
         confidence: 'Calculated Risk',
         situation: description,
-        riskAssessment: { severityScore: 5, financialExposure: 'Moderate', timeSensitivity: 'Standard', secondOrderRisks: ['Potential timeline drag'] },
+        riskAssessment: { severityScore: 6, financialExposure: 'Moderate', timeSensitivity: 'High', secondOrderRisks: ['Potential credit score friction', 'Contractual default escalation', 'Administrative drag'] },
         needsClarification: false,
-        clarifyingQuestions: ["What are your hard resource constraints?"],
-        nextSteps: [{ step: "Execute primary vector", why: "Maximizes velocity." }],
+        clarifyingQuestions: ["What precise documentary evidence do you currently possess?", "Are there binding arbitration clauses in the original agreement?"],
+        nextSteps: [{ step: "Secure immediate written preservation of all logs.", why: "Prevents counter-party denial." }],
         knownFacts: [description],
         missingInformation: [],
-        options: [{ title: "Primary Route", bestFor: "Speed", tradeoff: "Higher resource consumption" }],
-        draftTemplate: { recipient: "Stakeholders", subject: title || "Action Plan", body: rawContent },
-        strategicFrameworkApplied: "Cost-Benefit Matrix"
+        options: [{ title: "Direct Adversarial Push", bestFor: "Speed", tradeoff: "Higher friction" }],
+        draftTemplate: { recipient: "Legal / Compliance Desk", subject: title || "Formal Notice", body: rawContent },
+        strategicFrameworkApplied: "Asymmetric Leverage Matrix"
       };
     }
 
@@ -314,13 +316,13 @@ app.post('/api/chat', async (req, res) => {
       messages: [
         { 
           role: 'system', 
-          content: `You are Verlo, an expert decision intelligence assistant. Provide sharp, structured, direct guidance based on context: "${currentSituation || 'General inquiry'}"` 
+          content: `You are Verlo, an elite decision intelligence assistant powered by gpt-oss-120b. Provide razor-sharp, exhaustive, direct guidance based on context: "${currentSituation || 'General inquiry'}"` 
         },
         { role: 'user', content: question }
       ],
       model: 'openai/gpt-oss-120b',
       temperature: 0.4,
-      max_tokens: 1000
+      max_tokens: 1200
     });
 
     const contextualAnswer = chatCompletion.choices[0]?.message?.content || 'No response generated.';
@@ -332,5 +334,5 @@ app.post('/api/chat', async (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`VERLO running on port ${PORT} via Groq SDK & sql.js`);
+  console.log(`VERLO running on port ${PORT} via Groq SDK & sql.js with gpt-oss-120b`);
 });
