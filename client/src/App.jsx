@@ -13,6 +13,10 @@ export default function App() {
   const [selectedMcqAnswers, setSelectedMcqAnswers] = useState({});
   const [adaptiveTextAnswers, setAdaptiveTextAnswers] = useState({});
   const [activeAssessmentIndex, setActiveAssessmentIndex] = useState(0);
+  const [isAdaptiveLoading, setIsAdaptiveLoading] = useState(false);
+  const [adaptiveQuestionCount, setAdaptiveQuestionCount] = useState(0);
+
+  const MAX_ADAPTIVE_QUESTIONS = 6;
 
   const [assessmentAttachment, setAssessmentAttachment] = useState(null);
   const [chatAttachment, setChatAttachment] = useState(null);
@@ -244,8 +248,74 @@ export default function App() {
     }
   };
 
+  const getAllAssessmentItems = () => {
+    if (!assessmentData) return [];
+
+    const adaptiveSource =
+      assessmentData.adaptiveQuestions ||
+      assessmentData.adaptive_questions ||
+      assessmentData.questions ||
+      [];
+
+    return (Array.isArray(adaptiveSource) ? adaptiveSource : []).map((item, index) => ({
+      type: item.type === 'mcq' ? 'mcq' : 'text',
+      ...item,
+      id: item.id || item.questionId || `adaptive-${index}`,
+      question: item.question || item.text || item.prompt || item.stem,
+      stem: item.stem || item.question || item.text || item.prompt,
+      choices: Array.isArray(item.choices) ? item.choices : []
+    }));
+  };
+
+  const assessmentItems = getAllAssessmentItems();
+
+  const requestAdaptiveQuestion = async (previousAnswers = {}) => {
+    setIsAdaptiveLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch(`${API_URL}/api/adaptive-question`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          description,
+          context: userContext,
+          previousAnswers,
+          questionNumber: adaptiveQuestionCount + 1,
+          maxQuestions: MAX_ADAPTIVE_QUESTIONS
+        })
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        throw new Error(result.error || 'Could not generate the adaptive question.');
+      }
+
+      if (!result.question) {
+        throw new Error('The adaptive engine returned no question.');
+      }
+
+      setAssessmentData({
+        adaptiveQuestions: [...getAllAssessmentItems(), result.question]
+      });
+      setAdaptiveQuestionCount(prev => prev + 1);
+      setActiveAssessmentIndex(prev => prev + 1);
+      setStep('assessment');
+
+      return result;
+    } catch (err) {
+      setError(err.message || 'Could not generate the next adaptive question.');
+      return null;
+    } finally {
+      setIsAdaptiveLoading(false);
+    }
+  };
+
   const handleInitialSubmit = async (e) => {
     e.preventDefault();
+
     if (wordCount < MIN_WORDS) {
       setError(`Please provide a bit more detail (at least ${MIN_WORDS} words) so VERLO can build a reliable pathway.`);
       return;
@@ -254,22 +324,14 @@ export default function App() {
     setError(null);
     setStep('processing');
     setProcessingStage(0);
-
-    let apiPromise;
-    try {
-      apiPromise = fetch(`${API_URL}/api/assess`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, attachment: assessmentAttachment }),
-      });
-    } catch (err) {
-      setError('Could not connect to server. Is the backend running?');
-      setStep('input');
-      return;
-    }
+    setAssessmentData({ adaptiveQuestions: [] });
+    setSelectedMcqAnswers({});
+    setAdaptiveTextAnswers({});
+    setActiveAssessmentIndex(0);
+    setAdaptiveQuestionCount(0);
 
     let currentStage = 0;
-    const intervalTime = 600; 
+    const intervalTime = 500;
 
     const interval = setInterval(() => {
       currentStage += 1;
@@ -281,96 +343,115 @@ export default function App() {
     }, intervalTime);
 
     try {
-      const totalAnimationTime = processingSteps.length * intervalTime;
-      const [res] = await Promise.all([
-        apiPromise,
-        new Promise(resolve => setTimeout(resolve, totalAnimationTime))
-      ]);
+      await new Promise(resolve => setTimeout(resolve, processingSteps.length * intervalTime));
 
-      const result = await res.json();
+      const firstQuestion = await fetch(`${API_URL}/api/adaptive-question`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          description,
+          context: userContext,
+          previousAnswers: {},
+          questionNumber: 1,
+          maxQuestions: MAX_ADAPTIVE_QUESTIONS
+        })
+      });
 
-      if (!res.ok) {
-        clearInterval(interval);
-        setError(result.error || 'Engine calculation failed.');
-        setStep('input');
-        return;
+      const result = await firstQuestion.json();
+
+      if (!firstQuestion.ok) {
+        throw new Error(result.error || 'Adaptive engine failed to create the first question.');
       }
 
-      setAssessmentData(result.data);
-      setSelectedMcqAnswers({});
-      setAdaptiveTextAnswers({});
+      if (!result.question) {
+        throw new Error('The adaptive engine returned no first question.');
+      }
+
+      setAssessmentData({ adaptiveQuestions: [result.question] });
+      setAdaptiveQuestionCount(1);
       setActiveAssessmentIndex(0);
       setStep('assessment');
     } catch (err) {
       clearInterval(interval);
-      setError(err.message || 'Could not connect to the server.');
+      setError(err.message || 'Could not connect to the adaptive engine.');
       setStep('input');
+    } finally {
+      clearInterval(interval);
     }
   };
 
-  const getAllAssessmentItems = () => {
-    if (!assessmentData) return [];
+  const getCurrentAnswer = () => {
+    const item = assessmentItems[activeAssessmentIndex];
+    if (!item) return '';
 
-    const mcqSource = assessmentData.mcqAssessment || assessmentData.mcqQuestions || [];
-    const adaptiveSource = assessmentData.adaptiveQuestions
-      || assessmentData.adaptive_questions
-      || assessmentData.questions
-      || [];
+    const key = item.id || activeAssessmentIndex;
 
-    const mcqs = (Array.isArray(mcqSource) ? mcqSource : []).map(item => ({ type: 'mcq', ...item }));
-    const texts = (Array.isArray(adaptiveSource) ? adaptiveSource : []).map(item => ({
-      type: 'text',
-      ...item,
-      id: item.id || item.questionId,
-      question: item.question || item.text || item.prompt || item.stem
-    }));
-    return [...mcqs, ...texts];
+    if (item.type === 'mcq') {
+      return selectedMcqAnswers[key] || '';
+    }
+
+    return adaptiveTextAnswers[key] || '';
   };
 
-  const assessmentItems = getAllAssessmentItems();
+  const handleAssessmentNext = async () => {
+    const item = assessmentItems[activeAssessmentIndex];
+    if (!item) return;
 
-  const handleAssessmentNext = () => {
-    if (activeAssessmentIndex < assessmentItems.length - 1) {
-      setActiveAssessmentIndex(activeAssessmentIndex + 1);
+    const answer = getCurrentAnswer();
+
+    if (!String(answer).trim()) {
+      triggerCustomAlert('Please answer this question before continuing.', 'error');
+      return;
+    }
+
+    const key = item.id || activeAssessmentIndex;
+    const allAnswers = {
+      ...Object.fromEntries(
+        Object.entries(adaptiveTextAnswers).map(([id, value]) => [id, value])
+      ),
+      ...Object.fromEntries(
+        Object.entries(selectedMcqAnswers).map(([id, value]) => [id, value])
+      ),
+      [key]: answer
+    };
+
+    // Keep the latest answer in state before asking the engine for the next one.
+    if (item.type === 'mcq') {
+      setSelectedMcqAnswers(prev => ({ ...prev, [key]: answer }));
     } else {
-      handleFinalAssessmentSubmit();
+      setAdaptiveTextAnswers(prev => ({ ...prev, [key]: answer }));
     }
+
+    if (adaptiveQuestionCount >= MAX_ADAPTIVE_QUESTIONS) {
+      await handleFinalAssessmentSubmit(allAnswers);
+      return;
+    }
+
+    const next = await requestAdaptiveQuestion(allAnswers);
+
+    if (!next) return;
   };
 
   const handleAssessmentPrev = () => {
     if (activeAssessmentIndex > 0) {
-      setActiveAssessmentIndex(activeAssessmentIndex - 1);
+      setActiveAssessmentIndex(prev => prev - 1);
     } else {
       setStep('input');
     }
   };
 
-  const handleFinalAssessmentSubmit = async () => {
+  const handleFinalAssessmentSubmit = async (answersOverride = null) => {
     setStep('processing');
     setProcessingStage(0);
 
-    let apiPromise;
-    try {
-      apiPromise = fetch(`${API_URL}/api/diagnose`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          title, 
-          description, 
-          context: userContext, 
-          userAnswers: adaptiveTextAnswers, 
-          mcqAnswers: selectedMcqAnswers,
-          attachment: assessmentAttachment
-        }),
-      });
-    } catch (err) {
-      setError('Could not connect to server.');
-      setStep('assessment');
-      return;
-    }
+    const finalAnswers = answersOverride || {
+      ...adaptiveTextAnswers,
+      ...selectedMcqAnswers
+    };
 
     let currentStage = 0;
-    const intervalTime = 700; 
+    const intervalTime = 700;
 
     const interval = setInterval(() => {
       currentStage += 1;
@@ -382,29 +463,61 @@ export default function App() {
     }, intervalTime);
 
     try {
-      const totalAnimationTime = processingSteps.length * intervalTime;
       const [res] = await Promise.all([
-        apiPromise,
-        new Promise(resolve => setTimeout(resolve, totalAnimationTime))
+        fetch(`${API_URL}/api/analyze`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title,
+            prompt: description,
+            category: title || 'General',
+            context: userContext,
+            answers: JSON.stringify(finalAnswers),
+            attachment: assessmentAttachment
+          })
+        }),
+        new Promise(resolve => setTimeout(resolve, processingSteps.length * intervalTime))
       ]);
 
       const result = await res.json();
 
       if (!res.ok) {
-        clearInterval(interval);
-        setError(result.error || 'Failed to compute final diagnostic pathway.');
-        setStep('assessment');
-        return;
+        throw new Error(result.error || 'Failed to compute final diagnostic pathway.');
       }
 
-      setAnalysisData(result.data);
-      setChatHistory([]); 
+      // The updated server returns structured data. Keep a fallback for older responses.
+      let finalData = result.data;
+
+      if (!finalData && result.analysis) {
+        try {
+          finalData = JSON.parse(result.analysis);
+        } catch {
+          finalData = {
+            situation: result.analysis,
+            confidence: 'Moderate',
+            riskAssessment: {
+              severityScore: 'N/A',
+              financialExposure: 'Not established',
+              timeSensitivity: 'Review required'
+            },
+            nextSteps: [],
+            personalizedPanels: [],
+            draftTemplate: null,
+            resources: []
+          };
+        }
+      }
+
+      setAnalysisData(finalData);
+      setChatHistory([]);
       setActiveTab('overview');
       setStep('results');
     } catch (err) {
       clearInterval(interval);
       setError(err.message || 'Could not connect to the server.');
       setStep('assessment');
+    } finally {
+      clearInterval(interval);
     }
   };
 
@@ -722,7 +835,12 @@ export default function App() {
                   ← Back
                 </button>
                 <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                  Question {activeAssessmentIndex + 1} of {assessmentItems.length}
+                  Question {activeAssessmentIndex + 1} of {Math.max(assessmentItems.length, 1)}
+                  {adaptiveQuestionCount < MAX_ADAPTIVE_QUESTIONS && (
+                    <span style={{ marginLeft: '0.4rem', color: 'var(--accent)', fontWeight: 500 }}>
+                      • adaptive
+                    </span>
+                  )}
                 </span>
               </div>
               <div style={{ width: '100%', height: '4px', background: 'var(--bg-surface)', borderRadius: '2px', marginBottom: '2rem', overflow: 'hidden' }}>
@@ -739,7 +857,17 @@ export default function App() {
               </div>
 
               <div className="verlo-card" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left', margin: 0 }}>
-                {currentAssessmentItem.type === 'mcq' ? (
+                {isAdaptiveLoading ? (
+                  <div style={{ padding: '1rem 0', textAlign: 'center' }}>
+                    <div className="processing-pulse-ring" style={{ width: '42px', height: '42px', margin: '0 auto 1rem' }}></div>
+                    <strong style={{ display: 'block', color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                      Adapting the next question...
+                    </strong>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                      VERLO is using your previous answer to decide what matters next.
+                    </span>
+                  </div>
+                ) : currentAssessmentItem.type === 'mcq' ? (
                   <div>
                     <label className="form-label" style={{ color: 'var(--accent)', fontWeight: 700, marginBottom: '1rem', display: 'block', fontSize: '1rem' }}>
                       {currentAssessmentItem.stem}
@@ -791,7 +919,7 @@ export default function App() {
                       value={adaptiveTextAnswers[currentAssessmentItem.id || activeAssessmentIndex] || ''}
                       onChange={(e) => setAdaptiveTextAnswers({ ...adaptiveTextAnswers, [currentAssessmentItem.id || activeAssessmentIndex]: e.target.value })}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
+                        if (e.key === 'Enter' && !isAdaptiveLoading) {
                           e.preventDefault();
                           handleAssessmentNext();
                         }
@@ -805,11 +933,16 @@ export default function App() {
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem', width: '100%' }}>
                 <button 
-                  onClick={handleAssessmentNext} 
-                  className="btn-primary" 
-                  style={{ width: 'auto', padding: '0.75rem 2rem' }}
+                  onClick={handleAssessmentNext}
+                  className="btn-primary"
+                  disabled={isAdaptiveLoading}
+                  style={{ width: 'auto', padding: '0.75rem 2rem', opacity: isAdaptiveLoading ? 0.6 : 1 }}
                 >
-                  {activeAssessmentIndex === assessmentItems.length - 1 ? 'Synthesise Final Report →' : 'Next Question →'}
+                  {isAdaptiveLoading
+                    ? 'Adapting...'
+                    : adaptiveQuestionCount >= MAX_ADAPTIVE_QUESTIONS
+                      ? 'Synthesise Final Report →'
+                      : 'Next Question →'}
                 </button>
               </div>
             </div>
