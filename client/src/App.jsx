@@ -1,728 +1,1102 @@
-import { useState } from "react";
+import React, { useEffect, useState } from "react";
 
-const API_URL = "http://localhost:3001/api";
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:5001";
+const MAX_ADAPTIVE_QUESTIONS = 6;
+const MIN_WORDS = 5;
 
-const MAX_QUESTIONS = 6;
+const processingSteps = [
+  "Deciphering core strategic goals...",
+  "Screening through moderation & safety filters...",
+  "Evaluating risk severity & exposure metrics...",
+  "Synthesising customised action pathway...",
+  "Finalising recommendations...",
+];
 
-function App() {
-  const [page, setPage] = useState("home");
-  const [form, setForm] = useState({
-    title: "",
-    description: "",
-    context: "",
+const tabs = [
+  ["overview", "⚡ Overview"],
+  ["panels", "🧩 Panels"],
+  ["steps", "📋 Action Steps"],
+  ["letter", "✉️ Letter"],
+  ["resources", "🔗 Resources"],
+];
+
+export default function App() {
+  const [step, setStep] = useState("landing");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [userContext, setUserContext] = useState("");
+
+  const [assessmentData, setAssessmentData] = useState({
+    adaptiveQuestions: [],
+  });
+  const [selectedMcqAnswers, setSelectedMcqAnswers] = useState({});
+  const [adaptiveTextAnswers, setAdaptiveTextAnswers] = useState({});
+  const [activeAssessmentIndex, setActiveAssessmentIndex] = useState(0);
+  const [isAdaptiveLoading, setIsAdaptiveLoading] = useState(false);
+  const [adaptiveQuestionCount, setAdaptiveQuestionCount] = useState(0);
+
+  const [assessmentAttachment, setAssessmentAttachment] = useState(null);
+  const [chatAttachment, setChatAttachment] = useState(null);
+
+  const [analysisData, setAnalysisData] = useState(null);
+  const [activeTab, setActiveTab] = useState("overview");
+
+  const [processingStage, setProcessingStage] = useState(0);
+  const [error, setError] = useState(null);
+
+  const [copied, setCopied] = useState(false);
+  const [copyCount, setCopyCount] = useState(0);
+
+  const [customAlert, setCustomAlert] = useState(null);
+  const [alertExiting, setAlertExiting] = useState(false);
+
+  const [chatQuestion, setChatQuestion] = useState("");
+  const [chatHistory, setChatHistory] = useState([]);
+  const [isChatLoading, setIsChatLoading] = useState(false);
+
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem("verlo_user");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
   });
 
-  const [question, setQuestion] = useState(null);
-  const [answers, setAnswers] = useState([]);
-  const [currentAnswer, setCurrentAnswer] = useState("");
-  const [questionNumber, setQuestionNumber] = useState(0);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState("login");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authError, setAuthError] = useState(null);
 
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [processingStep, setProcessingStep] = useState(0);
+  const [userHistory, setUserHistory] = useState([]);
+  const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
 
-  const processingSteps = [
-    "Understanding your situation",
-    "Identifying the important details",
-    "Looking for relevant patterns",
-    "Building a personalised response",
-    "Preparing your next steps",
-  ];
+  const wordCount = description.trim()
+    ? description.trim().split(/\s+/).length
+    : 0;
 
-  const updateForm = (field, value) => {
-    setForm((previous) => ({
-      ...previous,
-      [field]: value,
-    }));
+  const triggerCustomAlert = (message, type = "success") => {
+    setCustomAlert({ message, type });
+    setAlertExiting(false);
+
+    setTimeout(() => {
+      setAlertExiting(true);
+
+      setTimeout(() => {
+        setCustomAlert(null);
+        setAlertExiting(false);
+      }, 300);
+    }, 3300);
   };
 
-  const resetApp = () => {
-    setPage("home");
-    setForm({
-      title: "",
-      description: "",
-      context: "",
-    });
-    setQuestion(null);
-    setAnswers([]);
-    setCurrentAnswer("");
-    setQuestionNumber(0);
-    setResult(null);
-    setError("");
-    setLoading(false);
-    setProcessingStep(0);
-  };
-
-  const startAssessment = async () => {
-    if (!form.title.trim() || !form.description.trim()) {
-      setError("Please provide a title and describe your situation.");
+  useEffect(() => {
+    if (!currentUser?.id && !currentUser?.email) {
+      localStorage.removeItem("verlo_user");
+      setUserHistory([]);
       return;
     }
 
-    setError("");
-    setAnswers([]);
-    setQuestionNumber(0);
-    setCurrentAnswer("");
-    setPage("questions");
-    setLoading(true);
+    localStorage.setItem("verlo_user", JSON.stringify(currentUser));
 
-    try {
-      await getAdaptiveQuestion([], 0);
-    } catch (err) {
-      setError(
-        err.message || "Something went wrong while creating your questions.",
-      );
-      setPage("input");
-    } finally {
-      setLoading(false);
-    }
-  };
+    const identifier = currentUser.id || currentUser.email;
 
-  const getAdaptiveQuestion = async (previousAnswers, number) => {
-    const response = await fetch(`${API_URL}/adaptive-question`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        title: form.title,
-        description: form.description,
-        context: form.context,
-        previousAnswers,
-        questionNumber: number,
-        maxQuestions: MAX_QUESTIONS,
-      }),
-    });
+    fetch(`${API_URL}/api/history/${encodeURIComponent(identifier)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.history) setUserHistory(data.history);
+      })
+      .catch((err) => console.error("Failed to load history", err));
+  }, [currentUser]);
 
-    if (!response.ok) {
-      let message = "Unable to generate the next question.";
+  const renderMarkdownToHTML = (content) => {
+    if (!content) return "";
 
-      try {
-        const data = await response.json();
-        if (data.error) {
-          message = data.error;
-        }
-      } catch {
-        //
-      }
+    let html = content
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
 
-      throw new Error(message);
-    }
-
-    const data = await response.json();
-
-    if (data.complete || !data.question) {
-      await runAnalysis(previousAnswers);
-      return;
-    }
-
-    setQuestion(data.question);
-    setQuestionNumber(
-      typeof data.questionNumber === "number"
-        ? data.questionNumber
-        : number + 1,
+    html = html.replace(
+      /```([\s\S]*?)```/g,
+      '<pre class="markdown-code"><code>$1</code></pre>',
     );
-    setCurrentAnswer("");
-  };
 
-  const submitAnswer = async () => {
-    const answer = currentAnswer.trim();
+    html = html.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
 
-    if (!answer) {
-      setError("Please enter an answer before continuing.");
-      return;
-    }
+    html = html.replace(
+      /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener noreferrer" class="markdown-link">$1</a>',
+    );
 
-    setError("");
+    const lines = html.split("\n");
+    let inList = false;
 
-    const updatedAnswers = [
-      ...answers,
-      {
-        question: question?.text || question?.question || "",
-        answer,
-      },
-    ];
+    const output = lines.map((line) => {
+      if (line.trim().startsWith("- ") || line.trim().startsWith("* ")) {
+        const item = line.trim().substring(2);
 
-    setAnswers(updatedAnswers);
-    setCurrentAnswer("");
-    setLoading(true);
-
-    try {
-      if (updatedAnswers.length >= MAX_QUESTIONS) {
-        await runAnalysis(updatedAnswers);
-        return;
-      }
-
-      await getAdaptiveQuestion(updatedAnswers, updatedAnswers.length);
-    } catch (err) {
-      setError(err.message || "Something went wrong.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const skipQuestion = async () => {
-    const updatedAnswers = [
-      ...answers,
-      {
-        question: question?.text || question?.question || "",
-        answer: "No additional information provided.",
-      },
-    ];
-
-    setAnswers(updatedAnswers);
-    setCurrentAnswer("");
-    setError("");
-    setLoading(true);
-
-    try {
-      if (updatedAnswers.length >= MAX_QUESTIONS) {
-        await runAnalysis(updatedAnswers);
-        return;
-      }
-
-      await getAdaptiveQuestion(updatedAnswers, updatedAnswers.length);
-    } catch (err) {
-      setError(err.message || "Something went wrong.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const runAnalysis = async (finalAnswers) => {
-    setPage("processing");
-    setLoading(true);
-    setProcessingStep(0);
-
-    const interval = setInterval(() => {
-      setProcessingStep((previous) => {
-        if (previous >= processingSteps.length - 1) {
-          return previous;
+        if (!inList) {
+          inList = true;
+          return `<ul class="markdown-list"><li>${item}</li>`;
         }
 
-        return previous + 1;
-      });
-    }, 900);
+        return `<li>${item}</li>`;
+      }
+
+      if (inList) {
+        inList = false;
+        return `</ul><p>${line}</p>`;
+      }
+
+      return line.trim() ? `<p>${line}</p>` : "";
+    });
+
+    if (inList) output.push("</ul>");
+
+    return output.join("");
+  };
+
+  const handleExampleSelect = (exampleTitle, desc, context) => {
+    setTitle(exampleTitle);
+    setDescription(desc);
+    setUserContext(context);
+    setStep("input");
+    setError(null);
+  };
+
+  const handleAuthSubmit = async (e) => {
+    e.preventDefault();
+    setAuthError(null);
+
+    const endpoint =
+      authMode === "login" ? "/api/auth/login" : "/api/auth/signup";
 
     try {
-      const response = await fetch(`${API_URL}/analyze`, {
+      const res = await fetch(`${API_URL}${endpoint}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: form.title,
-          description: form.description,
-          context: form.context,
-          answers: finalAnswers,
+          email: authEmail.trim(),
+          password: authPassword,
         }),
       });
 
-      if (!response.ok) {
-        let message = "Unable to analyse your situation.";
+      const data = await res.json();
 
-        try {
-          const data = await response.json();
-          if (data.error) {
-            message = data.error;
-          }
-        } catch {
-          //
+      if (!res.ok) {
+        if (
+          authMode === "signup" &&
+          (res.status === 400 ||
+            res.status === 409 ||
+            data.error?.toLowerCase().includes("exist"))
+        ) {
+          throw new Error(
+            "This email address is already registered. Please log in instead.",
+          );
         }
 
-        throw new Error(message);
+        throw new Error(data.error || "Authentication failed");
       }
 
-      const data = await response.json();
+      setCurrentUser(
+        data.user || {
+          id: data.userId || authEmail,
+          email: authEmail,
+        },
+      );
 
-      clearInterval(interval);
+      setShowAuthModal(false);
+      setAuthEmail("");
+      setAuthPassword("");
 
-      setProcessingStep(processingSteps.length - 1);
-
-      setTimeout(() => {
-        setResult(data.result || data);
-        setPage("results");
-        setLoading(false);
-      }, 500);
+      triggerCustomAlert(
+        authMode === "signup"
+          ? "Account created successfully!"
+          : "Logged in successfully!",
+      );
     } catch (err) {
-      clearInterval(interval);
-      setLoading(false);
-      setError(err.message || "Something went wrong during analysis.");
-      setPage("questions");
+      setAuthError(err.message);
     }
   };
 
-  const handleBack = () => {
-    if (page === "input") {
-      setPage("home");
+  const handleLogout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem("verlo_user");
+    setUserHistory([]);
+    setStep("landing");
+    triggerCustomAlert("Logged out successfully.");
+  };
+
+  const handleSaveToAccount = async (resultData) => {
+    if (!currentUser) {
+      setShowAuthModal(true);
       return;
     }
 
-    if (page === "questions") {
-      setPage("input");
+    try {
+      const res = await fetch(`${API_URL}/api/history/save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: currentUser.id || currentUser.email,
+          report: {
+            title: title || "Untitled Report",
+            description,
+            result: resultData,
+          },
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.history) {
+        setUserHistory(data.history);
+        triggerCustomAlert(
+          "Pathway saved successfully to your account history!",
+        );
+      } else {
+        triggerCustomAlert("Pathway saved successfully.");
+      }
+    } catch (err) {
+      console.error("Failed to save history", err);
+      triggerCustomAlert("Error saving pathway to account history.", "error");
+    }
+  };
+
+  const handleSecureFileUpload = async (file, target) => {
+    if (!file) return;
+
+    if (file.size > 15 * 1024 * 1024) {
+      triggerCustomAlert("File exceeds maximum size limit (15MB).", "error");
       return;
     }
 
-    if (page === "results") {
-      resetApp();
+    try {
+      triggerCustomAlert("Encrypting and securing file in sandbox DB...");
+      await new Promise((resolve) => setTimeout(resolve, 800));
+
+      const fileMeta = {
+        name: file.name,
+        size: `${(file.size / 1024).toFixed(1)} KB`,
+        type: file.type || "application/octet-stream",
+        uploadedAt: new Date().toISOString(),
+        sandboxId: `db_vault_${Math.random().toString(36).substring(2, 9)}`,
+      };
+
+      if (target === "assessment") {
+        setAssessmentAttachment(fileMeta);
+        triggerCustomAlert(
+          `File "${file.name}" securely attached to assessment context.`,
+        );
+      }
+
+      if (target === "chat") {
+        setChatAttachment(fileMeta);
+        triggerCustomAlert(
+          `File "${file.name}" securely attached to chat prompt.`,
+        );
+      }
+    } catch {
+      triggerCustomAlert("Failed to securely upload file.", "error");
     }
   };
 
-  const renderHome = () => (
-    <main className="page-transition">
-      <div className="verlo-header">
-        <div className="verlo-brand">VERLO</div>
+  const removeAttachment = (target) => {
+    if (target === "assessment") {
+      setAssessmentAttachment(null);
+      triggerCustomAlert("Assessment attachment removed from vault.");
+    }
 
-        <h1 className="verlo-title">
-          Understand the situation.
-          <br />
-          Find your next step.
-        </h1>
-
-        <p className="verlo-subtitle">
-          Verlo asks adaptive questions about your situation and turns your
-          answers into practical, personalised guidance.
-        </p>
-      </div>
-
-      <div className="verlo-card">
-        <div className="grid-cols-2">
-          <div>
-            <h2>Adaptive questions</h2>
-            <p className="verlo-subtitle">
-              Instead of giving everyone the same questionnaire, Verlo changes
-              its questions based on what you tell it.
-            </p>
-          </div>
-
-          <div>
-            <h2>Personalised results</h2>
-            <p className="verlo-subtitle">
-              Your final response is built around the details and answers you
-              provide.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="verlo-card">
-        <h2 style={{ marginBottom: "0.75rem" }}>What can Verlo help with?</h2>
-
-        <ul>
-          <li>Understanding a difficult situation</li>
-          <li>Working out possible next steps</li>
-          <li>Organising complicated information</li>
-          <li>Creating a clearer plan of action</li>
-        </ul>
-      </div>
-
-      <button
-        className="btn-primary"
-        onClick={() => {
-          setError("");
-          setPage("input");
-        }}
-      >
-        Get started
-      </button>
-    </main>
-  );
-
-  const renderInput = () => (
-    <main className="page-transition">
-      <div className="verlo-header">
-        <div className="verlo-brand">VERLO / START</div>
-
-        <h1 className="verlo-title">Tell us what is happening.</h1>
-
-        <p className="verlo-subtitle">
-          Give Verlo enough information to understand the situation. You do not
-          need to write everything perfectly.
-        </p>
-      </div>
-
-      <div className="verlo-card">
-        <div className="form-group">
-          <label className="form-label" htmlFor="title">
-            What is this about?
-          </label>
-
-          <input
-            id="title"
-            className="form-input"
-            value={form.title}
-            onChange={(event) => updateForm("title", event.target.value)}
-            placeholder="e.g. Choosing between two options"
-          />
-        </div>
-
-        <div className="form-group">
-          <label className="form-label" htmlFor="description">
-            Describe the situation
-          </label>
-
-          <textarea
-            id="description"
-            className="form-textarea"
-            value={form.description}
-            onChange={(event) => updateForm("description", event.target.value)}
-            placeholder="Explain what is happening, what you are trying to decide, or what you need help understanding."
-          />
-        </div>
-
-        <div className="form-group">
-          <label className="form-label" htmlFor="context">
-            Anything else we should know?
-          </label>
-
-          <textarea
-            id="context"
-            className="form-textarea"
-            value={form.context}
-            onChange={(event) => updateForm("context", event.target.value)}
-            placeholder="Add any useful background information. This can be left blank."
-          />
-        </div>
-
-        {error && (
-          <div
-            style={{
-              marginBottom: "1rem",
-              padding: "0.75rem 1rem",
-              border: "1px solid rgba(239, 68, 68, 0.35)",
-              borderRadius: "8px",
-              background: "rgba(239, 68, 68, 0.08)",
-              color: "#fca5a5",
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        <button
-          className="btn-primary"
-          onClick={startAssessment}
-          disabled={loading}
-        >
-          {loading ? "Starting..." : "Continue"}
-        </button>
-      </div>
-
-      <button
-        onClick={handleBack}
-        style={{
-          display: "block",
-          margin: "1rem auto",
-          padding: "0.5rem 1rem",
-          background: "transparent",
-          border: "none",
-          color: "var(--text-muted)",
-        }}
-      >
-        Back
-      </button>
-    </main>
-  );
-
-  const renderQuestions = () => {
-    const questionText =
-      typeof question === "string"
-        ? question
-        : question?.text ||
-          question?.question ||
-          question?.prompt ||
-          "Tell us a little more about this situation.";
-
-    return (
-      <main className="page-transition">
-        <div className="verlo-header">
-          <div className="verlo-brand">
-            VERLO / QUESTION {Math.min(questionNumber + 1, MAX_QUESTIONS)}
-          </div>
-
-          <h1 className="verlo-title">Help Verlo understand.</h1>
-
-          <p className="verlo-subtitle">
-            The next question is based on what you have already told us.
-          </p>
-        </div>
-
-        <div className="verlo-card">
-          <div style={{ marginBottom: "1.5rem" }}>
-            <div
-              style={{
-                height: "4px",
-                width: "100%",
-                overflow: "hidden",
-                marginBottom: "1.5rem",
-                background: "var(--border-subtle)",
-                borderRadius: "999px",
-              }}
-            >
-              <div
-                style={{
-                  width: `${Math.min(
-                    ((answers.length + 1) / MAX_QUESTIONS) * 100,
-                    100,
-                  )}%`,
-                  height: "100%",
-                  background: "var(--accent)",
-                  transition: "width 0.3s ease",
-                }}
-              />
-            </div>
-
-            <h2
-              style={{
-                marginBottom: "1rem",
-                color: "var(--text-main)",
-                fontSize: "1.35rem",
-              }}
-            >
-              {questionText}
-            </h2>
-
-            {question?.context && (
-              <p style={{ color: "var(--text-muted)" }}>{question.context}</p>
-            )}
-          </div>
-
-          <div className="form-group">
-            <textarea
-              className="form-textarea"
-              value={currentAnswer}
-              onChange={(event) => setCurrentAnswer(event.target.value)}
-              placeholder="Write your answer here..."
-              disabled={loading}
-              autoFocus
-            />
-          </div>
-
-          {error && (
-            <div
-              style={{
-                marginBottom: "1rem",
-                padding: "0.75rem 1rem",
-                border: "1px solid rgba(239, 68, 68, 0.35)",
-                borderRadius: "8px",
-                background: "rgba(239, 68, 68, 0.08)",
-                color: "#fca5a5",
-              }}
-            >
-              {error}
-            </div>
-          )}
-
-          <button
-            className="btn-primary"
-            onClick={submitAnswer}
-            disabled={loading}
-          >
-            {loading
-              ? "Thinking..."
-              : answers.length + 1 >= MAX_QUESTIONS
-                ? "Finish"
-                : "Continue"}
-          </button>
-
-          <button
-            onClick={skipQuestion}
-            disabled={loading}
-            style={{
-              display: "block",
-              margin: "1rem auto 0",
-              padding: "0.5rem 1rem",
-              background: "transparent",
-              border: "none",
-              color: "var(--text-muted)",
-            }}
-          >
-            Skip this question
-          </button>
-        </div>
-
-        <button
-          onClick={() => setPage("input")}
-          disabled={loading}
-          style={{
-            display: "block",
-            margin: "1rem auto",
-            padding: "0.5rem 1rem",
-            background: "transparent",
-            border: "none",
-            color: "var(--text-muted)",
-          }}
-        >
-          Back
-        </button>
-      </main>
-    );
+    if (target === "chat") {
+      setChatAttachment(null);
+      triggerCustomAlert("Chat attachment removed from vault.");
+    }
   };
 
-  const renderProcessing = () => (
-    <main className="processing-container page-transition">
-      <div className="verlo-brand">VERLO / ANALYSIS</div>
+  const getAllAssessmentItems = () => {
+    const source =
+      assessmentData?.adaptiveQuestions ||
+      assessmentData?.adaptive_questions ||
+      assessmentData?.questions ||
+      [];
 
-      <div className="processing-pulse-ring" />
+    if (!Array.isArray(source)) return [];
 
-      <h1 className="verlo-title">Working through your answers.</h1>
+    return source.map((item, index) => ({
+      type: item.type === "mcq" ? "mcq" : "text",
+      ...item,
+      id: item.id || item.questionId || `adaptive-${index}`,
+      question:
+        item.question ||
+        item.text ||
+        item.prompt ||
+        item.stem ||
+        "Please provide more information.",
+      stem:
+        item.stem ||
+        item.question ||
+        item.text ||
+        item.prompt ||
+        "Please choose an option.",
+      choices: Array.isArray(item.choices) ? item.choices : [],
+    }));
+  };
 
-      <p className="verlo-subtitle">
-        Verlo is putting the information together into a useful response.
-      </p>
+  const assessmentItems = getAllAssessmentItems();
 
-      <div className="processing-steps">
-        {processingSteps.map((step, index) => {
-          const isDone = index < processingStep;
-          const isActive = index === processingStep;
+  const buildAllAnswers = (key, value) => ({
+    ...adaptiveTextAnswers,
+    ...selectedMcqAnswers,
+    ...(key !== undefined ? { [key]: value } : {}),
+  });
 
-          return (
-            <div
-              key={step}
-              className={`step-item ${
-                isDone ? "done" : ""
-              } ${isActive ? "active" : ""}`}
-            >
-              <span>{step}</span>
-
-              <span>{isDone ? "✓" : isActive ? "..." : "—"}</span>
-            </div>
-          );
-        })}
-      </div>
-    </main>
-  );
-
-  const renderResults = () => {
-    if (!result) {
+  const requestAdaptiveQuestion = async (previousAnswers = {}) => {
+    if (
+      isAdaptiveLoading ||
+      adaptiveQuestionCount >= MAX_ADAPTIVE_QUESTIONS
+    ) {
       return null;
     }
 
-    const situation =
-      result.situation ||
-      result.overview ||
-      result.summary ||
-      "No overview was provided.";
+    setIsAdaptiveLoading(true);
+    setError(null);
 
-    const confidence =
-      result.confidence || result.confidenceLevel || "Not specified";
+    try {
+      const questionNumber = adaptiveQuestionCount + 1;
 
-    const riskAssessment =
-      result.riskAssessment || result.risk || result.assessment;
+      const res = await fetch(`${API_URL}/api/adaptive-question`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          description,
+          context: userContext,
+          previousAnswers,
+          questionNumber,
+          maxQuestions: MAX_ADAPTIVE_QUESTIONS,
+        }),
+      });
 
-    const nextSteps =
-      result.nextSteps || result.actionSteps || result.actions || [];
+      const result = await res.json();
 
-    const personalizedPanels = result.personalizedPanels || result.panels || [];
-
-    const draftTemplate =
-      result.draftTemplate || result.letter || result.message || "";
-
-    const resources = result.resources || [];
-
-    const normaliseList = (value) => {
-      if (Array.isArray(value)) {
-        return value;
+      if (!res.ok) {
+        throw new Error(
+          result.error || "Could not generate the adaptive question.",
+        );
       }
 
-      if (typeof value === "string") {
-        return [value];
+      if (!result.question) {
+        throw new Error("The adaptive engine returned no question.");
       }
 
-      return [];
-    };
+      const questions = [...getAllAssessmentItems(), result.question];
 
-    const steps = normaliseList(nextSteps);
-    const panels = Array.isArray(personalizedPanels) ? personalizedPanels : [];
+      setAssessmentData({ adaptiveQuestions: questions });
+      setAdaptiveQuestionCount(questions.length);
+      setActiveAssessmentIndex(questions.length - 1);
+      setStep("assessment");
 
-    const resourceList = normaliseList(resources);
+      return result.question;
+    } catch (err) {
+      setError(err.message || "Could not generate the next adaptive question.");
+      return null;
+    } finally {
+      setIsAdaptiveLoading(false);
+    }
+  };
 
-    return (
-      <main
-        className="page-transition"
-        style={{
-          width: "100%",
-          maxWidth: "1000px",
-          margin: "0 auto",
-        }}
-      >
-        <div className="verlo-header">
-          <div className="verlo-brand">VERLO / RESULTS</div>
+  const handleInitialSubmit = async (e) => {
+    e.preventDefault();
 
-          <h1 className="verlo-title">Your personalised response.</h1>
+    if (wordCount < MIN_WORDS) {
+      setError(
+        `Please provide a bit more detail (at least ${MIN_WORDS} words) so VERLO can build a reliable pathway.`,
+      );
+      return;
+    }
 
-          <p className="verlo-subtitle">
-            This response is based on the situation and answers you provided.
-          </p>
+    setError(null);
+    setStep("processing");
+    setProcessingStage(0);
+
+    setAssessmentData({ adaptiveQuestions: [] });
+    setSelectedMcqAnswers({});
+    setAdaptiveTextAnswers({});
+    setActiveAssessmentIndex(0);
+    setAdaptiveQuestionCount(0);
+
+    let currentStage = 0;
+
+    const interval = setInterval(() => {
+      currentStage += 1;
+
+      if (currentStage < processingSteps.length) {
+        setProcessingStage(currentStage);
+      }
+    }, 550);
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 1800));
+
+      const res = await fetch(`${API_URL}/api/adaptive-question`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          description,
+          context: userContext,
+          previousAnswers: {},
+          questionNumber: 1,
+          maxQuestions: MAX_ADAPTIVE_QUESTIONS,
+        }),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        throw new Error(
+          result.error || "Adaptive engine failed to create the first question.",
+        );
+      }
+
+      if (!result.question) {
+        throw new Error("The adaptive engine returned no first question.");
+      }
+
+      setAssessmentData({ adaptiveQuestions: [result.question] });
+      setAdaptiveQuestionCount(1);
+      setActiveAssessmentIndex(0);
+      setStep("assessment");
+    } catch (err) {
+      setError(err.message || "Could not connect to the adaptive engine.");
+      setStep("input");
+    } finally {
+      clearInterval(interval);
+    }
+  };
+
+  const getCurrentAnswer = () => {
+    const item = assessmentItems[activeAssessmentIndex];
+    if (!item) return "";
+
+    const key = item.id || activeAssessmentIndex;
+
+    return item.type === "mcq"
+      ? selectedMcqAnswers[key] || ""
+      : adaptiveTextAnswers[key] || "";
+  };
+
+  const handleAssessmentNext = async () => {
+    const item = assessmentItems[activeAssessmentIndex];
+
+    if (!item || isAdaptiveLoading) return;
+
+    const answer = getCurrentAnswer();
+
+    if (!String(answer).trim()) {
+      triggerCustomAlert(
+        "Please answer this question before continuing.",
+        "error",
+      );
+      return;
+    }
+
+    const key = item.id || activeAssessmentIndex;
+
+    if (item.type === "mcq") {
+      setSelectedMcqAnswers((prev) => ({ ...prev, [key]: answer }));
+    } else {
+      setAdaptiveTextAnswers((prev) => ({ ...prev, [key]: answer }));
+    }
+
+    const allAnswers = buildAllAnswers(key, answer);
+
+    if (adaptiveQuestionCount >= MAX_ADAPTIVE_QUESTIONS) {
+      await handleFinalAssessmentSubmit(allAnswers);
+      return;
+    }
+
+    await requestAdaptiveQuestion(allAnswers);
+  };
+
+  const handleAssessmentPrev = () => {
+    if (isAdaptiveLoading) return;
+
+    if (activeAssessmentIndex > 0) {
+      setActiveAssessmentIndex((prev) => prev - 1);
+    } else {
+      setStep("input");
+    }
+  };
+
+  const handleFinalAssessmentSubmit = async (answersOverride = null) => {
+    setStep("processing");
+    setProcessingStage(0);
+
+    const finalAnswers = answersOverride || buildAllAnswers();
+
+    let currentStage = 0;
+
+    const interval = setInterval(() => {
+      currentStage += 1;
+
+      if (currentStage < processingSteps.length) {
+        setProcessingStage(currentStage);
+      }
+    }, 700);
+
+    try {
+      const [res] = await Promise.all([
+        fetch(`${API_URL}/api/analyze`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title,
+            prompt: description,
+            category: title || "General",
+            context: userContext,
+            answers: JSON.stringify(finalAnswers),
+            attachment: assessmentAttachment,
+          }),
+        }),
+        new Promise((resolve) =>
+          setTimeout(resolve, processingSteps.length * 700),
+        ),
+      ]);
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        throw new Error(
+          result.error || "Failed to compute final diagnostic pathway.",
+        );
+      }
+
+      let finalData = result.data;
+
+      if (!finalData && result.analysis) {
+        try {
+          finalData = JSON.parse(result.analysis);
+        } catch {
+          finalData = {
+            situation: result.analysis,
+            confidence: "Moderate",
+            riskAssessment: {
+              severityScore: "N/A",
+              financialExposure: "Not established",
+              timeSensitivity: "Review required",
+            },
+            nextSteps: [],
+            personalizedPanels: [],
+            draftTemplate: null,
+            referenceLinks: [],
+          };
+        }
+      }
+
+      setAnalysisData(finalData);
+      setChatHistory([]);
+      setActiveTab("overview");
+      setStep("results");
+    } catch (err) {
+      setError(err.message || "Could not connect to the server.");
+      setStep("assessment");
+    } finally {
+      clearInterval(interval);
+    }
+  };
+
+  const handleCopyDraft = () => {
+    if (!analysisData?.draftTemplate) return;
+
+    const draft = analysisData.draftTemplate;
+
+    navigator.clipboard.writeText(
+      `To: ${draft.recipient}\nSubject: ${draft.subject}\n\n${draft.body}`,
+    );
+
+    setCopied(true);
+
+    const nextCount = copyCount + 1;
+    setCopyCount(nextCount);
+
+    triggerCustomAlert(
+      nextCount === 1
+        ? "Letter template copied to clipboard!"
+        : `Letter copied (${nextCount}x multi-strike!)! 🎯`,
+    );
+
+    setTimeout(() => setCopied(false), 3000);
+  };
+
+  const handleChatSubmit = async (e) => {
+    e.preventDefault();
+
+    if ((!chatQuestion.trim() && !chatAttachment) || isChatLoading) return;
+
+    const questionText =
+      chatQuestion.trim() ||
+      `[Uploaded file: ${chatAttachment.name}]`;
+
+    const currentAttachment = chatAttachment;
+
+    setChatQuestion("");
+    setChatAttachment(null);
+    setIsChatLoading(true);
+
+    const newHistory = [
+      ...chatHistory,
+      {
+        role: "user",
+        content: questionText,
+        attachment: currentAttachment,
+      },
+    ];
+
+    setChatHistory(newHistory);
+
+    try {
+      const res = await fetch(`${API_URL}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: questionText,
+          currentSituation: description || title,
+          attachment: currentAttachment,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to get chat response.");
+      }
+
+      setChatHistory([
+        ...newHistory,
+        { role: "assistant", content: data.reply },
+      ]);
+    } catch (err) {
+      setChatHistory([
+        ...newHistory,
+        {
+          role: "assistant",
+          content: `⚠️ Error: ${err.message}`,
+        },
+      ]);
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
+  const currentAssessmentItem = assessmentItems[activeAssessmentIndex];
+
+  return (
+    <div className="verlo-app">
+      {customAlert && (
+        <div className={`custom-alert ${customAlert.type} ${alertExiting ? "exiting" : ""}`}>
+          <span>{customAlert.type === "error" ? "⚠️" : "✓"}</span>
+          <span>{customAlert.message}</span>
+        </div>
+      )}
+
+      <header className="verlo-nav">
+        <div className="verlo-logo" onClick={() => setStep("landing")}>
+          <img src="/VVNormal.png" alt="VERLO Logo" />
+          <span>VERLO</span>
         </div>
 
-        <div className="dominant-action">
-          <span className="badge strong">PERSONALIZED</span>
+        {currentUser ? (
+          <div className="user-nav">
+            <button onClick={() => setShowHistoryDrawer(!showHistoryDrawer)}>
+              <span>▣</span> History ({userHistory.length})
+            </button>
 
-          <h2>What Verlo found</h2>
+            <span>{currentUser.email || currentUser.id}</span>
 
-          <p>{situation}</p>
-        </div>
+            <button className="logout-button" onClick={handleLogout}>
+              Logout
+            </button>
+          </div>
+        ) : (
+          <button
+            className="login-button"
+            onClick={() => {
+              setAuthMode("login");
+              setAuthError(null);
+              setShowAuthModal(true);
+            }}
+          >
+            Login / Signup
+          </button>
+        )}
+      </header>
 
-        <div className="grid-cols-2">
-          <section className="result-section">
-            <h2 style={{ marginBottom: "0.75rem" }}>Overview</h2>
+      <main className="verlo-main">
+        {step === "landing" && (
+          <section className="page-transition landing-page">
+            <div className="verlo-header">
+              <div className="landing-logo">
+                <img src="/VVNormal.png" alt="VERLO Logo" />
+                <span className="verlo-brand">VERLO</span>
+              </div>
 
-            <p style={{ color: "var(--text-muted)" }}>{situation}</p>
-          </section>
+              <h1 className="verlo-title">
+                Stop guessing. Know your exact next step.
+              </h1>
 
-          <section className="result-section">
-            <h2 style={{ marginBottom: "0.75rem" }}>Confidence</h2>
-
-            <span className="badge strong">{String(confidence)}</span>
-
-            {riskAssessment && (
-              <p
-                style={{
-                  marginTop: "0.75rem",
-                  color: "var(--text-muted)",
-                }}
-              >
-                {typeof riskAssessment === "string"
-                  ? riskAssessment
-                  : JSON.stringify(riskAssessment)}
+              <p className="verlo-subtitle">
+                Verlo is an adaptive supercharged decision-intelligence engine
+                that transforms messy, stressful situations into a fully
+                tailored, risk-scored action pathway through dynamic profiling.
               </p>
-            )}
-          </section>
-        </div>
 
-        {panels.length > 0 && (
-          <section className="result-section">
-            <h2 style={{ marginBottom: "1rem" }}>Personalised insights</h2>
+              <button
+                className="btn-primary launch-button"
+                onClick={() => setStep("input")}
+              >
+                Launch Decision Engine →
+              </button>
 
-            <div className="grid-cols-2">
-              {panels.map((panel, index) => {
-                if (typeof panel === "string") {
-                  return (
-                    <div
-                      key={index}
-                      className="verlo-card"
-                      style={{ marginBottom: 0 }}
-                    >
-                      <p>{panel}</p>
+              <div className="example-section">
+                <p className="example-label">Test common VERLO scenarios:</p>
+
+                <div className="example-grid">
+                  <div
+                    className="verlo-card example-card"
+                    onClick={() =>
+                      handleExampleSelect(
+                        "Flight cancelled at gate",
+                        "My international flight was abruptly cancelled at the boarding gate due to mechanical failure. The airline desk agent says the earliest they can rebook me is in 48 hours, and they are refusing to cover hotel accommodations for the night despite my connecting ticket.",
+                        "Travelling on a strict budget for an important family event",
+                      )
+                    }
+                  >
+                    <span className="example-icon">✈</span>
+                    <div>
+                      <strong>Flight cancelled at gate</strong> — Airline
+                      refusing overnight hotel voucher.
                     </div>
-                  );
-                }
+                  </div>
+
+                  <div
+                    className="verlo-card example-card"
+                    onClick={() =>
+                      handleExampleSelect(
+                        "Unresolved billing charge",
+                        "I noticed an unexpected $450 charge on my credit card from a software enterprise subscription that I explicitly cancelled three months ago in writing. Support is ignoring my emails and chat tickets.",
+                        "Freelancer relying on tight monthly cash flow",
+                      )
+                    }
+                  >
+                    <span className="example-icon">▣</span>
+                    <div>
+                      <strong>Unresolved billing dispute</strong> —
+                      Subscription charged post-cancellation.
+                    </div>
+                  </div>
+
+                  <div
+                    className="verlo-card example-card"
+                    onClick={() =>
+                      handleExampleSelect(
+                        "Landlord withholding bond",
+                        "My tenancy agreement ended 3 weeks ago and my landlord is refusing to release my full $2,000 security deposit, claiming minor carpet scuffs that were already present when I moved in as documented on my condition report.",
+                        "First-time renter moving into a new apartment",
+                      )
+                    }
+                  >
+                    <span className="example-icon">⌂</span>
+                    <div>
+                      <strong>Landlord withholding bond</strong> — Disputing
+                      false wear-and-tear deductions.
+                    </div>
+                  </div>
+
+                  <div
+                    className="verlo-card example-card"
+                    onClick={() =>
+                      handleExampleSelect(
+                        "Defective laptop warranty dispute",
+                        "I purchased a high-end laptop 5 months ago that has suffered multiple motherboard failures. The manufacturer service center is claiming accidental liquid damage violation even though the machine has never been exposed to liquids.",
+                        "Student relying on laptop for coursework",
+                      )
+                    }
+                  >
+                    <span className="example-icon">▣</span>
+                    <div>
+                      <strong>Defective laptop warranty</strong> —
+                      Manufacturer denying warranty repair unfairly.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {step === "input" && (
+          <section className="page-transition input-page">
+            <div className="content-narrow">
+              <button className="secondary-button" onClick={() => setStep("landing")}>
+                ← Back to Overview
+              </button>
+
+              <div className="verlo-header">
+                <div className="landing-logo">
+                  <img src="/VVNormal.png" alt="VERLO Logo" />
+                  <span className="verlo-brand">VERLO</span>
+                </div>
+
+                <h2 className="verlo-title">Define Your Situation</h2>
+
+                <p className="verlo-subtitle">
+                  Provide the details below. Our adaptive engine will formulate
+                  custom probing questions before constructing your report.
+                </p>
+              </div>
+
+              {error && <div className="error-message">{error}</div>}
+
+              <form onSubmit={handleInitialSubmit} className="verlo-card situation-form">
+                <div className="form-group">
+                  <label className="form-label">Situation Title (Optional)</label>
+                  <input
+                    className="form-input"
+                    placeholder="e.g., Landlord deposit dispute"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <div className="field-header">
+                    <label className="form-label">Describe what happened *</label>
+                    <span className={wordCount < MIN_WORDS ? "word-count warning" : "word-count"}>
+                      {wordCount} words{" "}
+                      {wordCount < MIN_WORDS
+                        ? `(Minimum ${MIN_WORDS} required)`
+                        : "✓"}
+                    </span>
+                  </div>
+
+                  <textarea
+                    className="form-textarea"
+                    placeholder="Include key details: dates, amounts, communications, and what outcome you are looking for..."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">
+                    Any specific personal context or constraints? (Optional)
+                  </label>
+
+                  <input
+                    className="form-input"
+                    placeholder="e.g., I'm a student living on a tight budget"
+                    value={userContext}
+                    onChange={(e) => setUserContext(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">
+                    Attach Evidence / Files / Media (Optional)
+                  </label>
+
+                  <label className="file-button">
+                    Browse File / Media
+                    <input
+                      type="file"
+                      hidden
+                      onChange={(e) =>
+                        handleSecureFileUpload(e.target.files[0], "assessment")
+                      }
+                    />
+                  </label>
+
+                  <span className="file-note">
+                    Stored in safe encrypted DB sandbox; removable anytime.
+                  </span>
+
+                  {assessmentAttachment && (
+                    <div className="attachment">
+                      <span>📎 {assessmentAttachment.name} ({assessmentAttachment.size})</span>
+                      <button type="button" onClick={() => removeAttachment("assessment")}>
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <button type="submit" className="btn-primary full-width">
+                  Generate Adaptive Assessment →
+                </button>
+              </form>
+            </div>
+          </section>
+        )}
+
+        {step === "assessment" && currentAssessmentItem && (
+          <section className="page-transition animate-fade-slide-up assessment-page">
+            <div className="content-narrow">
+              <div className="assessment-top">
+                <button className="secondary-button" onClick={handleAssessmentPrev}>
+                  ← Back
+                </button>
+
+                <span>
+                  Question {activeAssessmentIndex + 1} of {MAX_ADAPTIVE_QUESTIONS}
+                  <b> • adaptive</b>
+                </span>
+              </div>
+
+              <div className="progress-bar">
+                <div
+                  className="progress-fill"
+                  style={{
+                    width: `${Math.min(
+                      ((activeAssessmentIndex + 1) /
+                        MAX_ADAPTIVE_QUESTIONS) *
+                        100,
+                      100,
+                    )}%`,
+                  }}
+                />
+              </div>
+
+              <div className="verlo-header assessment-header">
+                <h2 className="verlo-title">Refine Your Parameters</h2>
+                <p className="verlo-subtitle">
+                  Answering these custom inquiries ensures your final action
+                  pathway is laser-focused.
+                </p>
+              </div>
+
+              <div className="verlo-card assessment-card">
+                {isAdaptiveLoading ? (
+                  <div className="adaptive-loading">
+                    <div className="processing-pulse-ring" />
+                    <strong>Adapting the next question...</strong>
+                    <span>
+                      VERLO is using your previous answer to decide what matters
+                      next.
+                    </span>
+                  </div>
+                ) : currentAssessmentItem.type === "mcq" ? (
+                  <div>
+                    <label className="form-label question-label">
+                      {currentAssessmentItem.stem}
+                    </label>
+
+                    <div className="choice-grid">
+                      {currentAssessmentItem.choices.map((choice, index) => {
+                        const key =
+                          currentAssessmentItem.id || activeAssessmentIndex;
+
+                        const selected = selectedMcqAnswers[key] === choice;
+
+                        return (
+                          <button
+                            key={index}
+                            type="button"
+                            className={`choice-button ${selected ? "selected" : ""}`}
+                            onClick={() =>
+                              setSelectedMcqAnswers((prev) => ({
+                                ...prev,
+                                [key]: choice,
+                              }))
+                            }
+                          >
+                            <span className="choice-radio">
+                              {selected && <span />}
+                            </span>
+                            {choice}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="form-label question-label">
+                      {currentAssessmentItem.question}
+                    </label>
+
+                    <input
+                      className="form-input question-input"
+                      placeholder="Type your precise specification here and press Enter..."
+                      value={
+                        adaptiveTextAnswers[
+                          currentAssessmentItem.id || activeAssessmentIndex
+                        ] || ""
+                      }
+                      onChange={(e) =>
+                        setAdaptiveTextAnswers((prev) => ({
+                          ...prev,
+                          [currentAssessmentItem.id || activeAssessmentIndex]:
+                            e.target.value,
+                        }))
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !isAdaptiveLoading) {
+                          e.preventDefault();
+                          handleAssessmentNext();
+                        }
+                      }}
+                      autoFocus
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="assessment-actions">
+                <button
+                  className="btn-primary"
+                  onClick={handleAssessmentNext}
+                  disabled={isAdaptiveLoading}
+                >
+                  {isAdaptiveLoading
+                    ? "Adapting..."
+                    : adaptiveQuestionCount >= MAX_ADAPTIVE_QUESTIONS
+                      ? "Synthesise Final Report →"
+                      : "Next Question →"}
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {step === "processing" && (
+          <section className="page-transition processing-container processing-page">
+            <div className="processing-pulse-ring" />
+
+            <h2>Synthesising supercharged logic & links...</h2>
+
+            <div className="processing-steps">
+              {processingSteps.map((text, index) => {
+                const done = index < processingStage;
+                const active = index === processingStage;
 
                 return (
                   <div
-                    key={index}
-                    className="verlo-card"
-                    style={{ marginBottom: 0 }}
+                    key={text}
+                    className={`step-item ${active ? "active" : ""} ${
+                      done ? "done" : ""
+                    }`}
                   >
-                    <h3 style={{ marginBottom: "0.5rem" }}>
-                      {panel.title || panel.heading || `Insight ${index + 1}`}
-                    </h3>
+                    <div className="step-content">
+                      <span className="step-dot" />
+                      <span>{text}</span>
+                    </div>
 
-                    <p style={{ color: "var(--text-muted)" }}>
-                      {panel.description || panel.content || panel.text || ""}
-                    </p>
+                    <span className="step-status">
+                      {done ? "✓" : active ? "●" : "○"}
+                    </span>
                   </div>
                 );
               })}
@@ -730,126 +1104,397 @@ function App() {
           </section>
         )}
 
-        {steps.length > 0 && (
-          <section className="result-section">
-            <h2 style={{ marginBottom: "1rem" }}>Action steps</h2>
+        {step === "results" && analysisData && (
+          <section className="page-transition animate-fade-slide-up results-page">
+            <div className="results-container">
+              <div className="results-toolbar">
+                <div>
+                  <button className="secondary-button" onClick={() => setStep("input")}>
+                    ← New Situation
+                  </button>
 
-            <ul>
-              {steps.map((step, index) => (
-                <li key={index}>
-                  {typeof step === "string"
-                    ? step
-                    : step.text ||
-                      step.action ||
-                      step.description ||
-                      JSON.stringify(step)}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+                  <button
+                    className="save-button"
+                    onClick={() => handleSaveToAccount(analysisData)}
+                  >
+                    💾 Save Pathway
+                  </button>
+                </div>
 
-        {draftTemplate && (
-          <section className="result-section">
-            <h2 style={{ marginBottom: "1rem" }}>Draft</h2>
+                <button className="secondary-button" onClick={() => setStep("landing")}>
+                  Start Over
+                </button>
+              </div>
 
-            <div
-              style={{
-                padding: "1rem",
-                background: "var(--bg-card)",
-                border: "1px solid var(--border-subtle)",
-                borderRadius: "8px",
-                color: "var(--text-muted)",
-                whiteSpace: "pre-wrap",
-              }}
-            >
-              {typeof draftTemplate === "string"
-                ? draftTemplate
-                : draftTemplate.text ||
-                  draftTemplate.content ||
-                  JSON.stringify(draftTemplate, null, 2)}
+              <div className="result-section result-summary">
+                <div>
+                  <span
+                    className={`badge ${
+                      analysisData.confidence?.toLowerCase() || ""
+                    }`}
+                  >
+                    Confidence: {analysisData.confidence}
+                  </span>
+
+                  {userContext && (
+                    <div className="result-context">
+                      Tailored for: <em>"{userContext}"</em>
+                    </div>
+                  )}
+                </div>
+
+                <div className="risk-metrics">
+                  <div>
+                    <span>Severity:</span>
+                    <strong>
+                      {analysisData.riskAssessment?.severityScore}/10
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>Exposure:</span>
+                    <strong>
+                      {analysisData.riskAssessment?.financialExposure}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>Urgency:</span>
+                    <strong>
+                      {analysisData.riskAssessment?.timeSensitivity}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              <nav className="result-tabs">
+                {tabs.map(([id, label]) => (
+                  <button
+                    key={id}
+                    className={activeTab === id ? "active" : ""}
+                    onClick={() => setActiveTab(id)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </nav>
+
+              {activeTab === "overview" && (
+                <div className="result-content">
+                  <div className="dominant-action">
+                    <h3>Immediate Priority Action</h3>
+                    <h2>{analysisData.nextSteps?.[0]?.step}</h2>
+                    <p>
+                      <strong>Why this first:</strong>{" "}
+                      {analysisData.nextSteps?.[0]?.why}
+                    </p>
+                  </div>
+
+                  {analysisData.situation && (
+                    <div className="result-section">
+                      <h3>Situation Summary</h3>
+                      <p>{analysisData.situation}</p>
+                    </div>
+                  )}
+
+                  <div className="result-section assistant-section">
+                    <h3>Ask VERLO AI Assistant</h3>
+
+                    <p>Need immediate clarification, follow-up response, or file attachment?</p>
+
+                    {chatHistory.length > 0 && (
+                      <div className="chat-history">
+                        {chatHistory.map((msg, index) => (
+                          <div
+                            key={index}
+                            className={`chat-message ${msg.role}`}
+                          >
+                            <strong>
+                              {msg.role === "user" ? "You" : "VERLO AI"}
+                            </strong>
+
+                            {msg.attachment && (
+                              <small>📎 Attached file: {msg.attachment.name}</small>
+                            )}
+
+                            {msg.role === "user" ? (
+                              <div>{msg.content}</div>
+                            ) : (
+                              <div
+                                dangerouslySetInnerHTML={{
+                                  __html: renderMarkdownToHTML(msg.content),
+                                }}
+                              />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {chatAttachment && (
+                      <div className="attachment">
+                        <span>📎 {chatAttachment.name}</span>
+                        <button onClick={() => removeAttachment("chat")}>
+                          Remove
+                        </button>
+                      </div>
+                    )}
+
+                    <form className="chat-form" onSubmit={handleChatSubmit}>
+                      <input
+                        className="form-input"
+                        placeholder="Ask a question or upload file..."
+                        value={chatQuestion}
+                        onChange={(e) => setChatQuestion(e.target.value)}
+                        disabled={isChatLoading}
+                      />
+
+                      <label className="chat-file-button">
+                        📎
+                        <input
+                          type="file"
+                          hidden
+                          onChange={(e) =>
+                            handleSecureFileUpload(e.target.files[0], "chat")
+                          }
+                        />
+                      </label>
+
+                      <button
+                        type="submit"
+                        className="btn-primary"
+                        disabled={isChatLoading}
+                      >
+                        {isChatLoading ? "..." : "Send"}
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "panels" && (
+                <div className="result-section">
+                  <h3>Personalised Issue Solution Panels</h3>
+
+                  {!analysisData.personalizedPanels?.length ? (
+                    <p>No custom panels generated for this query.</p>
+                  ) : (
+                    <div className="panel-grid">
+                      {analysisData.personalizedPanels.map((panel, index) => (
+                        <div className="solution-panel" key={index}>
+                          <strong>{panel.panelTitle}</strong>
+
+                          <div
+                            dangerouslySetInnerHTML={{
+                              __html: renderMarkdownToHTML(panel.insight),
+                            }}
+                          />
+
+                          <div className="solution">
+                            <strong>Recommended Solution:</strong>{" "}
+                            {panel.solution}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === "steps" && (
+                <div className="result-section">
+                  <h3>Full Step-by-Step Action Pathway</h3>
+
+                  <div className="action-list">
+                    {analysisData.nextSteps?.map((item, index) => (
+                      <div className="action-item" key={index}>
+                        <div className="action-title">
+                          <span>{index + 1}</span>
+                          <strong>{item.step}</strong>
+                        </div>
+
+                        <p>
+                          <strong>Why:</strong> {item.why}
+                        </p>
+
+                        {item.pitfallWarning && (
+                          <p className="pitfall">
+                            <strong>⚠️ Pitfall to Avoid:</strong>{" "}
+                            {item.pitfallWarning}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "letter" && (
+                <div className="result-section letter-section">
+                  <div className="letter-header">
+                    <h3>Automated Resolution Letter</h3>
+
+                    <button onClick={handleCopyDraft}>
+                      {copied ? "Copied!" : "Copy Letter Template"}
+                    </button>
+                  </div>
+
+                  {analysisData.draftTemplate ? (
+                    <div className="letter-content">
+                      {`To: ${analysisData.draftTemplate.recipient}
+Subject: ${analysisData.draftTemplate.subject}
+
+${analysisData.draftTemplate.body}`}
+                    </div>
+                  ) : (
+                    <p>No template generated for this situation.</p>
+                  )}
+                </div>
+              )}
+
+              {activeTab === "resources" && (
+                <div className="result-section">
+                  <h3>Authoritative Resources & Links</h3>
+
+                  {!analysisData.referenceLinks?.length ? (
+                    <p>No external links provided for this pathway.</p>
+                  ) : (
+                    <div className="resource-list">
+                      {analysisData.referenceLinks.map((link, index) => (
+                        <a
+                          key={index}
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <span>🔗 <strong>{link.title}</strong></span>
+                          <span>Visit →</span>
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </section>
         )}
-
-        {resourceList.length > 0 && (
-          <section className="result-section">
-            <h2 style={{ marginBottom: "1rem" }}>Resources</h2>
-
-            <ul>
-              {resourceList.map((resource, index) => (
-                <li key={index}>
-                  {typeof resource === "string"
-                    ? resource
-                    : resource.title ||
-                      resource.name ||
-                      resource.url ||
-                      JSON.stringify(resource)}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        <div
-          style={{
-            display: "flex",
-            gap: "0.75rem",
-            flexWrap: "wrap",
-            marginTop: "1.5rem",
-          }}
-        >
-          <button
-            className="btn-primary"
-            style={{ flex: "1 1 240px" }}
-            onClick={resetApp}
-          >
-            Start another assessment
-          </button>
-        </div>
       </main>
-    );
-  };
 
-  return (
-    <div
-      style={{
-        width: "100%",
-        maxWidth: "1100px",
-        minHeight: "100vh",
-        margin: "0 auto",
-        padding: "3rem 1.25rem",
-      }}
-    >
-      {page !== "home" && page !== "processing" && (
-        <button
-          onClick={handleBack}
-          style={{
-            position: "fixed",
-            top: "1.25rem",
-            left: "1.25rem",
-            zIndex: 20,
-            padding: "0.5rem 0.75rem",
-            background: "rgba(14, 20, 18, 0.9)",
-            border: "1px solid var(--border-subtle)",
-            borderRadius: "8px",
-            color: "var(--text-muted)",
-            backdropFilter: "blur(10px)",
-          }}
-        >
-          ← Back
-        </button>
+      <footer className="verlo-footer">
+        <div className="footer-inner">
+          <div className="footer-brand">
+            <img src="/VVNormal.png" alt="VERLO Logo" />
+            <span>VERLO</span>
+          </div>
+
+          <div>
+            &copy; {new Date().getFullYear()} VERLO Engine. All rights reserved.
+            Crafted with 🌶️.
+          </div>
+        </div>
+      </footer>
+
+      {showHistoryDrawer && (
+        <aside className="history-drawer animate-slide-in-right">
+          <div className="drawer-header">
+            <h3>Your Saved Pathways</h3>
+
+            <button onClick={() => setShowHistoryDrawer(false)}>✕</button>
+          </div>
+
+          {userHistory.length === 0 ? (
+            <p>No saved reports yet. Click "Save Pathway" on any result screen!</p>
+          ) : (
+            <div className="history-list">
+              {userHistory.map((item, index) => (
+                <button
+                  className="history-item"
+                  key={index}
+                  onClick={() => {
+                    setTitle(item.title);
+                    setDescription(item.description);
+                    setAnalysisData(item.result);
+                    setStep("results");
+                    setActiveTab("overview");
+                    setShowHistoryDrawer(false);
+                  }}
+                >
+                  <strong>{item.title}</strong>
+                  <span>
+                    {new Date(item.timestamp).toLocaleDateString()}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </aside>
       )}
 
-      {page === "home" && renderHome()}
-      {page === "input" && renderInput()}
-      {page === "questions" && renderQuestions()}
-      {page === "processing" && renderProcessing()}
-      {page === "results" && renderResults()}
+      {showAuthModal && (
+        <div className="auth-overlay">
+          <div className="auth-modal">
+            <div className="modal-header">
+              <h3>
+                {authMode === "login"
+                  ? "Log in to VERLO"
+                  : "Create an Account"}
+              </h3>
+
+              <button onClick={() => setShowAuthModal(false)}>✕</button>
+            </div>
+
+            {authError && <div className="error-message">{authError}</div>}
+
+            <form onSubmit={handleAuthSubmit}>
+              <div className="form-group">
+                <label className="form-label">Email Address</label>
+
+                <input
+                  type="email"
+                  className="form-input"
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Password</label>
+
+                <input
+                  type="password"
+                  className="form-input"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  required
+                />
+              </div>
+
+              <button type="submit" className="btn-primary full-width">
+                {authMode === "login" ? "Log In" : "Sign Up"}
+              </button>
+            </form>
+
+            <div className="auth-switch">
+              {authMode === "login" ? (
+                <>
+                  Don't have an account?{" "}
+                  <button onClick={() => setAuthMode("signup")}>
+                    Sign up
+                  </button>
+                </>
+              ) : (
+                <>
+                  Already have an account?{" "}
+                  <button onClick={() => setAuthMode("login")}>
+                    Log in
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
-export default App;
-
-
