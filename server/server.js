@@ -1,258 +1,122 @@
+// ==========================================
+// server.js - VERLO AI Backend (Full Production Script)
+// ==========================================
+
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import Groq from 'groq-sdk';
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
-app.use(cors());
-app.use(express.json({ limit: '20mb' }));
+const PORT = process.env.PORT || 3001;
 
+// Initialize Groq SDK (Ensure GROQ_API_KEY is set in your environment variables)
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-const inMemoryHistory = {};
-const userProfiles = {};
-const uploadedFilesStorage = {}; 
+// Middleware
+app.use(cors());
+app.use(express.json());
 
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development'
-  });
-});
-
-app.post('/api/auth/signup', (req, res) => {
-  const { email, password, fullName } = req.body;
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required for registration.' });
-  }
-  if (userProfiles[email]) {
-    return res.status(400).json({ error: 'An account with this email already exists.' });
-  }
-  const newUser = {
-    id: email,
-    email,
-    fullName: fullName || email.split('@')[0],
-    createdAt: new Date().toISOString(),
-    tier: 'YICTE Elite Judged Tier',
-    creditsRemaining: 1000
-  };
-  userProfiles[email] = { ...newUser, password };
-  inMemoryHistory[email] = [];
-  res.json({ success: true, user: newUser });
-});
-
-app.post('/api/auth/login', (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required.' });
-  }
-  const account = userProfiles[email];
-  if (!account || account.password !== password) {
-    return res.status(401).json({ error: 'Invalid email or password combination.' });
-  }
-  const { password: _, ...userData } = account;
-  res.json({ success: true, user: userData });
-});
-
-app.get('/api/history/:userId', (req, res) => {
-  const { userId } = req.params;
-  const history = inMemoryHistory[userId] || [];
-  res.json({ success: true, history, count: history.length });
-});
-
-app.post('/api/history/save', (req, res) => {
-  const { userId, report } = req.body;
-  if (!userId || !report) {
-    return res.status(400).json({ error: 'userId and report payload are required.' });
-  }
-  if (!inMemoryHistory[userId]) {
-    inMemoryHistory[userId] = [];
-  }
-  const entry = {
-    id: `rep_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-    ...report,
-    timestamp: new Date().toISOString()
-  };
-  inMemoryHistory[userId].unshift(entry);
-  res.json({ success: true, history: inMemoryHistory[userId], savedId: entry.id });
-});
-
-app.post('/api/upload', (req, res) => {
-  try {
-    const { name, size, type, data, ownerId } = req.body;
-    if (!name || !data) {
-      return res.status(400).json({ error: 'Invalid file payload provided.' });
-    }
-
-    const fileId = `file_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const fileRecord = {
-      id: fileId,
-      name,
-      size: size || 'Unknown size',
-      type: type || 'application/octet-stream',
-      uploadedAt: new Date().toISOString(),
-      ownerId: ownerId || 'anonymous',
-      storageVault: 'SECURE_BACKEND_BUFFER'
-    };
-
-    uploadedFilesStorage[fileId] = fileRecord;
-    res.json({ success: true, file: fileRecord });
-  } catch (err) {
-    console.error('Upload error:', err);
-    res.status(500).json({ error: 'Failed to securely store uploaded media.' });
-  }
-});
-
-app.post('/api/assess', async (req, res) => {
-  try {
-    const { title, description, attachment } = req.body;
-    if (!description || description.trim().split(/\s+/).length < 2) {
-      return res.status(400).json({ error: 'Please provide a comprehensive situation description.' });
-    }
-
-    const systemPrompt = `You are VERLO, an ultra-advanced adaptive decision-intelligence and strategic simulation engine. Analyze the user's initial situation. Determine critical ambiguities or decision branches that require clarification, and generate both absolute probing questions and structured multiple-choice questions (MCQs) for deep profiling. Return a STRICTLY VALID JSON object with this exact structure:
-    {
-      "needsClarification": true,
-      "adaptiveQuestions": [
-        {
-          "id": "q1",
-          "question": "A precise analytical question to isolate the primary risk vector?"
-        }
-      ],
-      "mcqAssessment": [
-        {
-          "id": "mcq1",
-          "stem": "What is the primary operational or legal constraint governing this scenario?",
-          "choices": [
-            "Strict capital limitations and cash-flow burn",
-            "Severe time constraints and looming legal deadlines",
-            "Reputational exposure and stakeholder backlash",
-            "Technical ambiguity and lack of precedent"
-          ]
-        }
-      ]
-    }
-    Ensure response contains absolutely no markdown wrappers like json and is valid raw JSON.`;
-
-    const userPrompt = `Title: ${title || 'Untitled Situation'} Description: ${description} ${attachment ? `[Attached File: ${attachment.name}]` : ''}`;
-    const completion = await groq.chat.completions.create({
-      model: 'openai/gpt-oss-120b',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: 0.3,
-      response_format: { type: 'json_object' }
-    });
-
-    let rawContent = completion.choices[0]?.message?.content;
-    if (!rawContent) throw new Error('Empty response from inference model.');
-    rawContent = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
-    const parsedData = JSON.parse(rawContent);
-
-    res.json({ success: true, data: parsedData });
-  } catch (err) {
-    console.error('Assessment pipeline error:', err);
-    res.status(500).json({ error: err.message || 'Failed to compute adaptive assessment vector.' });
-  }
-});
-
-app.post('/api/diagnose', async (req, res) => {
-  try {
-    const { title, description, context, userAnswers, mcqAnswers, attachment } = req.body;
-
-    const systemPrompt = `You are VERLO, an elite ethical decision-intelligence and strategic action engine. Synthesize the user's dilemma, adaptive clarifying choices, and MCQ selections into a master strategic blueprint complete with personalized panels and verified reference links. Return a STRICTLY VALID JSON object with the following exact structure:
-{
-  "confidence": "High",
-  "riskAssessment": {
-    "severityScore": 8,
-    "financialExposure": "Detailed evaluation of monetary risk exposure",
-    "timeSensitivity": "Urgency rating and hard timeline window"
-  },
-  "situation": "An executive-level summary framing the core systemic issue.",
-  "personalizedPanels": [
-    {
-      "panelTitle": "Targeted Issue Dimension Title",
-      "insight": "Deep analysis of this specific facet based on user choices.",
-      "solution": "Actionable strategy to resolve this specific dimension."
-    }
-  ],
-  "nextSteps": [
-    {
-      "step": "Tactical action header",
-      "why": "Detailed justification of necessity",
-      "pitfallWarning": "Critical failure mode or hazard to avoid"
-    }
-  ],
-  "referenceLinks": [
-    {
-      "title": "Authoritative Portal or Statute Name",
-      "url": "https://www.example.com"
-    }
-  ],
-  "verificationNeeded": ["Audit financial statements", "Verify jurisdictional compliance"],
-  "draftTemplate": {
-    "recipient": "Target stakeholder or opposing counsel",
-    "subject": "Formal definitive subject line",
-    "body": "Comprehensive formal communication template with placeholder fields."
-  }
+// Ensure uploads directory exists
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: { mode: 0o747 } });
 }
-Return raw valid JSON only without markdown wrapping.`;
 
-    const userPrompt = `Title: ${title || 'Untitled'} Description: ${description} Context: ${context || 'None'} Adaptive Text Answers: ${JSON.stringify(userAnswers || {})} MCQ Answers: ${JSON.stringify(mcqAnswers || {})} Attachment: ${attachment ? attachment.name : 'None'}`;
-
-    const completion = await groq.chat.completions.create({
-      model: 'openai/gpt-oss-120b',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: 0.2,
-      response_format: { type: 'json_object' }
-    });
-
-    let rawContent = completion.choices[0]?.message?.content;
-    if (!rawContent) throw new Error('Empty diagnosis payload received from model.');
-    rawContent = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
-    const parsedData = JSON.parse(rawContent);
-
-    res.json({ success: true, data: parsedData });
-  } catch (err) {
-    console.error('Diagnosis pipeline error:', err);
-    res.status(500).json({ error: err.message || 'Internal server error during path synthesis.' });
+// Multer storage & strict image filter configuration for evidence attachments
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + '-' + file.originalname);
   }
 });
 
-app.post('/api/chat', async (req, res) => {
+const fileFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith('image/')) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only image files are permitted for evidence attachments.'), false);
+  }
+};
+
+const upload = multer({ 
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit per image
+});
+
+// In-memory session history store
+const sessionHistory = [];
+
+// API Endpoint: Diagnostic Analysis & Action Plan Generation via Groq
+app.post('/api/analyze', upload.array('evidenceFiles'), async (req, res) => {
   try {
-    const { question, currentSituation, attachment } = req.body;
-    if (!question) return res.status(400).json({ error: 'Question parameter is required.' });
+    const { situation, category, urgency, userContext } = req.body;
+    const files = req.files || [];
+
+    const prompt = `
+    You are VERLO AI, an elite strategic intelligence advisor. 
+    Analyze the following operational situation and provide a structured JSON response:
+    - Situation: ${situation}
+    - Category: ${category}
+    - Urgency: ${urgency}
+    - User Context: ${userContext || 'None specified'}
+    - Attached Image Evidence Count: ${files.length}
+
+    Return a valid JSON object with the following keys:
+    - reportId (string)
+    - assessment (object with assetValue, legalBasis, riskProfile)
+    - tacticalObjectives (array of objects with step, action, execution, metric)
+    - escalationPath (array of strings)
+    - demandLetterText (string template)
+    `;
 
     const chatCompletion = await groq.chat.completions.create({
+      messages: [{ role: 'user', content: prompt }],
       model: 'openai/gpt-oss-120b',
-      messages: [
-        { 
-          role: 'system', 
-          content: `You are VERLO AI, an elite strategic intelligence advisor. The active operational situation is: "${currentSituation}". Deliver rigorous, highly authoritative, and actionable guidance.` 
-        },
-        { role: 'user', content: `${question} ${attachment ? `[Attached context file: ${attachment.name}]` : ''}` }
-      ],
-      temperature: 0.4
+      response_format: { type: 'json_object' }
     });
 
-    const reply = chatCompletion.choices[0]?.message?.content || 'No response generated.';
-    res.json({ success: true, reply });
-  } catch (err) {
-    console.error('Chat error:', err);
-    res.status(500).json({ error: err.message || 'Chat generation failed.' });
+    const parsedResult = JSON.parse(chatCompletion.choices[0]?.message?.content || '{}');
+    
+    const analysisResult = {
+      reportId: parsedResult.reportId || 'VERLO-' + Math.floor(100000 + Math.random() * 900000),
+      timestamp: new Date().toISOString(),
+      engine: 'openai/gpt-oss-120b',
+      operationalSituation: situation,
+      category,
+      urgency,
+      assessment: parsedResult.assessment || {},
+      tacticalObjectives: parsedResult.tacticalObjectives || [],
+      escalationPath: parsedResult.escalationPath || [],
+      demandLetterText: parsedResult.demandLetterText || ''
+    };
+
+    sessionHistory.push(analysisResult);
+    res.status(200).json({ success: true, data: analysisResult });
+  } catch (error) {
+    console.error('Groq API Analysis error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Internal server error during Groq processing.' });
   }
 });
 
-const PORT = process.env.PORT || 5001;
+// API Endpoint: Retrieve Session History
+app.get('/api/history', (req, res) => {
+  res.status(200).json({ success: true, history: sessionHistory });
+});
+
+// Static file serving for evidence attachments
+app.use('/uploads', express.static(uploadDir));
+
 app.listen(PORT, () => {
-  console.log(`VERLO Enterprise Neural Core operational on port ${PORT}`);
+  console.log(`VERLO AI Backend operational on port ${PORT}`);
 });
