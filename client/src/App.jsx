@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './index.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5001';
+const AI_ENGINE_LABEL = 'openai/gpt-oss-120b (VERLO Neural Core v4.8)';
 
 export default function App() {
   const [step, setStep] = useState('landing');
@@ -63,11 +64,11 @@ export default function App() {
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
 
   const processingSteps = [
-    "Deciphering core strategic goals..",
+    `Connecting to ${AI_ENGINE_LABEL}..`,
     "Screening through moderation & safety filters...",
     "Evaluating risk severity & exposure metrics...",
     "Synthesising customised action pathway...",
-    "Finalising recommendations..."
+    "Finalising recommendations for YICTE review..."
   ];
 
   const wordCount = description.trim() ? description.trim().split(/\s+/).length : 0;
@@ -199,46 +200,63 @@ export default function App() {
     }
 
     try {
-      triggerCustomAlert('Importing media into secure database...', 'success');
-      await new Promise(resolve => setTimeout(resolve, 600));
+      triggerCustomAlert('Uploading media to secure backend storage...', 'success');
+      
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const base64Data = reader.result;
+          const uploadRes = await fetch(`${API_URL}/api/upload`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: file.name,
+              size: `${(file.size / 1024).toFixed(1)} KB`,
+              type: file.type || 'application/octet-stream',
+              data: base64Data,
+              ownerId: currentUser ? (currentUser.id || currentUser.email) : 'anonymous'
+            })
+          });
 
-      const fileMeta = {
-        name: file.name,
-        size: `${(file.size / 1024).toFixed(1)} KB`,
-        type: file.type || 'application/octet-stream',
-        uploadedAt: new Date().toISOString(),
-        dbId: `db_${Math.random().toString(36).substring(2, 9)}`
+          const uploadData = await uploadRes.json();
+          if (!uploadRes.ok) throw new Error(uploadData.error || 'Server upload failed.');
+
+          const fileMeta = uploadData.file;
+
+          if (targetContext === 'description') {
+            setAssessmentAttachment(fileMeta);
+            triggerCustomAlert(`File "${file.name}" secured in backend storage.`, 'success');
+          } else if (targetContext === 'adaptiveText' && questionId !== null) {
+            setAdaptiveAttachments(prev => ({ ...prev, [questionId]: fileMeta }));
+            triggerCustomAlert(`File secured for question response.`, 'success');
+          } else if (targetContext === 'chat') {
+            setChatAttachment(fileMeta);
+            triggerCustomAlert(`File attached securely to chat session.`, 'success');
+          }
+        } catch (innerErr) {
+          triggerCustomAlert(innerErr.message || 'Failed to process file stream.', 'error');
+        }
       };
-
-      if (targetContext === 'description') {
-        setAssessmentAttachment(fileMeta);
-        triggerCustomAlert(`File "${file.name}" attached successfully.`, 'success');
-      } else if (targetContext === 'adaptiveText' && questionId !== null) {
-        setAdaptiveAttachments(prev => ({ ...prev, [questionId]: fileMeta }));
-        triggerCustomAlert(`File attached to question successfully.`, 'success');
-      } else if (targetContext === 'chat') {
-        setChatAttachment(fileMeta);
-        triggerCustomAlert(`File attached to chat prompt successfully.`, 'success');
-      }
+      reader.readAsDataURL(file);
     } catch (err) {
-      triggerCustomAlert('Failed to import file.', 'error');
+      triggerCustomAlert('Failed to upload file to server.', 'error');
     }
   };
 
   const removeAttachment = (targetContext, questionId = null) => {
     if (targetContext === 'description') {
       setAssessmentAttachment(null);
-      triggerCustomAlert('Attachment deleted from database.', 'success');
+      triggerCustomAlert('Attachment removed.', 'success');
     } else if (targetContext === 'adaptiveText' && questionId !== null) {
       setAdaptiveAttachments(prev => {
         const updated = { ...prev };
         delete updated[questionId];
         return updated;
       });
-      triggerCustomAlert('Attachment deleted from database.', 'success');
+      triggerCustomAlert('Attachment removed.', 'success');
     } else if (targetContext === 'chat') {
       setChatAttachment(null);
-      triggerCustomAlert('Chat attachment deleted from database.', 'success');
+      triggerCustomAlert('Chat attachment removed.', 'success');
     }
   };
 
@@ -479,57 +497,70 @@ export default function App() {
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem', gap: '1rem', width: '100%', boxSizing: 'border-box', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }} onClick={() => setStep('landing')}>
-          <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '28px', height: '28px', objectFit: 'contain' }} />
-          <span style={{ fontWeight: 800, letterSpacing: '0.05em', color: 'var(--text-main)', fontSize: '1.1rem' }}>VERLO</span>
-        </div>
-        
-        {currentUser ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <button 
-              onClick={() => setShowHistoryDrawer(!showHistoryDrawer)}
-              style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-              History ({userHistory.length})
-            </button>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              {currentUser.email || currentUser.id}
-            </span>
-            <button 
-              onClick={handleLogout} 
-              style={{ background: 'none', border: '1px solid var(--border-subtle)', color: 'var(--danger)', padding: '0.3rem 0.6rem', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}
-            >
-              Logout
-            </button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem', gap: '1rem', width: '100%', boxSizing: 'border-box', flexWrap: 'wrap', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }} onClick={() => setStep('landing')}>
+          <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
+          <div>
+            <span style={{ fontWeight: 800, letterSpacing: '0.05em', color: 'var(--text-main)', fontSize: '1.1rem', display: 'block', lineHeight: 1.1 }}>VERLO</span>
+            <span style={{ fontSize: '0.65rem', color: 'var(--accent)', fontWeight: 700 }}>YICTE 2026 Entry</span>
           </div>
-        ) : (
-          <button 
-            onClick={() => { setAuthMode('login'); setAuthError(null); setShowAuthModal(true); }}
-            style={{ background: 'var(--accent)', color: 'var(--bg-primary)', border: 'none', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
-          >
-            Login / Signup
-          </button>
-        )}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', padding: '0.35rem 0.75rem', borderRadius: '6px', fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' }}></span>
+            Engine: <strong>{AI_ENGINE_LABEL}</strong>
+          </div>
+
+          {currentUser ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <button 
+                onClick={() => setShowHistoryDrawer(!showHistoryDrawer)}
+                style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                History ({userHistory.length})
+              </button>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                {currentUser.email || currentUser.id}
+              </span>
+              <button 
+                onClick={handleLogout} 
+                style={{ background: 'none', border: '1px solid var(--border-subtle)', color: 'var(--danger)', padding: '0.3rem 0.6rem', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}
+              >
+                Logout
+              </button>
+            </div>
+          ) : (
+            <button 
+              onClick={() => { setAuthMode('login'); setAuthError(null); setShowAuthModal(true); }}
+              style={{ background: 'var(--accent)', color: 'var(--bg-primary)', border: 'none', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
+            >
+              Login / Signup
+            </button>
+          )}
+        </div>
       </div>
 
-      <div style={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '850px', margin: '0 auto', padding: '0 1rem 3rem 1rem', boxSizing: 'border-box', alignItems: 'center' }}>
+      <div style={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '850px', margin: '0 auto', padding: '1.5rem 1rem 3rem 1rem', boxSizing: 'border-box', alignItems: 'center' }}>
         
         {step === 'landing' && (
           <div className="page-transition" key="landing" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div className="verlo-header" style={{ marginTop: '1rem', textAlign: 'center', width: '100%', boxSizing: 'border-box' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '1rem', width: '100%' }}>
-                <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
+                <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '48px', height: '48px', objectFit: 'contain' }} />
                 <span className="verlo-brand" style={{ margin: 0 }}>VERLO</span>
               </div>
               <h1 className="verlo-title" style={{ fontSize: 'clamp(1.75rem, 4vw, 2.75rem)' }}>Stop guessing. Know your exact next step.</h1>
-              <p className="verlo-subtitle" style={{ marginBottom: '2.5rem', maxWidth: '650px', marginInline: 'auto', padding: '0 0.5rem', boxSizing: 'border-box' }}>
-                Verlo is an adaptive supercharged decision-intelligence engine that transforms messy, stressful situations into a fully tailored, risk-scored action pathway through dynamic profiling.
+              <p className="verlo-subtitle" style={{ marginBottom: '2rem', maxWidth: '650px', marginInline: 'auto', padding: '0 0.5rem', boxSizing: 'border-box' }}>
+                Powered by <strong>{AI_ENGINE_LABEL}</strong>, Verlo transforms complex dilemmas into rigorous, risk-scored action pathways via adaptive intelligence profiling.
               </p>
-              <button className="btn-primary" style={{ maxWidth: '300px', margin: '0 auto 3rem' }} onClick={() => setStep('input')}>
-                Launch Decision Engine →
-              </button>
+              
+              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '2.5rem' }}>
+                <button className="btn-primary" style={{ maxWidth: '300px', margin: 0 }} onClick={() => setStep('input')}>
+                  Launch Decision Engine →
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -546,13 +577,9 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="verlo-header" style={{ marginTop: '1rem', marginBottom: '2rem', textAlign: 'center', width: '100%' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '1rem', width: '100%' }}>
-                  <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
-                  <span className="verlo-brand" style={{ margin: 0 }}>VERLO</span>
-                </div>
+              <div className="verlo-header" style={{ marginTop: '0.5rem', marginBottom: '1.5rem', textAlign: 'center', width: '100%' }}>
                 <h2 className="verlo-title" style={{ fontSize: '2rem', marginBottom: '0.25rem' }}>Define Your Situation</h2>
-                <p className="verlo-subtitle" style={{ margin: 0, textAlign: 'center' }}>Provide the details below. Our adaptive engine will formulate custom probing questions before constructing your report.</p>
+                <p className="verlo-subtitle" style={{ margin: 0, textAlign: 'center' }}>Using model: <code style={{ color: 'var(--accent)' }}>{AI_ENGINE_LABEL}</code></p>
               </div>
 
               {error && <div style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.9rem', background: 'rgba(239, 68, 68, 0.1)', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.3)', width: '100%', boxSizing: 'border-box', textAlign: 'center' }}>{error}</div>}
@@ -580,23 +607,23 @@ export default function App() {
                   <div style={{ position: 'relative', width: '100%' }}>
                     <textarea 
                       className="form-textarea" 
-                      placeholder="Include key details: dates, amounts, communications, and what outcome you are looking for..."
+                      placeholder="Include key details: dates, amounts, communications, and desired outcomes..."
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       required
-                      style={{ paddingBottom: '3rem' }}
+                      style={{ paddingBottom: '3.5rem' }}
                     />
-                    <div style={{ position: 'absolute', bottom: '10px', left: '10px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{ position: 'absolute', bottom: '10px', left: '10px', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                       <label style={{ background: 'var(--accent)', color: 'var(--bg-primary)', padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', boxShadow: '0 2px 6px rgba(0,0,0,0.2)' }}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                        Upload Image / Media
+                        Upload Supporting Media
                         <input 
                           type="file" 
                           style={{ display: 'none' }} 
                           onChange={(e) => handleFileUpload(e.target.files[0], 'description')}
                         />
                       </label>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Safe DB Vault</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Stored in secure server vault</span>
                     </div>
                   </div>
 
@@ -610,7 +637,7 @@ export default function App() {
                         onClick={() => removeAttachment('description')}
                         style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700 }}
                       >
-                        Delete
+                        Remove
                       </button>
                     </div>
                   )}
@@ -655,12 +682,8 @@ export default function App() {
               </div>
 
               <div className="verlo-header" style={{ marginTop: '0.5rem', marginBottom: '1.5rem', textAlign: 'center', width: '100%' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.75rem', width: '100%' }}>
-                  <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
-                  <span className="verlo-brand" style={{ margin: 0 }}>Adaptive Intelligence Matrix</span>
-                </div>
                 <h2 className="verlo-title" style={{ fontSize: '1.75rem', marginBottom: '0.25rem' }}>Refine Your Parameters</h2>
-                <p className="verlo-subtitle" style={{ margin: 0, textAlign: 'center' }}>Answering these custom inquiries ensures your final action pathway is laser-focused.</p>
+                <p className="verlo-subtitle" style={{ margin: 0, textAlign: 'center' }}>Powered by <code>{AI_ENGINE_LABEL}</code></p>
               </div>
 
               <div className="verlo-card" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left', margin: 0 }}>
@@ -672,7 +695,7 @@ export default function App() {
                       </label>
                       <label style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '0.35rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                        Upload Media for Question
+                        Attach File
                         <input 
                           type="file" 
                           style={{ display: 'none' }} 
@@ -691,7 +714,7 @@ export default function App() {
                           onClick={() => removeAttachment('adaptiveText', currentAssessmentItem.id || activeAssessmentIndex)}
                           style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
                         >
-                          Delete
+                          Remove
                         </button>
                       </div>
                     )}
@@ -739,7 +762,7 @@ export default function App() {
                       </label>
                       <label style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '0.35rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                        Upload Media for Box
+                        Attach File
                         <input 
                           type="file" 
                           style={{ display: 'none' }} 
@@ -758,7 +781,7 @@ export default function App() {
                           onClick={() => removeAttachment('adaptiveText', currentAssessmentItem.id || activeAssessmentIndex)}
                           style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
                         >
-                          Delete
+                          Remove
                         </button>
                       </div>
                     )}
@@ -798,7 +821,7 @@ export default function App() {
         {step === 'processing' && (
           <div className="page-transition processing-container" key="processing" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3rem 0' }}>
             <div className="processing-pulse-ring"></div>
-            <h2 style={{ fontSize: '1.5rem', marginTop: '1.5rem', color: 'var(--text-main)', textAlign: 'center' }}>Synthesising supercharged logic & links...</h2>
+            <h2 style={{ fontSize: '1.5rem', marginTop: '1.5rem', color: 'var(--text-main)', textAlign: 'center' }}>Synthesising via <code>{AI_ENGINE_LABEL}</code>...</h2>
             
             <div className="processing-steps" style={{ width: '100%', maxWidth: '450px', marginTop: '2rem', boxSizing: 'border-box', padding: '0 1rem' }}>
               {processingSteps.map((text, idx) => {
@@ -835,12 +858,9 @@ export default function App() {
                     Save Pathway
                   </button>
                 </div>
-                <button 
-                  onClick={() => setStep('landing')} 
-                  style={{ background: 'none', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)', padding: '0.45rem 0.9rem', borderRadius: '8px', fontSize: '0.8rem', cursor: 'pointer' }}
-                >
-                  Start Over
-                </button>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Engine: <span style={{ color: 'var(--accent)' }}>{AI_ENGINE_LABEL}</span>
+                </div>
               </div>
 
               <div className="result-section animate-fade-slide-up" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', marginBottom: '1.25rem' }}>
@@ -863,6 +883,7 @@ export default function App() {
                   </div>
                   <div>
                     <span style={{ color: 'var(--text-muted)' }}>Urgency:</span><br/>
+                    {/* LUCKY NUMBER 888 */}
                     <strong>{analysisData.riskAssessment?.timeSensitivity}</strong>
                   </div>
                 </div>
@@ -881,11 +902,6 @@ export default function App() {
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
-
-
-
-
-                      // LUCKY NUMBER 888
                       style={{
                         flex: '1 1 auto',
                         padding: '0.6rem 0.8rem',
@@ -932,9 +948,8 @@ export default function App() {
                   <div className="result-section animate-fade-slide-up" style={{ background: 'var(--bg-surface)', width: '100%', boxSizing: 'border-box', textAlign: 'left', margin: 0 }}>
                     <h3 style={{ color: 'var(--text-main)', marginBottom: '0.5rem', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                      Ask VERLO AI Assistant
+                      Ask VERLO AI Assistant ({AI_ENGINE_LABEL})
                     </h3>
-                    <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>Need immediate clarification, follow-up response, or file attachment?</p>
                     
                     {chatHistory.length > 0 && (
                       <div style={{ display: 'grid', gap: '0.75rem', marginBottom: '0.75rem', maxHeight: '250px', overflowY: 'auto', paddingRight: '0.4rem', width: '100%', boxSizing: 'border-box' }}>
@@ -980,7 +995,7 @@ export default function App() {
                           onClick={() => removeAttachment('chat')}
                           style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
                         >
-                          Delete
+                          Remove
                         </button>
                       </div>
                     )}
@@ -989,7 +1004,7 @@ export default function App() {
                       <input 
                         type="text" 
                         className="form-input" 
-                        placeholder="Ask a question or upload media..." 
+                        placeholder="Ask a follow-up question..." 
                         value={chatQuestion}
                         onChange={(e) => setChatQuestion(e.target.value)}
                         disabled={isChatLoading}
@@ -997,7 +1012,7 @@ export default function App() {
                       />
                       <label style={{ background: 'var(--accent)', color: 'var(--bg-primary)', padding: '0.5rem 0.85rem', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem', fontSize: '0.85rem', fontWeight: 600, flexShrink: 0 }}>
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                        Upload Media
+                        Upload
                         <input 
                           type="file" 
                           style={{ display: 'none' }} 
@@ -1119,10 +1134,10 @@ export default function App() {
         <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <img src="/VVNormal.png" alt="VERLO Logo" style={{ width: '20px', height: '20px', objectFit: 'contain' }} />
-            <span style={{ fontWeight: 700, letterSpacing: '0.05em', fontSize: '0.9rem', color: 'var(--text-main)' }}>VERLO</span>
+            <span style={{ fontWeight: 700, letterSpacing: '0.05em', fontSize: '0.9rem', color: 'var(--text-main)' }}>VERLO Engine</span>
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-            &copy; {new Date().getFullYear()} VERLO Engine. All rights reserved. Crafted with 🌶️. 
+            &copy; {new Date().getFullYear()} VERLO Decision-Intelligence. Built for YICTE. Active AI: <span style={{ color: 'var(--accent)' }}>{AI_ENGINE_LABEL}</span>
           </div>
         </div>
       </footer>

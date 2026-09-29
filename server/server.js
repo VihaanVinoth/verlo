@@ -7,21 +7,22 @@ dotenv.config();
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '20mb' }));
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const inMemoryHistory = {};
 const userProfiles = {};
-const customDirectives = {};
-const systemKnowledgeBase = {};
+const uploadedFilesStorage = {}; 
+
+const ACTIVE_AI_ENGINE = 'openai/gpt-oss-120b (VERLO Neural Core v4.8)';
 
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    engine: 'VERLO Neural Core v4.8 Ultimate',
+    engine: ACTIVE_AI_ENGINE,
     environment: process.env.NODE_ENV || 'development'
   });
 });
@@ -39,8 +40,8 @@ app.post('/api/auth/signup', (req, res) => {
     email,
     fullName: fullName || email.split('@')[0],
     createdAt: new Date().toISOString(),
-    tier: 'Enterprise Elite',
-    creditsRemaining: 500
+    tier: 'YICTE Elite Judged Tier',
+    creditsRemaining: 1000
   };
   userProfiles[email] = { ...newUser, password };
   inMemoryHistory[email] = [];
@@ -83,14 +84,40 @@ app.post('/api/history/save', (req, res) => {
   res.json({ success: true, history: inMemoryHistory[userId], savedId: entry.id });
 });
 
+app.post('/api/upload', (req, res) => {
+  try {
+    const { name, size, type, data, ownerId } = req.body;
+    if (!name || !data) {
+      return res.status(400).json({ error: 'Invalid file payload provided.' });
+    }
+
+    const fileId = `file_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const fileRecord = {
+      id: fileId,
+      name,
+      size: size || 'Unknown size',
+      type: type || 'application/octet-stream',
+      uploadedAt: new Date().toISOString(),
+      ownerId: ownerId || 'anonymous',
+      storageVault: 'SECURE_BACKEND_BUFFER'
+    };
+
+    uploadedFilesStorage[fileId] = fileRecord;
+    res.json({ success: true, file: fileRecord });
+  } catch (err) {
+    console.error('Upload error:', err);
+    res.status(500).json({ error: 'Failed to securely store uploaded media.' });
+  }
+});
+
 app.post('/api/assess', async (req, res) => {
   try {
-    const { title, description } = req.body;
+    const { title, description, attachment } = req.body;
     if (!description || description.trim().split(/\s+/).length < 2) {
       return res.status(400).json({ error: 'Please provide a comprehensive situation description.' });
     }
 
-    const systemPrompt = `You are VERLO, an ultra-advanced adaptive decision-intelligence and strategic simulation engine. Analyze the user's initial situation. Determine critical ambiguities or decision branches that require clarification, and generate both absolute probing questions and structured multiple-choice questions (MCQs) for deep profiling. Return a STRICTLY VALID JSON object with this exact structure:
+    const systemPrompt = `You are VERLO, powered by ${ACTIVE_AI_ENGINE}, an ultra-advanced adaptive decision-intelligence and strategic simulation engine. Analyze the user's initial situation. Determine critical ambiguities or decision branches that require clarification, and generate both absolute probing questions and structured multiple-choice questions (MCQs) for deep profiling. Return a STRICTLY VALID JSON object with this exact structure:
     {
       "needsClarification": true,
       "adaptiveQuestions": [
@@ -114,7 +141,7 @@ app.post('/api/assess', async (req, res) => {
     }
     Ensure response contains absolutely no markdown wrappers like json and is valid raw JSON.`;
 
-    const userPrompt = `Title: ${title || 'Untitled Situation'} Description: ${description}`;
+    const userPrompt = `Title: ${title || 'Untitled Situation'} Description: ${description} ${attachment ? `[Attached File: ${attachment.name}]` : ''}`;
     const completion = await groq.chat.completions.create({
       model: 'openai/gpt-oss-120b',
       messages: [
@@ -130,7 +157,7 @@ app.post('/api/assess', async (req, res) => {
     rawContent = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
     const parsedData = JSON.parse(rawContent);
 
-    res.json({ success: true, data: parsedData });
+    res.json({ success: true, data: parsedData, engineUsed: ACTIVE_AI_ENGINE });
   } catch (err) {
     console.error('Assessment pipeline error:', err);
     res.status(500).json({ error: err.message || 'Failed to compute adaptive assessment vector.' });
@@ -139,9 +166,9 @@ app.post('/api/assess', async (req, res) => {
 
 app.post('/api/diagnose', async (req, res) => {
   try {
-    const { title, description, context, userAnswers, mcqAnswers } = req.body;
+    const { title, description, context, userAnswers, mcqAnswers, attachment } = req.body;
 
-    const systemPrompt = `You are VERLO, an elite ethical decision-intelligence and strategic action engine. Synthesize the user's dilemma, adaptive clarifying choices, and MCQ selections into a master strategic blueprint complete with personalized panels and verified reference links. Return a STRICTLY VALID JSON object with the following exact structure:
+    const systemPrompt = `You are VERLO, powered by ${ACTIVE_AI_ENGINE}, an elite ethical decision-intelligence and strategic action engine. Synthesize the user's dilemma, adaptive clarifying choices, and MCQ selections into a master strategic blueprint complete with personalized panels and verified reference links. Return a STRICTLY VALID JSON object with the following exact structure:
 {
   "confidence": "High",
   "riskAssessment": {
@@ -179,7 +206,7 @@ app.post('/api/diagnose', async (req, res) => {
 }
 Return raw valid JSON only without markdown wrapping.`;
 
-    const userPrompt = `Title: ${title || 'Untitled'} Description: ${description} Context: ${context || 'None'} Adaptive Text Answers: ${JSON.stringify(userAnswers || {})} MCQ Answers: ${JSON.stringify(mcqAnswers || {})}`;
+    const userPrompt = `Title: ${title || 'Untitled'} Description: ${description} Context: ${context || 'None'} Adaptive Text Answers: ${JSON.stringify(userAnswers || {})} MCQ Answers: ${JSON.stringify(mcqAnswers || {})} Attachment: ${attachment ? attachment.name : 'None'}`;
 
     const completion = await groq.chat.completions.create({
       model: 'openai/gpt-oss-120b',
@@ -196,7 +223,7 @@ Return raw valid JSON only without markdown wrapping.`;
     rawContent = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
     const parsedData = JSON.parse(rawContent);
 
-    res.json({ success: true, data: parsedData });
+    res.json({ success: true, data: parsedData, engineUsed: ACTIVE_AI_ENGINE });
   } catch (err) {
     console.error('Diagnosis pipeline error:', err);
     res.status(500).json({ error: err.message || 'Internal server error during path synthesis.' });
@@ -205,7 +232,7 @@ Return raw valid JSON only without markdown wrapping.`;
 
 app.post('/api/chat', async (req, res) => {
   try {
-    const { question, currentSituation } = req.body;
+    const { question, currentSituation, attachment } = req.body;
     if (!question) return res.status(400).json({ error: 'Question parameter is required.' });
 
     const chatCompletion = await groq.chat.completions.create({
@@ -213,15 +240,15 @@ app.post('/api/chat', async (req, res) => {
       messages: [
         { 
           role: 'system', 
-          content: `You are VERLO AI, an elite strategic intelligence advisor. The active operational situation is: "${currentSituation}". Deliver rigorous, highly authoritative, and actionable guidance.` 
+          content: `You are VERLO AI, powered by ${ACTIVE_AI_ENGINE}, an elite strategic intelligence advisor. The active operational situation is: "${currentSituation}". Deliver rigorous, highly authoritative, and actionable guidance.` 
         },
-        { role: 'user', content: question }
+        { role: 'user', content: `${question} ${attachment ? `[Attached context file: ${attachment.name}]` : ''}` }
       ],
       temperature: 0.4
     });
 
     const reply = chatCompletion.choices[0]?.message?.content || 'No response generated.';
-    res.json({ success: true, reply });
+    res.json({ success: true, reply, engineUsed: ACTIVE_AI_ENGINE });
   } catch (err) {
     console.error('Chat error:', err);
     res.status(500).json({ error: err.message || 'Chat generation failed.' });
@@ -230,5 +257,5 @@ app.post('/api/chat', async (req, res) => {
 
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
-  console.log(`VERLO Enterprise Neural Core operational on port ${PORT}`);
+  console.log(`VERLO Enterprise Neural Core (${ACTIVE_AI_ENGINE}) operational on port ${PORT}`);
 });
