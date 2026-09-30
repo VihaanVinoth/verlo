@@ -34,6 +34,8 @@ export default function App() {
 
   const [selectedMcqAnswers, setSelectedMcqAnswers] = useState({});
   const [adaptiveTextAnswers, setAdaptiveTextAnswers] = useState({});
+  const [skippedAdaptiveQuestions, setSkippedAdaptiveQuestions] =
+    useState({});
   const [activeAssessmentIndex, setActiveAssessmentIndex] = useState(0);
 
   const [isAdaptiveLoading, setIsAdaptiveLoading] = useState(false);
@@ -94,16 +96,13 @@ export default function App() {
       setIsAuthLoading(true);
 
       try {
-        const res = await fetch(
-          `${API_URL}/api/auth/me`,
-          {
-            method: "GET",
-            credentials: "include",
-            headers: {
-              Accept: "application/json",
-            },
-          }
-        );
+        const res = await fetch(`${API_URL}/api/auth/me`, {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            Accept: "application/json",
+          },
+        });
 
         if (!res.ok) {
           setCurrentUser(null);
@@ -118,11 +117,7 @@ export default function App() {
           setCurrentUser(null);
         }
       } catch (err) {
-        console.error(
-          "[VERLO] Session restore failed:",
-          err
-        );
-
+        console.error("[VERLO] Session restore failed:", err);
         setCurrentUser(null);
       } finally {
         setIsAuthLoading(false);
@@ -133,23 +128,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const params = new URLSearchParams(
-      window.location.search
-    );
-
-    const authErrorFromUrl =
-      params.get("auth_error");
+    const params = new URLSearchParams(window.location.search);
+    const authErrorFromUrl = params.get("auth_error");
 
     if (authErrorFromUrl) {
-      console.error(
-        "[VERLO] Google OAuth error:",
-        authErrorFromUrl
-      );
+      console.error("[VERLO] Google OAuth error:", authErrorFromUrl);
 
-      setAuthError(
-        "Google sign-in failed. Please try again."
-      );
-
+      setAuthError("Google sign-in failed. Please try again.");
       setAuthMode("login");
       setShowAuthModal(true);
 
@@ -179,44 +164,42 @@ export default function App() {
 
     const loadHistory = async () => {
       try {
-        const res = await fetch(
-          `${API_URL}/api/history`,
-          {
-            method: "GET",
-            credentials: "include",
-            headers: {
-              Accept: "application/json",
-            },
-          }
-        );
+        const res = await fetch(`${API_URL}/api/history`, {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            Accept: "application/json",
+          },
+        });
 
         const data = await res.json();
 
         if (!res.ok) {
           throw new Error(
-            data.error ||
-              "Could not load history."
+            data.error || "Could not load history."
           );
         }
 
-        setUserHistory(
-          data.history || []
-        );
+        setUserHistory(data.history || []);
       } catch (err) {
-        console.error(
-          "[VERLO] Failed to load history:",
-          err
-        );
+        console.error("[VERLO] Failed to load history:", err);
       }
     };
 
     loadHistory();
   }, [currentUser]);
 
-  const authenticatedFetch = async (
-    url,
-    options = {}
-  ) => {
+  useEffect(() => {
+    if (step === "results") {
+      window.scrollTo({
+        top: 0,
+        left: 0,
+        behavior: "auto",
+      });
+    }
+  }, [step]);
+
+  const authenticatedFetch = async (url, options = {}) => {
     return fetch(url, {
       ...options,
       credentials: "include",
@@ -231,58 +214,338 @@ export default function App() {
       return "";
     }
 
-    let html = String(content)
+    let source = String(content)
+      .replace(/\\([#*_`|>~])/g, "$1")
+      .replace(/\\-/g, "-");
+
+    source = source
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
 
-    html = html.replace(
-      /```([\s\S]*?)```/g,
-      '<pre class="markdown-code"><code>$1</code></pre>'
-    );
+    const escapeAttribute = (value) =>
+      String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
 
-    html = html.replace(
-      /\*\*(.*?)\*\*/g,
-      "<strong>$1</strong>"
-    );
+    const formatInline = (text) => {
+      if (!text) {
+        return "";
+      }
 
-    html = html.replace(
-      /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
-      '<a href="$2" target="_blank" rel="noopener noreferrer" class="markdown-link">$1</a>'
-    );
+      let value = text;
 
-    const lines = html.split("\n");
-    let inList = false;
+      value = value.replace(
+        /`([^`]+)`/g,
+        '<code class="markdown-inline-code">$1</code>'
+      );
 
-    const output = lines.map((line) => {
-      if (
-        line.trim().startsWith("- ") ||
-        line.trim().startsWith("* ")
-      ) {
-        const item = line.trim().substring(2);
+      value = value.replace(
+        /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+        (_, label, url) =>
+          `<a href="${escapeAttribute(
+            url
+          )}" target="_blank" rel="noopener noreferrer" class="markdown-link">${label}</a>`
+      );
 
-        if (!inList) {
-          inList = true;
+      value = value.replace(
+        /\*\*\*(.+?)\*\*\*/g,
+        "<strong><em>$1</em></strong>"
+      );
 
-          return `<ul class="markdown-list"><li>${item}</li>`;
+      value = value.replace(
+        /___(.+?)___/g,
+        "<strong><em>$1</em></strong>"
+      );
+
+      value = value.replace(
+        /\*\*(.+?)\*\*/g,
+        "<strong>$1</strong>"
+      );
+
+      value = value.replace(
+        /__(.+?)__/g,
+        "<strong>$1</strong>"
+      );
+
+      value = value.replace(
+        /(^|[^\*])\*([^*\n]+)\*(?!\*)/g,
+        "$1<em>$2</em>"
+      );
+
+      value = value.replace(
+        /(^|[^_])_([^_\n]+)_(?!_)/g,
+        "$1<em>$2</em>"
+      );
+
+      value = value.replace(
+        /~~(.+?)~~/g,
+        "<del>$1</del>"
+      );
+
+      return value;
+    };
+
+    const lines = source.split(/\r?\n/);
+    const output = [];
+
+    let index = 0;
+    let inCodeBlock = false;
+    let codeBuffer = [];
+
+    while (index < lines.length) {
+      const line = lines[index];
+
+      if (line.trim().startsWith("```")) {
+        if (!inCodeBlock) {
+          inCodeBlock = true;
+          codeBuffer = [];
+        } else {
+          inCodeBlock = false;
+
+          output.push(
+            `<pre class="markdown-code"><code>${codeBuffer.join(
+              "\n"
+            )}</code></pre>`
+          );
+
+          codeBuffer = [];
         }
 
-        return `<li>${item}</li>`;
+        index += 1;
+        continue;
       }
 
-      if (inList) {
-        inList = false;
-
-        return `</ul><p>${line}</p>`;
+      if (inCodeBlock) {
+        codeBuffer.push(line);
+        index += 1;
+        continue;
       }
 
-      return line.trim()
-        ? `<p>${line}</p>`
-        : "";
-    });
+      const trimmed = line.trim();
 
-    if (inList) {
-      output.push("</ul>");
+      if (!trimmed) {
+        index += 1;
+        continue;
+      }
+
+      if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
+        output.push('<hr class="markdown-divider" />');
+
+        index += 1;
+        continue;
+      }
+
+      const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
+
+      if (headingMatch) {
+        const level = headingMatch[1].length;
+        const headingText = formatInline(headingMatch[2]);
+
+        output.push(
+          `<h${level} class="markdown-heading markdown-h${level}">${headingText}</h${level}>`
+        );
+
+        index += 1;
+        continue;
+      }
+
+      const nextLine = lines[index + 1]?.trim() || "";
+
+      const isTableHeader =
+        trimmed.includes("|") &&
+        /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(
+          nextLine
+        );
+
+      if (isTableHeader) {
+        const parseTableRow = (row) => {
+          let cleaned = row.trim();
+
+          if (cleaned.startsWith("|")) {
+            cleaned = cleaned.substring(1);
+          }
+
+          if (cleaned.endsWith("|")) {
+            cleaned = cleaned.substring(0, cleaned.length - 1);
+          }
+
+          return cleaned.split("|").map((cell) => cell.trim());
+        };
+
+        const headers = parseTableRow(trimmed);
+
+        index += 2;
+
+        const rows = [];
+
+        while (
+          index < lines.length &&
+          lines[index].trim() &&
+          lines[index].includes("|")
+        ) {
+          rows.push(parseTableRow(lines[index]));
+          index += 1;
+        }
+
+        let tableHTML =
+          '<div class="markdown-table-wrapper"><table class="markdown-table"><thead><tr>';
+
+        headers.forEach((header) => {
+          tableHTML += `<th>${formatInline(header)}</th>`;
+        });
+
+        tableHTML += "</tr></thead><tbody>";
+
+        rows.forEach((row) => {
+          tableHTML += "<tr>";
+
+          headers.forEach((_, cellIndex) => {
+            tableHTML += `<td>${formatInline(
+              row[cellIndex] || ""
+            )}</td>`;
+          });
+
+          tableHTML += "</tr>";
+        });
+
+        tableHTML += "</tbody></table></div>";
+
+        output.push(tableHTML);
+
+        continue;
+      }
+
+      if (trimmed.startsWith(">")) {
+        const quoteLines = [];
+
+        while (
+          index < lines.length &&
+          lines[index].trim().startsWith(">")
+        ) {
+          quoteLines.push(
+            lines[index].trim().replace(/^>\s?/, "")
+          );
+
+          index += 1;
+        }
+
+        output.push(
+          `<blockquote class="markdown-blockquote">${quoteLines
+            .map(
+              (quoteLine) =>
+                `<p>${formatInline(quoteLine)}</p>`
+            )
+            .join("")}</blockquote>`
+        );
+
+        continue;
+      }
+
+      if (/^[-*+]\s+/.test(trimmed)) {
+        const items = [];
+
+        while (
+          index < lines.length &&
+          /^[-*+]\s+/.test(lines[index].trim())
+        ) {
+          const item = lines[index]
+            .trim()
+            .replace(/^[-*+]\s+/, "");
+
+          items.push(
+            `<li>${formatInline(item)}</li>`
+          );
+
+          index += 1;
+        }
+
+        output.push(
+          `<ul class="markdown-list">${items.join("")}</ul>`
+        );
+
+        continue;
+      }
+
+      if (/^\d+\.\s+/.test(trimmed)) {
+        const items = [];
+
+        while (
+          index < lines.length &&
+          /^\d+\.\s+/.test(lines[index].trim())
+        ) {
+          const item = lines[index]
+            .trim()
+            .replace(/^\d+\.\s+/, "");
+
+          items.push(
+            `<li>${formatInline(item)}</li>`
+          );
+
+          index += 1;
+        }
+
+        output.push(
+          `<ol class="markdown-list markdown-ordered-list">${items.join(
+            ""
+          )}</ol>`
+        );
+
+        continue;
+      }
+
+      const paragraphLines = [trimmed];
+
+      index += 1;
+
+      while (index < lines.length) {
+        const following = lines[index].trim();
+
+        if (!following) {
+          break;
+        }
+
+        if (
+          /^#{1,6}\s+/.test(following) ||
+          /^[-*+]\s+/.test(following) ||
+          /^\d+\.\s+/.test(following) ||
+          following.startsWith(">") ||
+          following.startsWith("```")
+        ) {
+          break;
+        }
+
+        const followingNext =
+          lines[index + 1]?.trim() || "";
+
+        if (
+          following.includes("|") &&
+          /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(
+            followingNext
+          )
+        ) {
+          break;
+        }
+
+        paragraphLines.push(following);
+        index += 1;
+      }
+
+      output.push(
+        `<p>${formatInline(
+          paragraphLines.join(" ")
+        )}</p>`
+      );
+    }
+
+    if (inCodeBlock && codeBuffer.length) {
+      output.push(
+        `<pre class="markdown-code"><code>${codeBuffer.join(
+          "\n"
+        )}</code></pre>`
+      );
     }
 
     return output.join("");
@@ -296,7 +559,6 @@ export default function App() {
     setTitle(exampleTitle);
     setDescription(desc);
     setUserContext(context);
-
     setStep("input");
     setError(null);
   };
@@ -305,9 +567,7 @@ export default function App() {
     setAuthError(null);
     setIsAuthLoading(true);
 
-    console.log(
-      "[VERLO] Starting Google login..."
-    );
+    console.log("[VERLO] Starting Google login...");
 
     window.location.href =
       `${API_URL}/api/auth/google`;
@@ -329,14 +589,10 @@ export default function App() {
         `${API_URL}${endpoint}`,
         {
           method: "POST",
-
           credentials: "include",
-
           headers: {
-            "Content-Type":
-              "application/json",
+            "Content-Type": "application/json",
           },
-
           body: JSON.stringify({
             email: authEmail.trim(),
             password: authPassword,
@@ -347,10 +603,9 @@ export default function App() {
       const data = await res.json();
 
       if (!res.ok) {
-        const message =
-          String(
-            data.error || ""
-          ).toLowerCase();
+        const message = String(
+          data.error || ""
+        ).toLowerCase();
 
         if (
           authMode === "signup" &&
@@ -379,9 +634,7 @@ export default function App() {
       }
 
       setCurrentUser(data.user);
-
       setShowAuthModal(false);
-
       setAuthEmail("");
       setAuthPassword("");
       setAuthError(null);
@@ -443,20 +696,16 @@ export default function App() {
           `${API_URL}/api/history/save`,
           {
             method: "POST",
-
             headers: {
               "Content-Type":
                 "application/json",
             },
-
             body: JSON.stringify({
               report: {
                 title:
                   title ||
                   "Untitled Report",
-
                 description,
-
                 result: resultData,
               },
             }),
@@ -537,15 +786,12 @@ export default function App() {
 
       const fileMeta = {
         name: file.name,
-
         size: `${(
           file.size / 1024
         ).toFixed(1)} KB`,
-
         type:
           file.type ||
           "application/octet-stream",
-
         uploadedAt:
           new Date().toISOString(),
       };
@@ -650,16 +896,20 @@ export default function App() {
     getAllAssessmentItems();
 
   const buildAllAnswers = (
-    key,
-    value
+    textAnswers = adaptiveTextAnswers,
+    mcqAnswers = selectedMcqAnswers,
+    skippedQuestions = skippedAdaptiveQuestions
   ) => ({
-    ...adaptiveTextAnswers,
-
-    ...selectedMcqAnswers,
-
-    ...(key !== undefined
+    ...textAnswers,
+    ...mcqAnswers,
+    ...(Object.keys(
+      skippedQuestions
+    ).length > 0
       ? {
-          [key]: value,
+          _skippedQuestions:
+            Object.keys(
+              skippedQuestions
+            ),
         }
       : {}),
   });
@@ -776,6 +1026,7 @@ export default function App() {
 
       setSelectedMcqAnswers({});
       setAdaptiveTextAnswers({});
+      setSkippedAdaptiveQuestions({});
       setActiveAssessmentIndex(0);
       setAdaptiveQuestionCount(0);
 
@@ -922,26 +1173,114 @@ export default function App() {
         item.id ||
         activeAssessmentIndex;
 
+      const nextTextAnswers = {
+        ...adaptiveTextAnswers,
+      };
+
+      const nextMcqAnswers = {
+        ...selectedMcqAnswers,
+      };
+
+      const nextSkippedQuestions = {
+        ...skippedAdaptiveQuestions,
+      };
+
+      delete nextSkippedQuestions[key];
+
       if (item.type === "mcq") {
-        setSelectedMcqAnswers(
-          (prev) => ({
-            ...prev,
-            [key]: answer,
-          })
-        );
+        nextMcqAnswers[key] = answer;
+        delete nextTextAnswers[key];
       } else {
-        setAdaptiveTextAnswers(
-          (prev) => ({
-            ...prev,
-            [key]: answer,
-          })
-        );
+        nextTextAnswers[key] = answer;
+        delete nextMcqAnswers[key];
       }
+
+      setSelectedMcqAnswers(
+        nextMcqAnswers
+      );
+
+      setAdaptiveTextAnswers(
+        nextTextAnswers
+      );
+
+      setSkippedAdaptiveQuestions(
+        nextSkippedQuestions
+      );
 
       const allAnswers =
         buildAllAnswers(
-          key,
-          answer
+          nextTextAnswers,
+          nextMcqAnswers,
+          nextSkippedQuestions
+        );
+
+      if (
+        adaptiveQuestionCount >=
+        MAX_ADAPTIVE_QUESTIONS
+      ) {
+        await handleFinalAssessmentSubmit(
+          allAnswers
+        );
+
+        return;
+      }
+
+      await requestAdaptiveQuestion(
+        allAnswers
+      );
+    };
+
+  const handleAssessmentSkip =
+    async () => {
+      const item =
+        assessmentItems[
+          activeAssessmentIndex
+        ];
+
+      if (
+        !item ||
+        isAdaptiveLoading
+      ) {
+        return;
+      }
+
+      const key =
+        item.id ||
+        activeAssessmentIndex;
+
+      const nextTextAnswers = {
+        ...adaptiveTextAnswers,
+      };
+
+      const nextMcqAnswers = {
+        ...selectedMcqAnswers,
+      };
+
+      const nextSkippedQuestions = {
+        ...skippedAdaptiveQuestions,
+        [key]: true,
+      };
+
+      delete nextTextAnswers[key];
+      delete nextMcqAnswers[key];
+
+      setAdaptiveTextAnswers(
+        nextTextAnswers
+      );
+
+      setSelectedMcqAnswers(
+        nextMcqAnswers
+      );
+
+      setSkippedAdaptiveQuestions(
+        nextSkippedQuestions
+      );
+
+      const allAnswers =
+        buildAllAnswers(
+          nextTextAnswers,
+          nextMcqAnswers,
+          nextSkippedQuestions
         );
 
       if (
@@ -1287,10 +1626,35 @@ export default function App() {
                   !showHistoryDrawer
                 )
               }
+              aria-label={`Open saved history (${userHistory.length} reports)`}
+              aria-expanded={
+                showHistoryDrawer
+              }
+              aria-controls="history-drawer"
             >
-              <span>▣</span>{" "}
-              History (
-              {userHistory.length})
+              <svg
+                className="history-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="9"
+                />
+
+                <path d="M12 7v5l3 2" />
+              </svg>
+
+              <span>
+                History (
+                {userHistory.length})
+              </span>
             </button>
 
             {currentUser.picture && (
@@ -1396,7 +1760,18 @@ export default function App() {
                     }
                   >
                     <span className="example-icon">
-                      ✈
+                      <svg
+                        className="example-svg-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M21 16.5 13.5 13l-2.2-8.1c-.2-.7-.9-1.1-1.6-.9-.6.2-1 .8-.9 1.4l.8 7-5.9-2.7-1.9 1.2 6.5 4.1-.9 3.8-2.5 1.2v1.2l4.2-1 1.5-2.8 7.2 2.1c.8.2 1.6-.2 1.9-.9.3-.8-.1-1.7-.9-2Z" />
+                      </svg>
                     </span>
 
                     <div>
@@ -1423,7 +1798,28 @@ export default function App() {
                     }
                   >
                     <span className="example-icon">
-                      ▣
+                      <svg
+                        className="example-svg-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <rect
+                          x="3"
+                          y="5"
+                          width="18"
+                          height="14"
+                          rx="2"
+                        />
+
+                        <path d="M3 9h18" />
+                        <path d="M7 14h3" />
+                        <path d="M15 14h2" />
+                      </svg>
                     </span>
 
                     <div>
@@ -1449,7 +1845,20 @@ export default function App() {
                     }
                   >
                     <span className="example-icon">
-                      ⌂
+                      <svg
+                        className="example-svg-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="m3 10.5 9-7 9 7" />
+                        <path d="M5.5 9v10.5h13V9" />
+                        <path d="M9.5 19.5v-5h5v5" />
+                      </svg>
                     </span>
 
                     <div>
@@ -1476,7 +1885,28 @@ export default function App() {
                     }
                   >
                     <span className="example-icon">
-                      ▣
+                      <svg
+                        className="example-svg-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <rect
+                          x="4"
+                          y="4"
+                          width="16"
+                          height="13"
+                          rx="1.5"
+                        />
+
+                        <path d="M2.5 20h19" />
+
+                        <path d="M8.5 20c.3-1.4 1.2-2.5 2.5-2.5s2.2 1.1 2.5 2.5" />
+                      </svg>
                     </span>
 
                     <div>
@@ -1872,6 +2302,23 @@ export default function App() {
 
                 <div className="assessment-actions">
                   <button
+                    type="button"
+                    className="skip-button"
+                    onClick={
+                      handleAssessmentSkip
+                    }
+                    disabled={
+                      isAdaptiveLoading
+                    }
+                  >
+                    {adaptiveQuestionCount >=
+                    MAX_ADAPTIVE_QUESTIONS
+                      ? "Skip & Synthesise →"
+                      : "Skip Question"}
+                  </button>
+
+                  <button
+                    type="button"
                     className="btn-primary"
                     onClick={
                       handleAssessmentNext
@@ -1986,73 +2433,135 @@ export default function App() {
                   </button>
                 </div>
 
-                <div className="result-section result-summary">
-                  <div>
-                    <span
-                      className={`badge ${
-                        analysisData.confidence?.toLowerCase() ||
-                        ""
-                      }`}
-                    >
-                      Confidence:{" "}
-                      {
-                        analysisData.confidence
-                      }
+                <div className="report-intro">
+                  <div className="report-intro-copy">
+                    <span className="report-eyebrow">
+                      VERLO DECISION PATHWAY
                     </span>
 
+                    <h1>
+                      {title ||
+                        "Your Personalised Pathway"}
+                    </h1>
+
+                    <p>
+                      Your situation has
+                      been analysed and
+                      organised into a
+                      practical set of next
+                      steps.
+                    </p>
+
                     {userContext && (
-                      <div className="result-context">
-                        Tailored for:{" "}
-                        <em>
-                          "{userContext}"
-                        </em>
+                      <div className="report-context">
+                        <span>
+                          Personal context
+                        </span>
+
+                        <strong>
+                          {userContext}
+                        </strong>
                       </div>
                     )}
                   </div>
 
-                  <div className="risk-metrics">
-                    <div>
-                      <span>
-                        Severity:
-                      </span>
+                  <div className="report-confidence">
+                    <span>
+                      Analysis confidence
+                    </span>
 
+                    <strong>
+                      {analysisData.confidence ||
+                        "Moderate"}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="report-priority-card">
+                  <div className="priority-label">
+                    START HERE
+                  </div>
+
+                  <h2>
+                    {analysisData.nextSteps?.[0]
+                      ?.step ||
+                      "Review your recommended action pathway."}
+                  </h2>
+
+                  {analysisData.nextSteps?.[0]
+                    ?.why && (
+                    <p>
                       <strong>
-                        {
-                          analysisData
-                            .riskAssessment
-                            ?.severityScore
-                        }
-                        /10
-                      </strong>
-                    </div>
+                        Why this matters:
+                      </strong>{" "}
+                      {
+                        analysisData
+                          .nextSteps[0]
+                          .why
+                      }
+                    </p>
+                  )}
 
-                    <div>
-                      <span>
-                        Exposure:
-                      </span>
+                  <button
+                    type="button"
+                    className="priority-action-button"
+                    onClick={() =>
+                      setActiveTab("steps")
+                    }
+                  >
+                    View all action steps →
+                  </button>
+                </div>
 
-                      <strong>
-                        {
-                          analysisData
-                            .riskAssessment
-                            ?.financialExposure
-                        }
-                      </strong>
-                    </div>
+                <div className="report-metrics">
+                  <div className="report-metric">
+                    <span>
+                      Severity
+                    </span>
 
-                    <div>
-                      <span>
-                        Urgency:
-                      </span>
+                    <strong>
+                      {analysisData
+                        .riskAssessment
+                        ?.severityScore ??
+                        "N/A"}
 
-                      <strong>
-                        {
-                          analysisData
-                            .riskAssessment
-                            ?.timeSensitivity
-                        }
-                      </strong>
-                    </div>
+                      {analysisData
+                        .riskAssessment
+                        ?.severityScore !==
+                        undefined &&
+                      analysisData
+                        .riskAssessment
+                        ?.severityScore !==
+                        "N/A"
+                        ? "/10"
+                        : ""}
+                    </strong>
+                  </div>
+
+                  <div className="report-metric">
+                    <span>
+                      Financial exposure
+                    </span>
+
+                    <strong>
+                      {analysisData
+                        .riskAssessment
+                        ?.financialExposure ||
+                        "Not established"}
+                    </strong>
+                  </div>
+
+                  <div className="report-metric">
+                    <span>
+                      Time sensitivity
+                    </span>
+
+                    <strong>
+                      {analysisData
+                        .riskAssessment
+                        ?.timeSensitivity ||
+                        "Review required"}
+                    </strong>
                   </div>
                 </div>
 
@@ -2082,37 +2591,15 @@ export default function App() {
                 {activeTab ===
                   "overview" && (
                   <div className="result-content">
-                    <div className="dominant-action">
-                      <h3>
-                        Immediate
-                        Priority Action
-                      </h3>
-
-                      <h2>
-                        {
-                          analysisData
-                            .nextSteps?.[0]
-                            ?.step
-                        }
-                      </h2>
-
-                      <p>
-                        <strong>
-                          Why this first:
-                        </strong>{" "}
-                        {
-                          analysisData
-                            .nextSteps?.[0]
-                            ?.why
-                        }
-                      </p>
-                    </div>
-
                     {analysisData.situation && (
-                      <div className="result-section">
+                      <div className="result-section situation-summary-card">
+                        <span className="section-eyebrow">
+                          SITUATION
+                        </span>
+
                         <h3>
-                          Situation
-                          Summary
+                          What VERLO
+                          understood
                         </h3>
 
                         <p>
@@ -2126,14 +2613,11 @@ export default function App() {
                     <div className="result-section assistant-section">
                       <h3>
                         Ask VERLO AI
-                        Assistant
                       </h3>
 
                       <p>
                         Need immediate
-                        clarification,
-                        follow-up response,
-                        or file attachment?
+                        clarification or follow-up response?
                       </p>
 
                       {chatHistory.length >
@@ -2178,6 +2662,7 @@ export default function App() {
                                   </div>
                                 ) : (
                                   <div
+                                    className="markdown-content"
                                     dangerouslySetInnerHTML={{
                                       __html:
                                         renderMarkdownToHTML(
@@ -2302,6 +2787,7 @@ export default function App() {
                               </strong>
 
                               <div
+                                className="markdown-content"
                                 dangerouslySetInnerHTML={{
                                   __html:
                                     renderMarkdownToHTML(
@@ -2384,21 +2870,50 @@ export default function App() {
 
                 {activeTab ===
                   "resources" && (
-                  <div className="result-section">
-                    <h3>
-                      Authoritative
-                      Resources & Links
-                    </h3>
+                  <div className="result-section resources-section">
+                    <div className="resources-header">
+                      <div>
+                        <span className="section-eyebrow">
+                          VERIFIED RESOURCES
+                        </span>
 
-                    {!(
+                        <h3>
+                          Useful Resources &
+                          Next-Step Links
+                        </h3>
+
+                        <p>
+                          VERLO has identified
+                          resources relevant to
+                          your situation. Check
+                          that the information
+                          applies to your location
+                          and circumstances before
+                          relying on it.
+                        </p>
+                      </div>
+                    </div>
+
+                    {(
                       analysisData.referenceLinks ||
-                      analysisData.resources
-                    )?.length ? (
-                      <p>
-                        No external links
-                        provided for
-                        this pathway.
-                      </p>
+                      analysisData.resources ||
+                      []
+                    ).length === 0 ? (
+                      <div className="resource-empty">
+                        <strong>
+                          No specific resources
+                          were identified.
+                        </strong>
+
+                        <p>
+                          Use Ask VERLO AI above
+                          to ask for help finding
+                          the relevant authority,
+                          regulator, service, or
+                          official information for
+                          your situation.
+                        </p>
+                      </div>
                     ) : (
                       <div className="resource-list">
                         {(
@@ -2409,29 +2924,87 @@ export default function App() {
                           (
                             link,
                             index
-                          ) => (
-                            <a
-                              key={index}
-                              href={
-                                link.url
-                              }
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              <span>
-                                🔗{" "}
-                                <strong>
-                                  {
-                                    link.title
-                                  }
-                                </strong>
-                              </span>
+                          ) => {
+                            const resourceUrl =
+                              link?.url ||
+                              link?.link ||
+                              link?.href ||
+                              "";
 
-                              <span>
-                                Visit →
-                              </span>
-                            </a>
-                          )
+                            const resourceTitle =
+                              link?.title ||
+                              link?.name ||
+                              "Relevant resource";
+
+                            const resourceDescription =
+                              link?.description ||
+                              link?.summary ||
+                              link?.whyUseful ||
+                              link?.relevance ||
+                              "";
+
+                            const resourceSource =
+                              link?.source ||
+                              link?.authority ||
+                              link?.organisation ||
+                              "";
+
+                            if (!resourceUrl) {
+                              return null;
+                            }
+
+                            return (
+                              <a
+                                key={index}
+                                href={
+                                  resourceUrl
+                                }
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="resource-card"
+                              >
+                                <div className="resource-card-main">
+                                  <div className="resource-icon">
+                                    🔗
+                                  </div>
+
+                                  <div className="resource-copy">
+                                    <strong>
+                                      {
+                                        resourceTitle
+                                      }
+                                    </strong>
+
+                                    {resourceSource && (
+                                      <span className="resource-source">
+                                        {
+                                          resourceSource
+                                        }
+                                      </span>
+                                    )}
+
+                                    {resourceDescription && (
+                                      <p>
+                                        {
+                                          resourceDescription
+                                        }
+                                      </p>
+                                    )}
+
+                                    <span className="resource-url">
+                                      {
+                                        resourceUrl
+                                      }
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <span className="resource-open">
+                                  Open →
+                                </span>
+                              </a>
+                            );
+                          }
                         )}
                       </div>
                     )}
@@ -2463,7 +3036,10 @@ export default function App() {
       </footer>
 
       {showHistoryDrawer && (
-        <aside className="history-drawer animate-slide-in-right">
+        <aside
+          id="history-drawer"
+          className="history-drawer animate-slide-in-right"
+        >
           <div className="drawer-header">
             <h3>
               Your Saved Pathways
