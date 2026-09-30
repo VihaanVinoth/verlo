@@ -10,7 +10,7 @@ import { OAuth2Client } from "google-auth-library";
 import Groq from "groq-sdk";
 import cookieParser from "cookie-parser";
 import { fileURLToPath } from "url";
-import Filter from "bad-words";
+import { Filter } from "bad-words";
 
 dotenv.config();
 
