@@ -1,2355 +1,2250 @@
-import express from "express";
-import cors from "cors";
-import dotenv from "dotenv";
-import fs from "fs";
-import path from "path";
-import crypto from "crypto";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import { OAuth2Client } from "google-auth-library";
-import Groq from "groq-sdk";
-import cookieParser from "cookie-parser";
-import { fileURLToPath } from "url";
+import { useEffect, useMemo, useRef, useState } from "react";
+import "./index.css";
 
-dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const app = express();
-
-const PORT = process.env.PORT || 5001;
-const API_URL = process.env.API_URL || "https://verlo-30xs.onrender.com";
-const CLIENT_URL = process.env.CLIENT_URL || "https://verloai.netlify.app";
-
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const GOOGLE_REDIRECT_URI =
-  process.env.GOOGLE_REDIRECT_URI ||
-  `${API_URL}/api/auth/google/callback`;
-
-const JWT_SECRET = process.env.JWT_SECRET;
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL;
-
-const VERIFICATION_CODE_EXPIRY_MS = 15 * 60 * 1000;
-const VERIFICATION_RESEND_COOLDOWN_MS = 60 * 1000;
+const API_URL = import.meta.env.VITE_API_URL || "https://verlo-30xs.onrender.com";
+const STORAGE_KEY = "verlo_app_state_v4";
 const MAX_ADAPTIVE_QUESTIONS = 7;
 
-if (!JWT_SECRET) {
-  console.error("ERROR: JWT_SECRET is missing.");
-  process.exit(1);
-}
+const initialState = {
+  screen: "home",
+  situation: "",
+  title: "",
+  category: "",
+  context: "",
+  questions: [],
+  answers: [],
+  questionIndex: 0,
+  result: null,
+  attachments: [],
+  verificationEmail: "",
+  verificationRequired: false
+};
 
-if (!GROQ_API_KEY) {
-  console.warn("WARNING: GROQ_API_KEY is missing.");
-}
-
-const DATA_DIR = path.join(__dirname, "data");
-const USERS_FILE = path.join(DATA_DIR, "users.json");
-const HISTORY_FILE = path.join(DATA_DIR, "history.json");
-
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
-function ensureJsonFile(file, fallback = []) {
-  if (!fs.existsSync(file)) {
-    fs.writeFileSync(file, JSON.stringify(fallback, null, 2), "utf8");
-  }
-}
-
-ensureJsonFile(USERS_FILE, []);
-ensureJsonFile(HISTORY_FILE, []);
-
-function readJson(file, fallback = []) {
+function loadState() {
   try {
-    const contents = fs.readFileSync(file, "utf8");
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) return initialState;
 
-    if (!contents.trim()) {
-      return fallback;
-    }
+    const parsed = JSON.parse(saved);
 
-    return JSON.parse(contents);
+    return {
+      ...initialState,
+      ...parsed
+    };
   } catch {
-    return fallback;
+    return initialState;
   }
 }
 
-function writeJson(file, data) {
-  fs.writeFileSync(file, JSON.stringify(data, null, 2), "utf8");
-}
-
-app.use(
-  cors({
-    origin: CLIENT_URL,
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "Accept"],
-  })
-);
-
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-app.use(cookieParser());
-
-const googleClient = new OAuth2Client(
-  GOOGLE_CLIENT_ID,
-  GOOGLE_CLIENT_SECRET,
-  GOOGLE_REDIRECT_URI
-);
-
-const groq = GROQ_API_KEY
-  ? new Groq({ apiKey: GROQ_API_KEY })
-  : null;
-
-function publicUser(user) {
-  if (!user) {
-    return null;
-  }
-
-  return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    picture: user.picture || null,
-    provider: user.provider || "local",
-    createdAt: user.createdAt,
-    verified:
-      user.provider === "google" ||
-      user.verified !== false,
-  };
-}
-
-function createUserId() {
-  return crypto.randomUUID();
-}
-
-function createToken(user) {
-  return jwt.sign(
-    {
-      id: user.id,
-      email: user.email,
-    },
-    JWT_SECRET,
-    {
-      expiresIn: "7d",
-    }
-  );
-}
-
-function getTokenFromRequest(req) {
-  const authHeader = req.headers.authorization;
-
-  if (authHeader?.startsWith("Bearer ")) {
-    return authHeader.substring(7);
-  }
-
-  if (req.cookies?.verlo_token) {
-    return req.cookies.verlo_token;
-  }
-
-  return null;
-}
-
-function authenticate(req, res, next) {
-  const token = getTokenFromRequest(req);
-
-  if (!token) {
-    return res.status(401).json({
-      success: false,
-      error: "Authentication required.",
-    });
-  }
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    const users = readJson(USERS_FILE, []);
-
-    const user = users.find((item) => item.id === decoded.id);
-
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        error: "User no longer exists.",
-      });
-    }
-
-    if (
-      user.provider !== "google" &&
-      user.verified === false
-    ) {
-      return res.status(403).json({
-        success: false,
-        error: "Email verification is required.",
-        verificationRequired: true,
-        email: user.email,
-      });
-    }
-
-    req.user = user;
-    next();
-  } catch {
-    return res.status(401).json({
-      success: false,
-      error: "Invalid or expired session.",
-    });
-  }
-}
-
-function setAuthCookie(res, token) {
-  res.cookie("verlo_token", token, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "none",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-    path: "/",
-  });
-}
-
-function clearAuthCookie(res) {
-  res.clearCookie("verlo_token", {
-    httpOnly: true,
-    secure: true,
-    sameSite: "none",
-    path: "/",
-  });
-}
-
-function createVerificationCode() {
-  return String(crypto.randomInt(100000, 1000000));
-}
-
-function hashVerificationCode(code) {
-  return crypto
-    .createHash("sha256")
-    .update(String(code))
-    .digest("hex");
-}
-
-function getVerificationExpiry() {
-  return new Date(
-    Date.now() + VERIFICATION_CODE_EXPIRY_MS
-  ).toISOString();
-}
-
-function getVerificationLastSent(user) {
-  if (!user?.verificationLastSentAt) {
-    return null;
-  }
-
-  const timestamp = Date.parse(user.verificationLastSentAt);
-
-  return Number.isNaN(timestamp) ? null : timestamp;
-}
-
-async function sendVerificationEmail(user, code) {
-  if (!RESEND_API_KEY || !RESEND_FROM_EMAIL) {
-    throw new Error(
-      "Email verification is not configured. Add RESEND_API_KEY and RESEND_FROM_EMAIL."
-    );
-  }
-
-  const safeName = String(user.name || "there")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
+async function api(path, options = {}) {
+  const response = await fetch(`${API_URL}${path}`, {
+    credentials: "include",
     headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
       "Content-Type": "application/json",
+      ...(options.headers || {})
     },
-    body: JSON.stringify({
-      from: RESEND_FROM_EMAIL,
-      to: [user.email],
-      subject: "Verify your VERLO account",
-      html: `
-        <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#171717">
-          <h1 style="margin-bottom:8px">Verify your VERLO account</h1>
-          <p>Hi ${safeName},</p>
-          <p>Use the verification code below to finish creating your VERLO account.</p>
-          <div style="font-size:32px;font-weight:700;letter-spacing:8px;padding:20px 0">${code}</div>
-          <p>This code expires in 15 minutes.</p>
-          <p>If you did not create a VERLO account, you can ignore this email.</p>
-        </div>
-      `,
-    }),
+    ...options
   });
+
+  const contentType = response.headers.get("content-type") || "";
+  let data = null;
+
+  if (contentType.includes("application/json")) {
+    data = await response.json();
+  } else {
+    const text = await response.text();
+
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { message: text };
+    }
+  }
 
   if (!response.ok) {
-    let details = "";
-
-    try {
-      const data = await response.json();
-      details = data?.message || data?.error || "";
-    } catch {}
-
     throw new Error(
-      details || "The verification email could not be sent."
+      data?.error ||
+        data?.message ||
+        `Request failed with status ${response.status}`
     );
   }
+
+  return data;
 }
 
-function extractJson(raw) {
-  if (!raw) {
-    throw new Error("AI returned an empty response.");
-  }
+function Icon({ name, size = 20, strokeWidth = 1.8 }) {
+  const paths = {
+    arrowRight: (
+      <>
+        <path d="M4 12h15" />
+        <path d="m13 6 6 6-6 6" />
+      </>
+    ),
+    arrowLeft: (
+      <>
+        <path d="M20 12H5" />
+        <path d="m11 18-6-6 6-6" />
+      </>
+    ),
+    check: <path d="m5 12 4 4L19 6" />,
+    plus: (
+      <>
+        <path d="M12 5v14" />
+        <path d="M5 12h14" />
+      </>
+    ),
+    close: (
+      <>
+        <path d="M6 6l12 12" />
+        <path d="M18 6 6 18" />
+      </>
+    ),
+    menu: (
+      <>
+        <path d="M4 7h16" />
+        <path d="M4 12h16" />
+        <path d="M4 17h16" />
+      </>
+    ),
+    user: (
+      <>
+        <circle cx="12" cy="8" r="3.5" />
+        <path d="M5 20c.8-3.5 3.2-5.5 7-5.5s6.2 2 7 5.5" />
+      </>
+    ),
+    history: (
+      <>
+        <path d="M3 12a9 9 0 1 0 3-6.7" />
+        <path d="M3 4v5h5" />
+        <path d="M12 7v5l3 2" />
+      </>
+    ),
+    upload: (
+      <>
+        <path d="M12 16V4" />
+        <path d="m7 9 5-5 5 5" />
+        <path d="M5 20h14" />
+      </>
+    ),
+    send: (
+      <>
+        <path d="m4 4 17 8-17 8 4-8-4-8Z" />
+        <path d="M8 12h13" />
+      </>
+    ),
+    spark: (
+      <>
+        <path d="M12 2 14 9l7 3-7 3-2 7-2-7-7-3 7-3 2-7Z" />
+      </>
+    ),
+    shield: (
+      <>
+        <path d="M12 3 19 6v5c0 4.5-2.8 8-7 10-4.2-2-7-5.5-7-10V6l7-3Z" />
+        <path d="m9 12 2 2 4-4" />
+      </>
+    ),
+    document: (
+      <>
+        <path d="M6 3h8l4 4v14H6V3Z" />
+        <path d="M14 3v5h4" />
+        <path d="M9 12h6" />
+        <path d="M9 16h6" />
+      </>
+    ),
+    message: (
+      <>
+        <path d="M4 5h16v11H8l-4 4V5Z" />
+      </>
+    )
+  };
 
-  const cleaned = String(raw)
-    .replace(/```json/gi, "")
-    .replace(/```/g, "")
-    .trim();
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      {paths[name] || paths.spark}
+    </svg>
+  );
+}
 
-  try {
-    return JSON.parse(cleaned);
-  } catch {}
+function Logo({ onClick }) {
+  return (
+    <button className="brand-button" onClick={onClick} aria-label="Go to Verlo home">
+      <span className="brand-mark">
+        <span />
+        <span />
+        <span />
+      </span>
+      <span className="brand-name">verlo</span>
+    </button>
+  );
+}
 
-  const firstObject = cleaned.indexOf("{");
-  const lastObject = cleaned.lastIndexOf("}");
+function LoadingDots() {
+  return (
+    <span className="loading-dots" aria-label="Loading">
+      <span />
+      <span />
+      <span />
+    </span>
+  );
+}
 
-  if (firstObject !== -1 && lastObject > firstObject) {
+function AuthModal({
+  mode,
+  setMode,
+  onClose,
+  onAuthenticated,
+  setVerification
+}) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(event) {
+    event.preventDefault();
+    setError("");
+    setLoading(true);
+
     try {
-      return JSON.parse(
-        cleaned.slice(firstObject, lastObject + 1)
-      );
-    } catch {}
+      const endpoint = mode === "login" ? "/api/auth/login" : "/api/auth/signup";
+
+      const data = await api(endpoint, {
+        method: "POST",
+        body: JSON.stringify(
+          mode === "login"
+            ? { email, password }
+            : { name, email, password }
+        )
+      });
+
+      if (data?.verificationRequired || data?.requiresVerification) {
+        setVerification({
+          required: true,
+          email: data.email || email
+        });
+        onClose();
+        return;
+      }
+
+      onAuthenticated(data.user || data);
+      onClose();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  const firstArray = cleaned.indexOf("[");
-  const lastArray = cleaned.lastIndexOf("]");
-
-  if (firstArray !== -1 && lastArray > firstArray) {
+  async function googleLogin() {
     try {
-      return JSON.parse(
-        cleaned.slice(firstArray, lastArray + 1)
-      );
-    } catch {}
+      const data = await api("/api/auth/google", {
+        method: "POST"
+      });
+
+      if (data?.url) {
+        window.location.href = data.url;
+        return;
+      }
+
+      if (data?.user) {
+        onAuthenticated(data.user);
+        onClose();
+      }
+    } catch (requestError) {
+      setError(requestError.message);
+    }
   }
 
-  throw new Error("AI returned invalid JSON.");
+  return (
+    <div className="modal-backdrop" onMouseDown={onClose}>
+      <div
+        className="auth-modal"
+        onMouseDown={event => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <button className="modal-close" onClick={onClose} aria-label="Close">
+          <Icon name="close" />
+        </button>
+
+        <div className="auth-heading">
+          <span className="auth-icon">
+            <Icon name="user" />
+          </span>
+          <h2>{mode === "login" ? "Welcome back." : "Create your account."}</h2>
+          <p>
+            {mode === "login"
+              ? "Continue where you left off."
+              : "Save assessments and return to them whenever you need."}
+          </p>
+        </div>
+
+        <form onSubmit={submit} className="auth-form">
+          {mode === "signup" && (
+            <label className="input-wrap">
+              <span>Name</span>
+              <input
+                value={name}
+                onChange={event => setName(event.target.value)}
+                autoComplete="name"
+                required
+              />
+            </label>
+          )}
+
+          <label className="input-wrap">
+            <span>Email</span>
+            <input
+              type="email"
+              value={email}
+              onChange={event => setEmail(event.target.value)}
+              autoComplete="email"
+              required
+            />
+          </label>
+
+          <label className="input-wrap">
+            <span>Password</span>
+            <input
+              type="password"
+              value={password}
+              onChange={event => setPassword(event.target.value)}
+              autoComplete={mode === "login" ? "current-password" : "new-password"}
+              required
+              minLength={6}
+            />
+          </label>
+
+          {error && <div className="form-error">{error}</div>}
+
+          <button className="primary-button auth-submit" disabled={loading}>
+            {loading ? <LoadingDots /> : mode === "login" ? "Sign in" : "Create account"}
+          </button>
+        </form>
+
+        <div className="auth-divider">
+          <span>or</span>
+        </div>
+
+        <button className="google-button" onClick={googleLogin}>
+          Continue with Google
+        </button>
+
+        <button
+          className="auth-switch"
+          onClick={() => {
+            setError("");
+            setMode(mode === "login" ? "signup" : "login");
+          }}
+        >
+          {mode === "login"
+            ? "Need an account? Create one"
+            : "Already have an account? Sign in"}
+        </button>
+      </div>
+    </div>
+  );
 }
 
-function normaliseChoice(choice) {
-  if (typeof choice === "string") {
-    return choice.trim();
+function VerificationModal({ email, onClose }) {
+  const [code, setCode] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  async function verify(event) {
+    event.preventDefault();
+    setLoading(true);
+    setError("");
+    setMessage("");
+
+    try {
+      await api("/api/auth/verify-email", {
+        method: "POST",
+        body: JSON.stringify({
+          email,
+          code
+        })
+      });
+
+      setMessage("Your email has been verified. You can sign in now.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  if (choice && typeof choice === "object") {
-    return String(
-      choice.text ||
-        choice.label ||
-        choice.value ||
-        choice.name ||
-        ""
-    ).trim();
+  async function resend() {
+    setResending(true);
+    setError("");
+    setMessage("");
+
+    try {
+      await api("/api/auth/resend-verification", {
+        method: "POST",
+        body: JSON.stringify({ email })
+      });
+
+      setMessage("A new verification code has been sent.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setResending(false);
+    }
   }
 
-  return String(choice || "").trim();
+  return (
+    <div className="modal-backdrop">
+      <div className="verification-modal">
+        <button className="modal-close" onClick={onClose} aria-label="Close">
+          <Icon name="close" />
+        </button>
+
+        <div className="verification-icon">
+          <Icon name="shield" size={28} />
+        </div>
+
+        <h2>Verify your email.</h2>
+        <p>
+          Enter the verification code sent to <strong>{email}</strong>.
+        </p>
+
+        <form onSubmit={verify}>
+          <label className="input-wrap">
+            <span>Verification code</span>
+            <input
+              value={code}
+              onChange={event => setCode(event.target.value)}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              required
+            />
+          </label>
+
+          {error && <div className="form-error">{error}</div>}
+          {message && <div className="form-success">{message}</div>}
+
+          <button className="primary-button" disabled={loading}>
+            {loading ? <LoadingDots /> : "Verify email"}
+          </button>
+        </form>
+
+        <button className="resend-button" onClick={resend} disabled={resending}>
+          {resending ? "Sending..." : "Resend code"}
+        </button>
+      </div>
+    </div>
+  );
 }
 
-function getAnswerType(question, type) {
-  const explicit = String(
-    question.answerType ||
-      question.answer_type ||
-      question.inputType ||
-      question.input_type ||
-      ""
-  )
-    .toLowerCase()
-    .trim();
+function Home({ onStart, onHistory, onAccount }) {
+  return (
+    <main className="home-page">
+      <header className="site-header">
+        <Logo onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} />
 
-  if (
+        <nav className="site-nav">
+          <button className="history-nav-button" onClick={onHistory}>
+            <Icon name="history" size={17} />
+            History
+          </button>
+
+          <button className="account-button" onClick={onAccount}>
+            <Icon name="user" size={17} />
+            Account
+          </button>
+
+          <button className="header-cta" onClick={onStart}>
+            Start assessment
+            <Icon name="arrowRight" size={17} />
+          </button>
+        </nav>
+      </header>
+
+      <section className="hero-section">
+        <div className="hero-content">
+          <span className="eyebrow">DECISION SUPPORT, REFINED</span>
+
+          <h1>
+            Make sense of
+            <br />
+            <em>what comes next.</em>
+          </h1>
+
+          <p className="hero-description">
+            Verlo turns complicated situations into clear questions, useful
+            context and practical next steps.
+          </p>
+
+          <div className="hero-actions">
+            <button className="hero-button" onClick={onStart}>
+              Start with your situation
+              <Icon name="arrowRight" size={18} />
+            </button>
+
+            <button className="secondary-button" onClick={onHistory}>
+              View history
+            </button>
+          </div>
+
+          <p className="hero-note">
+            Your situation stays focused on the decision you are making.
+          </p>
+        </div>
+
+        <div className="hero-visual" aria-hidden="true">
+          <div className="hero-orbit orbit-one" />
+          <div className="hero-orbit orbit-two" />
+          <div className="hero-orbit orbit-three" />
+
+          <div className="hero-core">
+            <span className="hero-core-dot" />
+            <span className="hero-core-line line-one" />
+            <span className="hero-core-line line-two" />
+            <span className="hero-core-line line-three" />
+          </div>
+
+          <div className="floating-card card-one">
+            <span>01</span>
+            Understand
+          </div>
+
+          <div className="floating-card card-two">
+            <span>02</span>
+            Clarify
+          </div>
+
+          <div className="floating-card card-three">
+            <span>03</span>
+            Decide
+          </div>
+        </div>
+      </section>
+
+      <section className="feature-section">
+        <div className="section-heading">
+          <span className="eyebrow">HOW IT WORKS</span>
+          <h2>A calmer way to work through complexity.</h2>
+        </div>
+
+        <div className="feature-grid">
+          <article className="feature-card">
+            <div className="feature-icon">
+              <Icon name="message" />
+            </div>
+            <span className="feature-number">01</span>
+            <h3>Start with the situation</h3>
+            <p>
+              Explain what is happening in your own words. You do not need to
+              know exactly what you need yet.
+            </p>
+          </article>
+
+          <article className="feature-card">
+            <div className="feature-icon">
+              <Icon name="spark" />
+            </div>
+            <span className="feature-number">02</span>
+            <h3>Answer adaptive questions</h3>
+            <p>
+              The assessment responds to what you tell it instead of forcing
+              every situation through the same checklist.
+            </p>
+          </article>
+
+          <article className="feature-card">
+            <div className="feature-icon">
+              <Icon name="document" />
+            </div>
+            <span className="feature-number">03</span>
+            <h3>Receive a clear report</h3>
+            <p>
+              Get the relevant context, considerations and practical next
+              steps organised into one readable report.
+            </p>
+          </article>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function InputPage({
+  situation,
+  setSituation,
+  category,
+  setCategory,
+  attachments,
+  setAttachments,
+  onBack,
+  onContinue,
+  loading
+}) {
+  const fileInput = useRef(null);
+
+  function addFiles(event) {
+    const files = Array.from(event.target.files || []);
+
+    setAttachments(previous => [
+      ...previous,
+      ...files.map(file => ({
+        name: file.name,
+        type: file.type,
+        size: file.size
+      }))
+    ]);
+
+    event.target.value = "";
+  }
+
+  function removeFile(index) {
+    setAttachments(previous => previous.filter((_, i) => i !== index));
+  }
+
+  return (
+    <main className="assessment-page">
+      <header className="assessment-header">
+        <Logo onClick={onBack} />
+        <span className="assessment-step">01 / 02</span>
+      </header>
+
+      <section className="assessment-main">
+        <div className="assessment-intro">
+          <span className="eyebrow">YOUR SITUATION</span>
+          <h1>Tell us what is happening.</h1>
+          <p>
+            Give Verlo enough context to understand what you are trying to
+            work through. There is no need to make it perfect.
+          </p>
+        </div>
+
+        <div className="input-panel">
+          <label className="large-label" htmlFor="situation">
+            What are you deciding or unsure about?
+          </label>
+
+          <div className="textarea-shell">
+            <textarea
+              id="situation"
+              value={situation}
+              onChange={event => setSituation(event.target.value)}
+              placeholder="Tell me what is happening, what you are deciding, or what you are unsure about..."
+              rows={9}
+              maxLength={6000}
+            />
+            <div className="textarea-count">{situation.length}/6000</div>
+          </div>
+
+          <div className="category-row">
+            {[
+              "Travel",
+              "Education",
+              "Work",
+              "Money",
+              "Health",
+              "Relationships",
+              "Other"
+            ].map(item => (
+              <button
+                key={item}
+                className={category === item ? "category selected" : "category"}
+                onClick={() => setCategory(item)}
+              >
+                {item}
+              </button>
+            ))}
+          </div>
+
+          <div className="attachment-area">
+            <input
+              ref={fileInput}
+              type="file"
+              multiple
+              hidden
+              onChange={addFiles}
+            />
+
+            <button
+              className="attachment-button"
+              onClick={() => fileInput.current?.click()}
+            >
+              <Icon name="upload" size={17} />
+              Add supporting files
+            </button>
+
+            {attachments.length > 0 && (
+              <div className="attachment-list">
+                {attachments.map((file, index) => (
+                  <div className="attachment-item" key={`${file.name}-${index}`}>
+                    <span>{file.name}</span>
+                    <button
+                      onClick={() => removeFile(index)}
+                      aria-label={`Remove ${file.name}`}
+                    >
+                      <Icon name="close" size={15} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="input-footer">
+            <span>
+              {category || "Choose a category"} · {situation.length} characters
+            </span>
+
+            <button
+              className="continue-button"
+              disabled={!situation.trim() || loading}
+              onClick={onContinue}
+            >
+              {loading ? <LoadingDots /> : "Continue"}
+              {!loading && <Icon name="arrowRight" size={18} />}
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function normalizeQuestion(raw, index) {
+  if (!raw) return null;
+
+  const question =
+    typeof raw === "string"
+      ? { text: raw }
+      : {
+          ...raw,
+          text:
+            raw.text ||
+            raw.question ||
+            raw.questionText ||
+            raw.prompt ||
+            ""
+        };
+
+  const options =
+    question.options ||
+    question.choices ||
+    question.answers ||
+    [];
+
+  const text = String(question.text || "").trim();
+
+  const explicitMultiline =
     question.multiline === true ||
     question.multiLine === true ||
-    [
-      "long_text",
-      "longtext",
-      "textarea",
-      "paragraph",
-      "multi_line",
-      "multiline",
-    ].includes(explicit)
-  ) {
-    return "long_text";
-  }
+    question.inputType === "textarea" ||
+    question.answerType === "long_text" ||
+    question.type === "long_text";
 
-  if (
+  const explicitSingleLine =
     question.multiline === false ||
     question.multiLine === false ||
-    [
-      "short_text",
-      "single_line",
-      "singleline",
-      "text",
-      "string",
-      "short",
-      "input",
-    ].includes(explicit)
-  ) {
-    return "short_text";
-  }
+    question.inputType === "text" ||
+    question.answerType === "short_text";
 
-  if (type === "mcq") {
-    return "choice";
-  }
+  const looksLikeChoice =
+    Array.isArray(options) && options.length > 0;
 
-  const text = String(
-    question.question ||
-      question.text ||
-      question.prompt ||
-      question.stem ||
-      ""
-  ).toLowerCase();
+  const longAnswerPattern =
+    /describe|explain|tell us about|provide details|what happened|anything else|additional information|in your own words/i;
 
-  if (
-    /^(do|does|did|is|are|was|were|can|could|would|will|have|has|had)\b/.test(
-      text
-    )
-  ) {
-    return "short_text";
-  }
+  const multiline =
+    explicitMultiline ||
+    (!explicitSingleLine &&
+      !looksLikeChoice &&
+      longAnswerPattern.test(text));
 
-  if (
-    /\b(explain|describe|elaborate|provide details|in your own words|tell us more|tell me more)\b/.test(
-      text
-    )
-  ) {
-    return "long_text";
-  }
-
-  return "short_text";
-}
-
-function normaliseQuestion(question, questionNumber) {
-  if (typeof question === "string") {
-    question = {
-      question,
-      type: "text",
-    };
-  }
-
-  if (!question || typeof question !== "object") {
-    return null;
-  }
-
-  const requestedType = String(question.type || "").toLowerCase();
-
-  const rawChoices = Array.isArray(question.choices)
-    ? question.choices
-    : Array.isArray(question.options)
-      ? question.options
-      : [];
-
-  const choices = rawChoices
-    .map(normaliseChoice)
-    .filter(Boolean);
-
-  const type =
-    requestedType === "mcq" ||
-    requestedType === "choice" ||
-    requestedType === "multiple-choice" ||
-    requestedType === "multiple_choice"
-      ? "mcq"
-      : "text";
-
-  const questionText =
-    question.question ||
-    question.text ||
-    question.prompt ||
-    question.stem;
-
-  if (!questionText) {
-    return null;
-  }
-
-  const cleanQuestion = String(questionText).trim();
-
-  const imageUrl =
-    question.imageUrl ||
-    question.image ||
-    question.image_url ||
-    null;
-
-  if (type === "mcq" && choices.length < 2) {
-    return {
-      id: question.id || `adaptive-${questionNumber}`,
-      type: "text",
-      answerType: getAnswerType(question, "text"),
-      question: cleanQuestion,
-      stem: cleanQuestion,
-      choices: [],
-      imageUrl,
-      imageAlt:
-        question.imageAlt ||
-        question.image_alt ||
-        cleanQuestion,
-      imageCaption:
-        question.imageCaption ||
-        question.image_caption ||
-        "",
-      placeholder:
-        question.placeholder ||
-        "",
-      required:
-        question.required !== false,
-      questionNumber,
-    };
-  }
+  const normalizedOptions = Array.isArray(options)
+    ? options.map(option =>
+        typeof option === "string"
+          ? { label: option, value: option }
+          : {
+              label:
+                option.label ||
+                option.text ||
+                option.name ||
+                option.value ||
+                "",
+              value:
+                option.value ||
+                option.label ||
+                option.text ||
+                ""
+            }
+      )
+    : [];
 
   return {
-    id: question.id || `adaptive-${questionNumber}`,
-    type,
-    answerType:
-      type === "mcq"
-        ? "choice"
-        : getAnswerType(question, type),
-    question: cleanQuestion,
-    stem: cleanQuestion,
-    choices,
-    imageUrl,
-    imageAlt:
-      question.imageAlt ||
-      question.image_alt ||
-      cleanQuestion,
-    imageCaption:
-      question.imageCaption ||
-      question.image_caption ||
-      "",
+    ...question,
+    id: question.id || `question-${index + 1}`,
+    text,
+    options: normalizedOptions,
+    multiline,
+    required: question.required !== false,
     placeholder:
       question.placeholder ||
-      "",
-    required:
-      question.required !== false,
-    questionNumber,
+      (multiline
+        ? "Type your answer here..."
+        : "Type your answer and press Enter...")
   };
 }
 
-function questionKey(value) {
-  return String(value || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
-
-function buildFallbackQuestion(
-  title,
-  description,
-  context,
-  previousAnswers,
-  questionNumber
-) {
-  const source = `${title} ${description} ${context}`.toLowerCase();
-
-  const answers = Object.values(previousAnswers || {})
-    .map((value) => String(value))
-    .join(" ")
-    .toLowerCase();
-
-  const combined = `${source} ${answers}`;
-
-  const makeQuestion = (
-    question,
-    answerType = "short_text"
-  ) => ({
-    id: `adaptive-${questionNumber}`,
-    type: "text",
-    answerType,
-    question,
-    stem: question,
-    choices: [],
-    imageUrl: null,
-    imageAlt: "",
-    imageCaption: "",
-    placeholder: "",
-    required: true,
-    questionNumber,
-  });
-
-  if (
-    /deadline|due|expires|urgent|today|tomorrow|date|time/.test(
-      combined
-    )
-  ) {
-    return makeQuestion(
-      "What deadline or time limit applies to this situation?",
-      "short_text"
-    );
-  }
-
-  if (
-    /money|cost|price|payment|bill|invoice|refund|rent|fee|charge/.test(
-      combined
-    )
-  ) {
-    return makeQuestion(
-      "What amount of money is involved, and what payment or financial outcome are you trying to achieve?",
-      "short_text"
-    );
-  }
-
-  if (
-    /email|message|letter|written|evidence|receipt|photo|document|proof|contract/.test(
-      combined
-    )
-  ) {
-    return makeQuestion(
-      "What records, messages, documents, or other evidence do you already have?",
-      "long_text"
-    );
-  }
-
-  if (
-    /landlord|tenant|rental|property|house|apartment|repair/.test(
-      combined
-    )
-  ) {
-    return makeQuestion(
-      "What has the other party said or done so far, and when did that happen?",
-      "long_text"
-    );
-  }
-
-  if (
-    /flight|airline|travel|hotel|booking|trip|airport/.test(
-      combined
-    )
-  ) {
-    return makeQuestion(
-      "Do you have any travel insurance, credit-card coverage, or other protection that may cover the booking?",
-      "short_text"
-    );
-  }
-
-  if (
-    /laptop|computer|phone|device|warranty|repair|broken|fault/.test(
-      combined
-    )
-  ) {
-    return makeQuestion(
-      "What problem is the device experiencing, and what has already been tried to fix it?",
-      "long_text"
-    );
-  }
-
-  if (questionNumber === 1) {
-    return makeQuestion(
-      "What outcome would resolve this situation for you?",
-      "short_text"
-    );
-  }
-
-  if (questionNumber === 2) {
-    return makeQuestion(
-      "What has happened so far, including any response you have received from the other person or organisation?",
-      "long_text"
-    );
-  }
-
-  if (questionNumber === 3) {
-    return makeQuestion(
-      "Is there any important constraint, deadline, cost, or consequence that VERLO should take into account?",
-      "short_text"
-    );
-  }
-
-  return makeQuestion(
-    "Is there anything else about this situation that could change what you should do next?",
-    "short_text"
-  );
-}
-
-async function askGroq(
-  systemPrompt,
-  userPrompt,
-  options = {}
-) {
-  if (!groq) {
-    throw new Error("GROQ_API_KEY is not configured.");
-  }
-
-  const completion = await groq.chat.completions.create({
-    model: "openai/gpt-oss-120b",
-    messages: [
-      {
-        role: "system",
-        content: systemPrompt,
-      },
-      {
-        role: "user",
-        content: userPrompt,
-      },
-    ],
-    temperature: options.temperature ?? 0.5,
-    max_tokens: options.max_tokens ?? 2500,
-  });
-
-  const content =
-    completion?.choices?.[0]?.message?.content;
-
-  if (!content) {
-    throw new Error("Groq returned an empty response.");
-  }
-
-  return content;
-}
-
-async function generateAdaptiveQuestion({
-  title,
-  description,
-  context,
-  previousAnswers,
-  previousQuestions,
-  questionNumber,
-  maxQuestions,
+function AdaptiveAssessment({
+  situation,
+  category,
+  attachments,
+  questions,
+  setQuestions,
+  answers,
+  setAnswers,
+  questionIndex,
+  setQuestionIndex,
+  onComplete,
+  onBack,
+  loading,
+  setLoading,
+  error,
+  setError
 }) {
-  const answerEntries = Object.entries(
-    previousAnswers || {}
+  const currentQuestion = questions[questionIndex];
+  const normalizedQuestion = normalizeQuestion(
+    currentQuestion,
+    questionIndex
   );
 
-  const previousAnswerText =
-    answerEntries.length > 0
-      ? answerEntries
-          .map(
-            ([key, value], index) =>
-              `Question ${index + 1} (${key}): ${String(value)}`
-          )
-          .join("\n")
-      : "No answers yet.";
-
-  const previousQuestionText =
-    previousQuestions.length > 0
-      ? previousQuestions
-          .map(
-            (question, index) =>
-              `${index + 1}. ${
-                question.question ||
-                question.stem ||
-                question.text ||
-                ""
-              }`
-          )
-          .join("\n")
-      : "No previous questions yet.";
-
-  const systemPrompt = `
-You are VERLO's adaptive assessment engine.
-
-Generate exactly ONE useful follow-up question for the user's specific situation.
-
-The question must use the original situation, previous questions, and previous answers.
-
-The purpose is to discover the most important missing fact that could change the final action pathway.
-
-Do not create a generic questionnaire.
-
-Question number: ${questionNumber}
-Maximum questions: ${maxQuestions}
-
-Rules:
-- Return exactly one question.
-- Never repeat a previous question.
-- Never ask for information already provided.
-- Never ask a question merely because it is common in questionnaires.
-- Prioritise information that could change urgency, deadlines, money, evidence, responsibility, constraints, available options, consequences, or the user's desired outcome.
-- Make the question clearly relevant to the user's exact situation.
-- Use mcq when a small set of clear options genuinely helps.
-- Use text when a written answer is more appropriate.
-- For ordinary factual, yes/no, confirmation, availability, date, amount, or short-answer questions, use answerType "short_text".
-- For questions that genuinely require explanation, description, multiple details, or a longer response, use answerType "long_text".
-- Do not use long_text simply because the question itself is long.
-- MCQs must contain 3 to 5 choices.
-- If an image is genuinely necessary and an existing attachment is available, use imageUrl from that attachment.
-- Do not invent an image URL.
-- Keep the question concise.
-- Return JSON only.
-- Do not use markdown.
-- Do not explain your reasoning.
-
-Required JSON:
-
-{
-  "question": {
-    "id": "adaptive-${questionNumber}",
-    "type": "text",
-    "answerType": "short_text",
-    "question": "..."
-  }
-}
-
-For long answers:
-
-{
-  "question": {
-    "id": "adaptive-${questionNumber}",
-    "type": "text",
-    "answerType": "long_text",
-    "question": "..."
-  }
-}
-
-For multiple choice:
-
-{
-  "question": {
-    "id": "adaptive-${questionNumber}",
-    "type": "mcq",
-    "answerType": "choice",
-    "question": "...",
-    "choices": ["...", "...", "..."]
-  }
-}
-`;
-
-  const userPrompt = `
-Original situation title:
-${title || "Untitled situation"}
-
-Original situation:
-${description}
-
-Additional context:
-${context || "None provided"}
-
-Previous questions:
-${previousQuestionText}
-
-Previous answers:
-${previousAnswerText}
-
-Generate the next adaptive question now.
-`;
-
-  let lastError = null;
-
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      const raw = await askGroq(
-        systemPrompt,
-        attempt === 0
-          ? userPrompt
-          : `${userPrompt}
-
-Your previous response was unusable.
-
-Return one valid JSON object only.
-Do not include reasoning.
-Do not include markdown.
-Do not include extra text.`,
-        {
-          temperature: 0.2,
-          max_tokens: 900,
-        }
-      );
-
-      const parsed = extractJson(raw);
-
-      let question =
-        parsed?.question ||
-        parsed?.data?.question ||
-        parsed;
-
-      if (
-        Array.isArray(parsed?.questions) &&
-        parsed.questions.length
-      ) {
-        question = parsed.questions[0];
-      }
-
-      const normalised = normaliseQuestion(
-        question,
-        questionNumber
-      );
-
-      if (!normalised) {
-        throw new Error(
-          "Adaptive engine returned no usable question."
-        );
-      }
-
-      const existingKeys = previousQuestions
-        .map(
-          (item) =>
-            item?.question ||
-            item?.stem ||
-            item?.text ||
-            ""
-        )
-        .map(questionKey)
-        .filter(Boolean);
-
-      if (
-        existingKeys.includes(
-          questionKey(normalised.question)
-        )
-      ) {
-        throw new Error(
-          "Adaptive engine repeated a previous question."
-        );
-      }
-
-      return normalised;
-    } catch (error) {
-      lastError = error;
-    }
-  }
-
-  return buildFallbackQuestion(
-    title,
-    description,
-    context,
-    previousAnswers,
-    questionNumber
+  const existingAnswer = answers.find(
+    answer => answer.questionId === normalizedQuestion?.id
   );
-}
 
-app.get("/", (req, res) => {
-  res.json({
-    success: true,
-    name: "Verlo API",
-    status: "online",
-    frontend: CLIENT_URL,
-    authentication: "HttpOnly cookie",
-    adaptiveEngine: true,
-    emailVerification: true,
-  });
-});
+  const [value, setValue] = useState(existingAnswer?.answer || "");
+  const [selectedOption, setSelectedOption] = useState(
+    existingAnswer?.answer || ""
+  );
 
-app.get("/api/health", (req, res) => {
-  res.json({
-    success: true,
-    status: "online",
-    service: "Verlo API",
-    adaptiveEngine: true,
-    emailVerification: true,
-    timestamp: new Date().toISOString(),
-  });
-});
-
-app.post("/api/auth/signup", async (req, res) => {
-  try {
-    const { name, email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        error: "Email and password are required.",
-      });
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({
-        success: false,
-        error: "Password must be at least 6 characters.",
-      });
-    }
-
-    if (!RESEND_API_KEY || !RESEND_FROM_EMAIL) {
-      return res.status(503).json({
-        success: false,
-        error:
-          "Email verification is not configured on the server.",
-      });
-    }
-
-    const normalizedEmail = email.trim().toLowerCase();
-    const users = readJson(USERS_FILE, []);
-
-    const existingUser = users.find(
-      (user) =>
-        user.email?.toLowerCase() === normalizedEmail
+  useEffect(() => {
+    const answer = answers.find(
+      item => item.questionId === normalizedQuestion?.id
     );
 
-    if (existingUser) {
-      if (
-        existingUser.provider === "local" &&
-        existingUser.verified === false
-      ) {
-        return res.status(409).json({
-          success: false,
-          error:
-            "An unverified account with this email already exists. Request a new verification code.",
-          verificationRequired: true,
-          email: normalizedEmail,
-        });
+    setValue(answer?.answer || "");
+    setSelectedOption(answer?.answer || "");
+  }, [normalizedQuestion?.id, answers]);
+
+  const progress = Math.min(
+    100,
+    Math.round(
+      ((questionIndex + 1) / Math.max(questions.length, MAX_ADAPTIVE_QUESTIONS)) *
+        100
+    )
+  );
+
+  async function requestNextQuestion(nextAnswers) {
+    setLoading(true);
+    setError("");
+
+    try {
+      const data = await api("/api/adaptive-question", {
+        method: "POST",
+        body: JSON.stringify({
+          situation,
+          category,
+          answers: nextAnswers,
+          questionIndex: nextAnswers.length,
+          previousQuestions: questions,
+          attachments
+        })
+      });
+
+      const completed =
+        data?.complete ||
+        data?.done ||
+        data?.finished ||
+        data?.shouldAnalyze;
+
+      if (completed || !data?.question && !data?.questions?.[0] && !data?.questionText) {
+        await onComplete(nextAnswers);
+        return;
       }
 
-      return res.status(409).json({
-        success: false,
-        error:
-          "An account with this email already exists.",
-      });
+      const nextRaw =
+        data.question ||
+        data.questions?.[0] ||
+        data.questionText;
+
+      const nextQuestion = normalizeQuestion(
+        nextRaw,
+        questions.length
+      );
+
+      if (!nextQuestion?.text) {
+        await onComplete(nextAnswers);
+        return;
+      }
+
+      setQuestions(previous => [...previous, nextQuestion]);
+      setQuestionIndex(previous => previous + 1);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function saveAnswerAndContinue(answerValue, skipped = false) {
+    if (loading || !normalizedQuestion) return;
+
+    const cleaned =
+      typeof answerValue === "string"
+        ? answerValue.trim()
+        : answerValue;
+
+    if (!skipped && normalizedQuestion.required && !cleaned) {
+      setError("Please enter an answer or choose Skip.");
+      return;
     }
 
-    const passwordHash = await bcrypt.hash(password, 12);
-
-    const user = {
-      id: createUserId(),
-      name:
-        name?.trim() ||
-        normalizedEmail.split("@")[0],
-      email: normalizedEmail,
-      passwordHash,
-      picture: null,
-      provider: "local",
-      verified: false,
-      verificationCodeHash: null,
-      verificationExpiresAt: null,
-      verificationLastSentAt: null,
-      createdAt: new Date().toISOString(),
+    const answerObject = {
+      questionId: normalizedQuestion.id,
+      question: normalizedQuestion.text,
+      answer: skipped ? "" : cleaned,
+      skipped
     };
 
-    const code = createVerificationCode();
+    const filtered = answers.filter(
+      answer => answer.questionId !== normalizedQuestion.id
+    );
 
-    user.verificationCodeHash =
-      hashVerificationCode(code);
-    user.verificationExpiresAt =
-      getVerificationExpiry();
-    user.verificationLastSentAt =
-      new Date().toISOString();
+    const nextAnswers = [...filtered, answerObject];
 
-    await sendVerificationEmail(user, code);
+    setAnswers(nextAnswers);
 
-    users.push(user);
-    writeJson(USERS_FILE, users);
+    if (questionIndex >= MAX_ADAPTIVE_QUESTIONS - 1) {
+      await onComplete(nextAnswers);
+      return;
+    }
 
-    return res.status(201).json({
-      success: true,
-      message:
-        "Account created. Check your email for the verification code.",
-      verificationRequired: true,
-      email: normalizedEmail,
-    });
-  } catch (error) {
-    console.error("Signup error:", error);
-
-    return res.status(500).json({
-      success: false,
-      error:
-        error?.message ||
-        "Could not create account.",
-    });
+    await requestNextQuestion(nextAnswers);
   }
-});
 
-app.post("/api/auth/login", async (req, res) => {
-  try {
-    const { email, password } = req.body;
+  function handleKeyDown(event) {
+    if (event.key !== "Enter") return;
 
-    if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        error: "Email and password are required.",
-      });
+    if (normalizedQuestion.multiline) {
+      if (event.metaKey || event.ctrlKey) {
+        event.preventDefault();
+        saveAnswerAndContinue(value);
+      }
+      return;
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
-    const users = readJson(USERS_FILE, []);
+    event.preventDefault();
 
-    const user = users.find(
-      (item) =>
-        item.email?.toLowerCase() === normalizedEmail
-    );
-
-    if (!user?.passwordHash) {
-      return res.status(401).json({
-        success: false,
-        error: "Invalid email or password.",
-      });
+    if (!loading) {
+      saveAnswerAndContinue(
+        normalizedQuestion.options.length > 0
+          ? selectedOption
+          : value
+      );
     }
-
-    const validPassword = await bcrypt.compare(
-      password,
-      user.passwordHash
-    );
-
-    if (!validPassword) {
-      return res.status(401).json({
-        success: false,
-        error: "Invalid email or password.",
-      });
-    }
-
-    if (
-      user.provider !== "google" &&
-      user.verified === false
-    ) {
-      return res.status(403).json({
-        success: false,
-        error:
-          "Please verify your email before logging in.",
-        verificationRequired: true,
-        email: user.email,
-      });
-    }
-
-    if (
-      user.provider === "local" &&
-      user.verified === undefined
-    ) {
-      user.verified = true;
-      writeJson(USERS_FILE, users);
-    }
-
-    const token = createToken(user);
-    setAuthCookie(res, token);
-
-    return res.json({
-      success: true,
-      message: "Logged in successfully.",
-      user: publicUser(user),
-    });
-  } catch (error) {
-    console.error("Login error:", error);
-
-    return res.status(500).json({
-      success: false,
-      error: "Could not log in.",
-    });
   }
-});
 
-app.post("/api/auth/verify-email", async (req, res) => {
-  try {
-    const { email, code } = req.body;
-
-    if (!email || !code) {
-      return res.status(400).json({
-        success: false,
-        error:
-          "Email and verification code are required.",
-      });
-    }
-
-    const normalizedEmail = email.trim().toLowerCase();
-    const cleanCode = String(code).trim();
-
-    if (!/^\d{6}$/.test(cleanCode)) {
-      return res.status(400).json({
-        success: false,
-        error:
-          "Enter the six-digit verification code.",
-      });
-    }
-
-    const users = readJson(USERS_FILE, []);
-
-    const user = users.find(
-      (item) =>
-        item.email?.toLowerCase() === normalizedEmail
+  if (!normalizedQuestion) {
+    return (
+      <main className="assessment-page adaptive-page">
+        <div className="adaptive-empty">
+          <LoadingDots />
+          <p>Preparing your first question...</p>
+        </div>
+      </main>
     );
+  }
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error:
-          "No account was found for that email.",
-      });
+  return (
+    <main className="assessment-page adaptive-page">
+      <header className="assessment-header">
+        <button className="back-button" onClick={onBack} disabled={loading}>
+          <Icon name="arrowLeft" size={17} />
+          Back
+        </button>
+
+        <Logo onClick={onBack} />
+
+        <span className="assessment-step">
+          {String(questionIndex + 1).padStart(2, "0")} /{" "}
+          {String(Math.min(MAX_ADAPTIVE_QUESTIONS, Math.max(questions.length, 1))).padStart(2, "0")}
+        </span>
+      </header>
+
+      <section className="adaptive-main">
+        <div className="assessment-progress">
+          <div className="assessment-progress-label">
+            <span>Adaptive assessment</span>
+            <span>{progress}%</span>
+          </div>
+          <div className="progress-track">
+            <div
+              className="progress-value"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+
+        <div className="question-card">
+          <div className="question-meta">
+            <span>QUESTION {String(questionIndex + 1).padStart(2, "0")}</span>
+            {normalizedQuestion.multiline ? (
+              <span>DETAILED RESPONSE</span>
+            ) : (
+              <span>SHORT RESPONSE</span>
+            )}
+          </div>
+
+          <h1>{normalizedQuestion.text}</h1>
+
+          {normalizedQuestion.description && (
+            <p className="question-description">
+              {normalizedQuestion.description}
+            </p>
+          )}
+
+          {normalizedQuestion.image && (
+            <div className="question-image">
+              <img
+                src={normalizedQuestion.image}
+                alt=""
+              />
+            </div>
+          )}
+
+          {normalizedQuestion.options.length > 0 ? (
+            <div className="choice-list">
+              {normalizedQuestion.options.map(option => (
+                <button
+                  key={`${normalizedQuestion.id}-${option.value}`}
+                  className={
+                    selectedOption === option.value
+                      ? "choice-option selected"
+                      : "choice-option"
+                  }
+                  onClick={() => setSelectedOption(option.value)}
+                  disabled={loading}
+                >
+                  <span className="choice-radio">
+                    {selectedOption === option.value && <span />}
+                  </span>
+                  <span>{option.label}</span>
+                </button>
+              ))}
+            </div>
+          ) : normalizedQuestion.multiline ? (
+            <div className="adaptive-textarea-shell multiline">
+              <textarea
+                value={value}
+                onChange={event => setValue(event.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={normalizedQuestion.placeholder}
+                rows={7}
+                maxLength={4000}
+                disabled={loading}
+              />
+
+              <div className="adaptive-textarea-count">
+                <span>Ctrl/Cmd + Enter to continue</span>
+                <span>{value.length}/4000</span>
+              </div>
+            </div>
+          ) : (
+            <div className="adaptive-input-shell">
+              <input
+                value={value}
+                onChange={event => setValue(event.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={normalizedQuestion.placeholder}
+                maxLength={1000}
+                disabled={loading}
+                autoFocus
+              />
+
+              <span className="input-enter-hint">
+                Enter ↵
+              </span>
+            </div>
+          )}
+
+          {error && <div className="assessment-error">{error}</div>}
+
+          <div className="question-footer">
+            <button
+              className="skip-button"
+              onClick={() => saveAnswerAndContinue("", true)}
+              disabled={loading}
+            >
+              Skip
+            </button>
+
+            <button
+              className="continue-button"
+              onClick={() =>
+                saveAnswerAndContinue(
+                  normalizedQuestion.options.length > 0
+                    ? selectedOption
+                    : value
+                )
+              }
+              disabled={
+                loading ||
+                (normalizedQuestion.required &&
+                  !(
+                    normalizedQuestion.options.length > 0
+                      ? selectedOption
+                      : value.trim()
+                  ))
+              }
+            >
+              {loading ? <LoadingDots /> : "Continue"}
+              {!loading && <Icon name="arrowRight" size={18} />}
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function Processing({ percent }) {
+  return (
+    <main className="assessment-page processing-page">
+      <div className="processing-inner">
+        <div className="processing-orb">
+          <div />
+        </div>
+
+        <span className="eyebrow">ANALYSING YOUR SITUATION</span>
+
+        <h1>Putting the pieces together.</h1>
+
+        <p>
+          Verlo is organising your answers into a clear, useful report.
+        </p>
+
+        <div className="processing-percent">{percent}%</div>
+
+        <div className="processing-track">
+          <div style={{ width: `${percent}%` }} />
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function inlineMarkdown(value) {
+  let text = escapeHtml(value);
+
+  text = text.replace(
+    /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,
+    '<a href="$2" target="_blank" rel="noreferrer">$1</a>'
+  );
+
+  text = text.replace(
+    /`([^`]+)`/g,
+    "<code>$1</code>"
+  );
+
+  text = text.replace(
+    /\*\*([^*]+)\*\*/g,
+    "<strong>$1</strong>"
+  );
+
+  text = text.replace(
+    /__([^_]+)__/g,
+    "<strong>$1</strong>"
+  );
+
+  text = text.replace(
+    /(?<!\*)\*([^*]+)\*(?!\*)/g,
+    "<em>$1</em>"
+  );
+
+  return text;
+}
+
+function markdownToHtml(markdown) {
+  if (markdown === null || markdown === undefined) return "";
+
+  const source = String(markdown)
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .trim();
+
+  if (!source) return "";
+
+  const lines = source.split("\n");
+  const output = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index];
+
+    if (!line.trim()) {
+      index += 1;
+      continue;
+    }
+
+    if (/^```/.test(line.trim())) {
+      const language = line.trim().slice(3).trim();
+      const codeLines = [];
+      index += 1;
+
+      while (
+        index < lines.length &&
+        !/^```/.test(lines[index].trim())
+      ) {
+        codeLines.push(lines[index]);
+        index += 1;
+      }
+
+      if (index < lines.length) index += 1;
+
+      output.push(
+        `<pre class="markdown-code"><code class="language-${escapeHtml(
+          language
+        )}">${escapeHtml(codeLines.join("\n"))}</code></pre>`
+      );
+
+      continue;
     }
 
     if (
-      user.provider === "google" ||
-      user.verified === true
-    ) {
-      const token = createToken(user);
-      setAuthCookie(res, token);
-
-      return res.json({
-        success: true,
-        message: "Email is already verified.",
-        user: publicUser(user),
-      });
-    }
-
-    if (
-      !user.verificationCodeHash ||
-      !user.verificationExpiresAt
-    ) {
-      return res.status(400).json({
-        success: false,
-        error:
-          "There is no active verification code. Request a new one.",
-        verificationRequired: true,
-        email: user.email,
-      });
-    }
-
-    const expiry = Date.parse(
-      user.verificationExpiresAt
-    );
-
-    if (
-      Number.isNaN(expiry) ||
-      Date.now() > expiry
-    ) {
-      return res.status(400).json({
-        success: false,
-        error:
-          "That verification code has expired. Request a new one.",
-        verificationRequired: true,
-        email: user.email,
-      });
-    }
-
-    const suppliedHash =
-      hashVerificationCode(cleanCode);
-
-    const suppliedBuffer = Buffer.from(
-      suppliedHash
-    );
-
-    const storedBuffer = Buffer.from(
-      user.verificationCodeHash
-    );
-
-    if (
-      suppliedBuffer.length !==
-        storedBuffer.length ||
-      !crypto.timingSafeEqual(
-        suppliedBuffer,
-        storedBuffer
+      line.includes("|") &&
+      index + 1 < lines.length &&
+      /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?\s*$/.test(
+        lines[index + 1]
       )
     ) {
-      return res.status(400).json({
-        success: false,
-        error:
-          "That verification code is incorrect.",
-        verificationRequired: true,
-        email: user.email,
-      });
-    }
+      const headerCells = line
+        .trim()
+        .replace(/^\|/, "")
+        .replace(/\|$/, "")
+        .split("|")
+        .map(cell => cell.trim());
 
-    user.verified = true;
-    user.verificationCodeHash = null;
-    user.verificationExpiresAt = null;
-    user.verificationLastSentAt = null;
+      index += 2;
 
-    writeJson(USERS_FILE, users);
+      const rows = [];
 
-    const token = createToken(user);
-    setAuthCookie(res, token);
-
-    return res.json({
-      success: true,
-      message: "Email verified successfully.",
-      user: publicUser(user),
-    });
-  } catch (error) {
-    console.error("Verify email error:", error);
-
-    return res.status(500).json({
-      success: false,
-      error: "Could not verify email.",
-    });
-  }
-});
-
-app.post(
-  "/api/auth/resend-verification",
-  async (req, res) => {
-    try {
-      const { email } = req.body;
-
-      if (!email) {
-        return res.status(400).json({
-          success: false,
-          error: "Email is required.",
-        });
-      }
-
-      if (!RESEND_API_KEY || !RESEND_FROM_EMAIL) {
-        return res.status(503).json({
-          success: false,
-          error:
-            "Email verification is not configured on the server.",
-        });
-      }
-
-      const normalizedEmail =
-        email.trim().toLowerCase();
-
-      const users = readJson(USERS_FILE, []);
-
-      const user = users.find(
-        (item) =>
-          item.email?.toLowerCase() ===
-          normalizedEmail
-      );
-
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          error:
-            "No account was found for that email.",
-        });
-      }
-
-      if (
-        user.provider === "google" ||
-        user.verified === true
+      while (
+        index < lines.length &&
+        lines[index].includes("|") &&
+        lines[index].trim()
       ) {
-        return res.status(400).json({
-          success: false,
-          error:
-            "This account is already verified.",
-        });
-      }
-
-      const lastSent =
-        getVerificationLastSent(user);
-
-      if (
-        lastSent &&
-        Date.now() - lastSent <
-          VERIFICATION_RESEND_COOLDOWN_MS
-      ) {
-        const remaining = Math.ceil(
-          (VERIFICATION_RESEND_COOLDOWN_MS -
-            (Date.now() - lastSent)) /
-            1000
+        rows.push(
+          lines[index]
+            .trim()
+            .replace(/^\|/, "")
+            .replace(/\|$/, "")
+            .split("|")
+            .map(cell => cell.trim())
         );
 
-        return res.status(429).json({
-          success: false,
-          error:
-            `Please wait ${remaining} seconds before requesting another code.`,
-          retryAfter: remaining,
-        });
+        index += 1;
       }
 
-      const code = createVerificationCode();
-
-      user.verificationCodeHash =
-        hashVerificationCode(code);
-      user.verificationExpiresAt =
-        getVerificationExpiry();
-      user.verificationLastSentAt =
-        new Date().toISOString();
-
-      await sendVerificationEmail(user, code);
-
-      writeJson(USERS_FILE, users);
-
-      return res.json({
-        success: true,
-        message:
-          "A new verification code has been sent.",
-        verificationRequired: true,
-        email: user.email,
-      });
-    } catch (error) {
-      console.error(
-        "Resend verification error:",
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-        error:
-          error?.message ||
-          "Could not resend verification code.",
-      });
-    }
-  }
-);
-
-app.get("/api/auth/me", authenticate, (req, res) => {
-  res.json({
-    success: true,
-    user: publicUser(req.user),
-  });
-});
-
-app.post("/api/auth/logout", (req, res) => {
-  clearAuthCookie(res);
-
-  res.json({
-    success: true,
-    message: "Logged out successfully.",
-  });
-});
-
-app.get("/api/auth/google", (req, res) => {
-  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
-    return res.status(500).json({
-      success: false,
-      error:
-        "Google authentication is not configured.",
-    });
-  }
-
-  try {
-    const authUrl =
-      googleClient.generateAuthUrl({
-        access_type: "offline",
-        prompt: "select_account",
-        scope: [
-          "openid",
-          "email",
-          "profile",
-        ],
-      });
-
-    res.redirect(authUrl);
-  } catch {
-    res.status(500).json({
-      success: false,
-      error:
-        "Could not start Google authentication.",
-    });
-  }
-});
-
-app.get(
-  "/api/auth/google/callback",
-  async (req, res) => {
-    try {
-      const { code } = req.query;
-
-      if (!code) {
-        return res.redirect(
-          `${CLIENT_URL}/?auth_error=missing_code`
-        );
-      }
-
-      const { tokens } =
-        await googleClient.getToken(code);
-
-      if (!tokens.id_token) {
-        return res.redirect(
-          `${CLIENT_URL}/?auth_error=no_id_token`
-        );
-      }
-
-      const ticket =
-        await googleClient.verifyIdToken({
-          idToken: tokens.id_token,
-          audience: GOOGLE_CLIENT_ID,
-        });
-
-      const payload = ticket.getPayload();
-
-      if (!payload?.email || !payload?.sub) {
-        return res.redirect(
-          `${CLIENT_URL}/?auth_error=invalid_google_account`
-        );
-      }
-
-      const googleId = payload.sub;
-      const email = payload.email.toLowerCase();
-      const name =
-        payload.name ||
-        email.split("@")[0] ||
-        "Verlo User";
-      const picture = payload.picture || null;
-
-      const users = readJson(
-        USERS_FILE,
-        []
-      );
-
-      let user = users.find(
-        (item) =>
-          item.googleId === googleId
-      );
-
-      if (!user) {
-        user = users.find(
-          (item) =>
-            item.email?.toLowerCase() ===
-            email
-        );
-      }
-
-      if (user) {
-        user.googleId = googleId;
-        user.picture =
-          picture || user.picture;
-        user.provider = "google";
-        user.verified = true;
-        user.verificationCodeHash = null;
-        user.verificationExpiresAt = null;
-        user.verificationLastSentAt = null;
-        user.name = user.name || name;
-      } else {
-        user = {
-          id: createUserId(),
-          googleId,
-          name,
-          email,
-          passwordHash: null,
-          picture,
-          provider: "google",
-          verified: true,
-          verificationCodeHash: null,
-          verificationExpiresAt: null,
-          verificationLastSentAt: null,
-          createdAt:
-            new Date().toISOString(),
-        };
-
-        users.push(user);
-      }
-
-      writeJson(USERS_FILE, users);
-
-      const token = createToken(user);
-      setAuthCookie(res, token);
-
-      res.redirect(CLIENT_URL);
-    } catch (error) {
-      console.error(
-        "Google authentication error:",
-        error
-      );
-
-      res.redirect(
-        `${CLIENT_URL}/?auth_error=google_login_failed`
-      );
-    }
-  }
-);
-
-app.get(
-  "/api/history",
-  authenticate,
-  (req, res) => {
-    const history =
-      readJson(HISTORY_FILE, []);
-
-    res.json({
-      success: true,
-      history: history.filter(
-        (item) =>
-          item.userId ===
-          req.user.id
-      ),
-    });
-  }
-);
-
-app.post(
-  "/api/history/save",
-  authenticate,
-  (req, res) => {
-    try {
-      const { report } =
-        req.body;
-
-      if (!report) {
-        return res.status(400).json({
-          success: false,
-          error:
-            "Report data is required.",
-        });
-      }
-
-      const history =
-        readJson(HISTORY_FILE, []);
-
-      history.push({
-        id: createUserId(),
-        userId: req.user.id,
-        title:
-          report.title ||
-          "Untitled Report",
-        description:
-          report.description ||
-          "",
-        result:
-          report.result ||
-          null,
-        timestamp:
-          new Date().toISOString(),
-      });
-
-      writeJson(
-        HISTORY_FILE,
-        history
-      );
-
-      res.status(201).json({
-        success: true,
-        history:
-          history.filter(
-            (item) =>
-              item.userId ===
-              req.user.id
-          ),
-      });
-    } catch {
-      res.status(500).json({
-        success: false,
-        error:
-          "Could not save pathway.",
-      });
-    }
-  }
-);
-
-app.post(
-  "/api/adaptive-question",
-  async (req, res) => {
-    try {
-      const body = req.body || {};
-
-      const title =
-        body.title ||
-        "";
-
-      const description =
-        String(
-          body.description ??
-            body.situation ??
-            body.prompt ??
-            ""
-        ).trim();
-
-      const context =
-        body.context ||
-        "";
-
-      const previousAnswers =
-        body.previousAnswers &&
-        typeof body.previousAnswers ===
-          "object"
-          ? body.previousAnswers
-          : body.answers &&
-              typeof body.answers ===
-                "object" &&
-              !Array.isArray(
-                body.answers
-              )
-            ? body.answers
-            : {};
-
-      const previousQuestions =
-        Array.isArray(
-          body.previousQuestions
-        )
-          ? body.previousQuestions
-          : [];
-
-      let questionNumber =
-        Number(
-          body.questionNumber
-        );
-
-      if (
-        !Number.isFinite(
-          questionNumber
-        )
-      ) {
-        const questionIndex =
-          Number(
-            body.questionIndex
-          );
-
-        questionNumber =
-          Number.isFinite(
-            questionIndex
-          )
-            ? questionIndex + 1
-            : 1;
-      }
-
-      const requestedMax =
-        Number(
-          body.maxQuestions
-        );
-
-      const maxQuestions =
-        Number.isFinite(
-          requestedMax
-        ) &&
-        requestedMax > 0
-          ? Math.min(
-              requestedMax,
-              MAX_ADAPTIVE_QUESTIONS
-            )
-          : MAX_ADAPTIVE_QUESTIONS;
-
-      const attachments =
-        Array.isArray(
-          body.attachments
-        )
-          ? body.attachments
-          : [];
-
-      if (!description) {
-        return res.status(400).json({
-          success: false,
-          error:
-            "A situation description is required.",
-        });
-      }
-
-      if (
-        questionNumber < 1 ||
-        questionNumber > maxQuestions
-      ) {
-        return res.status(400).json({
-          success: false,
-          error:
-            "Invalid adaptive question number.",
-        });
-      }
-
-      const attachmentText =
-        attachments.length > 0
-          ? attachments
-              .map(
-                (item) =>
-                  `File: ${
-                    item.name ||
-                    "Unnamed file"
-                  }\nType: ${
-                    item.type ||
-                    "Unknown"
-                  }\nContent: ${
-                    item.text ||
-                    item.content ||
-                    "No extracted text"
-                  }`
-              )
-              .join(
-                "\n\n"
-              )
-          : "";
-
-      const enhancedContext =
-        [
-          context,
-          attachmentText
-            ? `Imported files:\n${attachmentText}`
-            : "",
-        ]
-          .filter(Boolean)
-          .join("\n\n");
-
-      const question =
-        await generateAdaptiveQuestion({
-          title,
-          description,
-          context:
-            enhancedContext,
-          previousAnswers,
-          previousQuestions,
-          questionNumber,
-          maxQuestions,
-        });
-
-      res.json({
-        success: true,
-        question,
-        questionNumber,
-        maxQuestions,
-        complete: false,
-      });
-    } catch (error) {
-      console.error(
-        "Adaptive question error:",
-        error
-      );
-
-      res.status(500).json({
-        success: false,
-        error:
-          error?.message ||
-          "Could not generate adaptive question.",
-      });
-    }
-  }
-);
-
-app.post(
-  "/api/questions",
-  async (req, res) => {
-    try {
-      const {
-        prompt,
-        previousAnswers = {},
-      } = req.body;
-
-      if (!prompt?.trim()) {
-        return res.status(400).json({
-          success: false,
-          error:
-            "A prompt is required.",
-        });
-      }
-
-      const raw =
-        await askGroq(
-          `
-You are VERLO's adaptive assessment engine.
-
-Create useful questions based directly on the user's situation.
-
-Return JSON only.
-
-{
-  "questions": [
-    {
-      "id": "question_1",
-      "type": "text",
-      "answerType": "short_text",
-      "question": "..."
-    }
-  ]
-}
-`,
-          `
-Situation:
-${prompt}
-
-Previous answers:
-${JSON.stringify(
-  previousAnswers,
-  null,
-  2
-)}
-`,
-          {
-            temperature: 0.35,
-            max_tokens: 1200,
-          }
-        );
-
-      const parsed =
-        extractJson(raw);
-
-      const questions =
-        Array.isArray(
-          parsed.questions
-        )
-          ? parsed.questions
-              .map(
-                (item, index) =>
-                  normaliseQuestion(
-                    item,
-                    index + 1
-                  )
-              )
-              .filter(Boolean)
-          : [];
-
-      res.json({
-        success: true,
-        questions,
-      });
-    } catch (error) {
-      console.error(
-        "Questions error:",
-        error
-      );
-
-      res.status(500).json({
-        success: false,
-        error:
-          error?.message ||
-          "Could not generate adaptive questions.",
-      });
-    }
-  }
-);
-
-app.post(
-  "/api/analyze",
-  async (req, res) => {
-    try {
-      const {
-        title = "",
-        prompt = "",
-        situation = "",
-        category = "",
-        context = "",
-        answers = {},
-        questions = [],
-        attachment = null,
-        attachments = [],
-      } = req.body;
-
-      const finalPrompt =
-        String(
-          prompt ||
-            situation ||
-            ""
-        ).trim();
-
-      if (!finalPrompt) {
-        return res.status(400).json({
-          success: false,
-          error:
-            "A prompt is required.",
-        });
-      }
-
-      let parsedAnswers =
-        answers;
-
-      if (
-        typeof answers ===
-        "string"
-      ) {
-        try {
-          parsedAnswers =
-            JSON.parse(
-              answers
-            );
-        } catch {
-          parsedAnswers = {
-            raw: answers,
-          };
-        }
-      }
-
-      let parsedQuestions =
-        questions;
-
-      if (
-        typeof questions ===
-        "string"
-      ) {
-        try {
-          parsedQuestions =
-            JSON.parse(
-              questions
-            );
-        } catch {
-          parsedQuestions = [];
-        }
-      }
-
-      const questionAnswerPairs =
-        Array.isArray(
-          parsedQuestions
-        )
-          ? parsedQuestions
-              .map(
-                (question) => ({
-                  question:
-                    question.question ||
-                    question.stem ||
-                    question.text ||
-                    "",
-                  answer:
-                    parsedAnswers?.[
-                      question.id
-                    ] ?? "",
-                })
-              )
-              .filter(
-                (item) =>
-                  item.question ||
-                  item.answer
-              )
-          : Object.entries(
-              parsedAnswers || {}
-            ).map(
-              ([key, value]) => ({
-                question: key,
-                answer: value,
-              })
-            );
-
-      const raw =
-        await askGroq(
-          `
-You are VERLO's final decision-intelligence engine.
-
-Create a personalised, accessible action pathway from the user's situation and adaptive answers.
-
-Return JSON only.
-
-{
-  "situation": "",
-  "confidence": "High",
-  "riskAssessment": {
-    "severityScore": 5,
-    "financialExposure": "",
-    "timeSensitivity": ""
-  },
-  "summary": "",
-  "nextSteps": [
-    {
-      "step": "",
-      "why": "",
-      "pitfallWarning": ""
-    }
-  ],
-  "personalizedPanels": [
-    {
-      "panelTitle": "",
-      "insight": "",
-      "solution": ""
-    }
-  ],
-  "draftTemplate": {
-    "recipient": "",
-    "subject": "",
-    "body": ""
-  },
-  "resources": [
-    {
-      "title": "",
-      "description": "",
-      "url": ""
-    }
-  ],
-  "referenceLinks": [
-    {
-      "title": "",
-      "description": "",
-      "url": ""
-    }
-  ]
-}
-
-Rules:
-- confidence must be High, Moderate, or Low.
-- severityScore must be an integer from 1 to 10.
-- Do not invent facts.
-- Do not invent laws, organisations, phone numbers, or URLs.
-- Only provide a URL if it is known and genuinely relevant.
-- URLs must be complete URLs beginning with https:// or http://.
-- Prefer official government, regulator, ombudsman, tribunal, educational, or primary-source websites.
-- Use adaptive answers heavily.
-- Make the pathway specific.
-- Explain technical or complicated information in plain language.
-- Keep headings and recommendations easy to scan.
-- Make important deadlines and actions explicit.
-- If information is unknown, say it is unknown.
-- Do not make unsupported legal, financial, medical, or professional claims.
-- Keep all generated text complete.
-- Do not truncate sections.
-- If Markdown is useful inside a text field, return the complete Markdown.
-`,
-          `
-Title:
-${title || "General situation"}
-
-Situation:
-${finalPrompt}
-
-Category:
-${category || "General"}
-
-Context:
-${context || "None provided"}
-
-Adaptive questions and answers:
-${JSON.stringify(
-  questionAnswerPairs,
-  null,
-  2
-)}
-
-Imported files:
-${JSON.stringify(
-  attachments ||
-    attachment ||
-    [],
-  null,
-  2
-)}
-`,
-          {
-            temperature: 0.3,
-            max_tokens: 5000,
-          }
-        );
-
-      const result =
-        extractJson(raw);
-
-      if (
-        !Array.isArray(
-          result.nextSteps
-        )
-      ) {
-        result.nextSteps = [];
-      }
-
-      if (
-        !Array.isArray(
-          result.personalizedPanels
-        )
-      ) {
-        result.personalizedPanels =
-          [];
-      }
-
-      if (
-        !Array.isArray(
-          result.resources
-        )
-      ) {
-        result.resources = [];
-      }
-
-      if (
-        !Array.isArray(
-          result.referenceLinks
-        )
-      ) {
-        result.referenceLinks =
-          result.resources;
-      }
-
-      result.resources =
-        result.resources
-          .filter(
-            (item) =>
-              item &&
-              typeof item ===
-                "object"
-          )
-          .map(
-            (item) => ({
-              title:
-                item.title ||
-                "Resource",
-              description:
-                item.description ||
-                "",
-              url:
-                typeof item.url ===
-                  "string" &&
-                /^https?:\/\//i.test(
-                  item.url
+      output.push(`
+        <div class="markdown-table-wrap">
+          <table class="markdown-table">
+            <thead>
+              <tr>
+                ${headerCells.map(cell => `<th>${inlineMarkdown(cell)}</th>`).join("")}
+              </tr>
+            </thead>
+            <tbody>
+              ${rows
+                .map(
+                  row => `
+                    <tr>
+                      ${headerCells
+                        .map(
+                          (_, cellIndex) =>
+                            `<td>${inlineMarkdown(row[cellIndex] || "")}</td>`
+                        )
+                        .join("")}
+                    </tr>
+                  `
                 )
-                  ? item.url
-                  : "",
-            })
-          );
+                .join("")}
+            </tbody>
+          </table>
+        </div>
+      `);
 
-      result.referenceLinks =
-        result.referenceLinks
-          .filter(
-            (item) =>
-              item &&
-              typeof item ===
-                "object"
-          )
-          .map(
-            (item) => ({
-              title:
-                item.title ||
-                "Reference",
-              description:
-                item.description ||
-                "",
-              url:
-                typeof item.url ===
-                  "string" &&
-                /^https?:\/\//i.test(
-                  item.url
-                )
-                  ? item.url
-                  : "",
-            })
-          );
+      continue;
+    }
 
-      if (!result.riskAssessment) {
-        result.riskAssessment = {
-          severityScore: "N/A",
-          financialExposure:
-            "Not established",
-          timeSensitivity:
-            "Review required",
-        };
-      }
+    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
 
-      if (!result.summary) {
-        result.summary =
-          result.situation ||
-          "Review the information and actions below.";
-      }
+    if (headingMatch) {
+      const level = headingMatch[1].length;
 
-      res.json({
-        success: true,
-        result,
-      });
-    } catch (error) {
-      console.error(
-        "Analyze error:",
-        error
+      output.push(
+        `<h${level}>${inlineMarkdown(headingMatch[2])}</h${level}>`
       );
 
-      res.status(500).json({
-        success: false,
-        error:
-          error?.message ||
-          "Could not generate the result.",
-      });
+      index += 1;
+      continue;
     }
-  }
-);
 
-app.post(
-  "/api/chat",
-  async (req, res) => {
-    try {
-      const {
-        question,
-        message,
-        currentSituation = "",
-        situation = "",
-        context = "",
-        attachment = null,
-      } = req.body;
+    if (/^\s*[-*]\s+/.test(line)) {
+      const items = [];
 
-      const userMessage =
-        question ||
-        message ||
-        "";
-
-      if (!String(userMessage).trim()) {
-        return res.status(400).json({
-          success: false,
-          error:
-            "Message is required.",
-        });
-      }
-
-      const response =
-        await askGroq(
-          `
-You are VERLO AI Assistant.
-
-Help the user understand their existing situation.
-
-Use plain, accessible language.
-
-Do not invent facts.
-
-Give a complete response.
-Do not stop halfway through a sentence.
-Do not artificially shorten the answer.
-Use Markdown when it improves readability.
-Tables are allowed when useful.
-
-Situation:
-${
-  currentSituation ||
-  situation ||
-  context ||
-  "None provided"
-}
-
-Attachment:
-${JSON.stringify(
-  attachment,
-  null,
-  2
-)}
-`,
-          String(
-            userMessage
-          ),
-          {
-            temperature: 0.55,
-            max_tokens: 1800,
-          }
+      while (
+        index < lines.length &&
+        /^\s*[-*]\s+/.test(lines[index])
+      ) {
+        items.push(
+          lines[index]
+            .replace(/^\s*[-*]\s+/, "")
+            .trim()
         );
 
-      res.json({
-        success: true,
-        reply: response,
-        response,
-        content: response,
-        message: response,
-      });
-    } catch (error) {
-      console.error(
-        "Chat error:",
-        error
+        index += 1;
+      }
+
+      output.push(
+        `<ul>${items
+          .map(item => `<li>${inlineMarkdown(item)}</li>`)
+          .join("")}</ul>`
       );
 
-      res.status(500).json({
-        success: false,
-        error:
-          error?.message ||
-          "Could not generate a response.",
+      continue;
+    }
+
+    if (/^\s*\d+\.\s+/.test(line)) {
+      const items = [];
+
+      while (
+        index < lines.length &&
+        /^\s*\d+\.\s+/.test(lines[index])
+      ) {
+        items.push(
+          lines[index]
+            .replace(/^\s*\d+\.\s+/, "")
+            .trim()
+        );
+
+        index += 1;
+      }
+
+      output.push(
+        `<ol>${items
+          .map(item => `<li>${inlineMarkdown(item)}</li>`)
+          .join("")}</ol>`
+      );
+
+      continue;
+    }
+
+    if (line.trim().startsWith(">")) {
+      const quoteLines = [];
+
+      while (
+        index < lines.length &&
+        lines[index].trim().startsWith(">")
+      ) {
+        quoteLines.push(
+          lines[index].trim().replace(/^>\s?/, "")
+        );
+        index += 1;
+      }
+
+      output.push(
+        `<blockquote>${quoteLines
+          .map(item => `<p>${inlineMarkdown(item)}</p>`)
+          .join("")}</blockquote>`
+      );
+
+      continue;
+    }
+
+    const paragraph = [line.trim()];
+    index += 1;
+
+    while (
+      index < lines.length &&
+      lines[index].trim() &&
+      !/^(#{1,6})\s+/.test(lines[index]) &&
+      !/^\s*[-*]\s+/.test(lines[index]) &&
+      !/^\s*\d+\.\s+/.test(lines[index]) &&
+      !lines[index].includes("|") &&
+      !lines[index].trim().startsWith(">")
+    ) {
+      paragraph.push(lines[index].trim());
+      index += 1;
+    }
+
+    output.push(`<p>${inlineMarkdown(paragraph.join(" "))}</p>`);
+  }
+
+  return output.join("");
+}
+
+function Markdown({ children, className = "" }) {
+  const html = useMemo(
+    () => markdownToHtml(children),
+    [children]
+  );
+
+  return (
+    <div
+      className={`markdown-content ${className}`}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
+}
+
+function getResultValue(result, keys, fallback = "") {
+  if (!result || typeof result !== "object") return fallback;
+
+  for (const key of keys) {
+    const value = result[key];
+
+    if (value !== undefined && value !== null && value !== "") {
+      return value;
+    }
+  }
+
+  return fallback;
+}
+
+function ResultSection({ icon, title, children }) {
+  return (
+    <section className="report-section">
+      <div className="report-section-heading">
+        <span className="report-heading-icon">
+          <Icon name={icon} size={18} />
+        </span>
+        <h2>{title}</h2>
+      </div>
+
+      <div className="report-section-content">{children}</div>
+    </section>
+  );
+}
+
+function Results({
+  result,
+  situation,
+  onNewAssessment,
+  onHistory,
+  onAccount
+}) {
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatEndRef = useRef(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest"
+    });
+  }, [chatMessages, chatLoading]);
+
+  const title = getResultValue(
+    result,
+    ["title", "heading", "summaryTitle"],
+    "Your decision report"
+  );
+
+  const summary = getResultValue(
+    result,
+    ["summary", "overview", "executiveSummary", "introduction"],
+    ""
+  );
+
+  const context = getResultValue(
+    result,
+    ["context", "background", "situation"],
+    situation
+  );
+
+  const considerations = getResultValue(
+    result,
+    ["considerations", "keyConsiderations", "risks", "factors"],
+    []
+  );
+
+  const nextSteps = getResultValue(
+    result,
+    ["nextSteps", "actions", "recommendations", "steps"],
+    []
+  );
+
+  const draft = getResultValue(
+    result,
+    ["draft", "suggestedDraft", "template", "messageDraft"],
+    ""
+  );
+
+  const resources = getResultValue(
+    result,
+    ["resources", "usefulResources"],
+    []
+  );
+
+  const references = getResultValue(
+    result,
+    ["references", "sources", "citations"],
+    []
+  );
+
+  const markdownReport = getResultValue(
+    result,
+    ["markdown", "reportMarkdown", "report"],
+    ""
+  );
+
+  const displayConsiderations = Array.isArray(considerations)
+    ? considerations
+    : considerations
+      ? [considerations]
+      : [];
+
+  const displayNextSteps = Array.isArray(nextSteps)
+    ? nextSteps
+    : nextSteps
+      ? [nextSteps]
+      : [];
+
+  const displayResources = Array.isArray(resources)
+    ? resources
+    : resources
+      ? [resources]
+      : [];
+
+  const displayReferences = Array.isArray(references)
+    ? references
+    : references
+      ? [references]
+      : [];
+
+  async function sendChat(event) {
+    event.preventDefault();
+
+    const message = chatInput.trim();
+
+    if (!message || chatLoading) return;
+
+    const nextMessages = [
+      ...chatMessages,
+      {
+        role: "user",
+        content: message
+      }
+    ];
+
+    setChatMessages(nextMessages);
+    setChatInput("");
+    setChatLoading(true);
+
+    try {
+      const data = await api("/api/chat", {
+        method: "POST",
+        body: JSON.stringify({
+          message,
+          situation,
+          result,
+          history: nextMessages
+        })
+      });
+
+      const responseText =
+        data?.message ||
+        data?.response ||
+        data?.answer ||
+        data?.content ||
+        data?.text ||
+        "";
+
+      setChatMessages(previous => [
+        ...previous,
+        {
+          role: "assistant",
+          content:
+            responseText ||
+            "I couldn't generate a response for that question. Please try again."
+        }
+      ]);
+    } catch (requestError) {
+      setChatMessages(previous => [
+        ...previous,
+        {
+          role: "assistant",
+          content: `I couldn't complete that response. ${requestError.message}`
+        }
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  }
+
+  return (
+    <main className="report-page">
+      <header className="site-header report-header">
+        <Logo onClick={onNewAssessment} />
+
+        <nav className="site-nav">
+          <button className="history-nav-button" onClick={onHistory}>
+            <Icon name="history" size={17} />
+            History
+          </button>
+
+          <button className="account-button" onClick={onAccount}>
+            <Icon name="user" size={17} />
+            Account
+          </button>
+
+          <button className="header-cta" onClick={onNewAssessment}>
+            New assessment
+            <Icon name="plus" size={17} />
+          </button>
+        </nav>
+      </header>
+
+      <div className="report-container">
+        <section className="report-hero">
+          <div className="report-hero-copy">
+            <span className="eyebrow">YOUR REPORT</span>
+            <h1>{title}</h1>
+
+            {summary && <Markdown>{summary}</Markdown>}
+          </div>
+
+          <div className="report-context">
+            <span>ORIGINAL SITUATION</span>
+            <p>{context}</p>
+          </div>
+        </section>
+
+        {markdownReport && (
+          <ResultSection icon="document" title="Full report">
+            <Markdown>{markdownReport}</Markdown>
+          </ResultSection>
+        )}
+
+        {displayConsiderations.length > 0 && (
+          <ResultSection icon="shield" title="Things to consider">
+            <div className="consideration-list">
+              {displayConsiderations.map((item, index) => {
+                const text =
+                  typeof item === "string"
+                    ? item
+                    : item?.text ||
+                      item?.description ||
+                      item?.title ||
+                      JSON.stringify(item);
+
+                return (
+                  <div className="consideration" key={index}>
+                    <span>{String(index + 1).padStart(2, "0")}</span>
+                    <Markdown>{text}</Markdown>
+                  </div>
+                );
+              })}
+            </div>
+          </ResultSection>
+        )}
+
+        {displayNextSteps.length > 0 && (
+          <ResultSection icon="arrowRight" title="Suggested next steps">
+            <div className="next-step-list">
+              {displayNextSteps.map((item, index) => {
+                const text =
+                  typeof item === "string"
+                    ? item
+                    : item?.text ||
+                      item?.description ||
+                      item?.title ||
+                      JSON.stringify(item);
+
+                return (
+                  <div className="next-step" key={index}>
+                    <span>{index + 1}</span>
+                    <Markdown>{text}</Markdown>
+                  </div>
+                );
+              })}
+            </div>
+          </ResultSection>
+        )}
+
+        {draft && (
+          <ResultSection icon="message" title="Useful draft">
+            <div className="draft-box">
+              <Markdown>{draft}</Markdown>
+            </div>
+          </ResultSection>
+        )}
+
+        {displayResources.length > 0 && (
+          <ResultSection icon="document" title="Resources">
+            <div className="resource-grid">
+              {displayResources.map((resource, index) => {
+                const item =
+                  typeof resource === "string"
+                    ? { title: resource }
+                    : resource;
+
+                return (
+                  <div className="resource-card" key={index}>
+                    <h3>
+                      {item?.title ||
+                        item?.name ||
+                        `Resource ${index + 1}`}
+                    </h3>
+
+                    {(item?.description || item?.text) && (
+                      <Markdown>
+                        {item.description || item.text}
+                      </Markdown>
+                    )}
+
+                    {item?.url && (
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Open resource
+                        <Icon name="arrowRight" size={15} />
+                      </a>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </ResultSection>
+        )}
+
+        {displayReferences.length > 0 && (
+          <ResultSection icon="document" title="References">
+            <div className="reference-list">
+              {displayReferences.map((reference, index) => {
+                const item =
+                  typeof reference === "string"
+                    ? { text: reference }
+                    : reference;
+
+                return (
+                  <div className="reference-row" key={index}>
+                    <span>{index + 1}</span>
+                    <div>
+                      <Markdown>
+                        {item?.text ||
+                          item?.title ||
+                          item?.name ||
+                          JSON.stringify(item)}
+                      </Markdown>
+
+                      {item?.url && (
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {item.url}
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </ResultSection>
+        )}
+
+        <section className="report-chat">
+          <div className="report-chat-heading">
+            <div>
+              <span className="eyebrow">KEEP EXPLORING</span>
+              <h2>Have a question about your report?</h2>
+            </div>
+
+            <span className="chat-status">
+              <span />
+              Ready
+            </span>
+          </div>
+
+          <div className="chat-window">
+            {chatMessages.length === 0 ? (
+              <div className="chat-empty">
+                <Icon name="message" size={25} />
+                <p>
+                  Ask a follow-up question and Verlo will use this report as
+                  context.
+                </p>
+              </div>
+            ) : (
+              chatMessages.map((message, index) => (
+                <div
+                  className={
+                    message.role === "user"
+                      ? "chat-message user-message"
+                      : "chat-message assistant-message"
+                  }
+                  key={`${message.role}-${index}`}
+                >
+                  <span className="chat-role">
+                    {message.role === "user" ? "YOU" : "VERLO"}
+                  </span>
+
+                  <Markdown>{message.content}</Markdown>
+                </div>
+              ))
+            )}
+
+            {chatLoading && (
+              <div className="chat-message assistant-message">
+                <span className="chat-role">VERLO</span>
+                <LoadingDots />
+              </div>
+            )}
+
+            <div ref={chatEndRef} />
+          </div>
+
+          <form className="chat-input" onSubmit={sendChat}>
+            <input
+              value={chatInput}
+              onChange={event => setChatInput(event.target.value)}
+              placeholder="Ask something about your report..."
+              disabled={chatLoading}
+              aria-label="Ask a question about your report"
+            />
+
+            <button
+              type="submit"
+              disabled={!chatInput.trim() || chatLoading}
+              aria-label="Send message"
+            >
+              <Icon name="send" size={18} />
+            </button>
+          </form>
+        </section>
+
+        <div className="report-actions">
+          <button className="secondary-button" onClick={onHistory}>
+            View history
+          </button>
+
+          <button className="hero-button" onClick={onNewAssessment}>
+            Start another assessment
+            <Icon name="arrowRight" size={18} />
+          </button>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function HistoryPanel({ onClose, onOpen }) {
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    api("/api/history")
+      .then(data => {
+        if (!active) return;
+
+        setHistory(
+          data?.history ||
+            data?.items ||
+            data?.assessments ||
+            []
+        );
+      })
+      .catch(() => {
+        if (active) setHistory([]);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return (
+    <div className="modal-backdrop" onMouseDown={onClose}>
+      <div
+        className="history-modal"
+        onMouseDown={event => event.stopPropagation()}
+      >
+        <button className="modal-close" onClick={onClose} aria-label="Close">
+          <Icon name="close" />
+        </button>
+
+        <div className="history-heading">
+          <span className="eyebrow">YOUR HISTORY</span>
+          <h2>Previous assessments</h2>
+        </div>
+
+        {loading ? (
+          <div className="history-loading">
+            <LoadingDots />
+          </div>
+        ) : history.length === 0 ? (
+          <div className="history-empty">
+            <Icon name="document" size={28} />
+            <p>No saved assessments yet.</p>
+          </div>
+        ) : (
+          <div className="history-list">
+            {history.map((item, index) => {
+              const title =
+                item.title ||
+                item.name ||
+                item.situation ||
+                "Untitled assessment";
+
+              const date =
+                item.createdAt ||
+                item.created_at ||
+                item.date ||
+                "";
+
+              return (
+                <button
+                  className="history-item"
+                  key={item.id || index}
+                  onClick={() => onOpen(item)}
+                >
+                  <div>
+                    <span>{date ? new Date(date).toLocaleDateString() : "Saved assessment"}</span>
+                    <h3>{title}</h3>
+                  </div>
+
+                  <Icon name="arrowRight" size={18} />
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function App() {
+  const [state, setState] = useState(loadState);
+  const [authUser, setAuthUser] = useState(null);
+  const [authMode, setAuthMode] = useState(null);
+  const [verification, setVerification] = useState({
+    required: false,
+    email: ""
+  });
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [processingPercent, setProcessingPercent] = useState(12);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }, [state]);
+
+  useEffect(() => {
+    api("/api/auth/me")
+      .then(data => {
+        if (data?.user) setAuthUser(data.user);
+      })
+      .catch(() => {});
+  }, []);
+
+  function updateState(updates) {
+    setState(previous => ({
+      ...previous,
+      ...updates
+    }));
+  }
+
+  function resetAssessment() {
+    setState({
+      ...initialState,
+      screen: "input"
+    });
+    setError("");
+  }
+
+  async function startAssessment() {
+    if (!state.situation.trim()) return;
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const data = await api("/api/adaptive-question", {
+        method: "POST",
+        body: JSON.stringify({
+          situation: state.situation,
+          category: state.category,
+          answers: [],
+          questionIndex: 0,
+          previousQuestions: [],
+          attachments: state.attachments
+        })
+      });
+
+      const firstRaw =
+        data?.question ||
+        data?.questions?.[0] ||
+        data?.questionText;
+
+      const firstQuestion = normalizeQuestion(firstRaw, 0);
+
+      if (!firstQuestion?.text) {
+        throw new Error(
+          "Adaptive engine failed to create the first question."
+        );
+      }
+
+      updateState({
+        screen: "adaptive",
+        questions: [firstQuestion],
+        answers: [],
+        questionIndex: 0
+      });
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function runAnalysis(finalAnswers) {
+    setState(previous => ({
+      ...previous,
+      screen: "processing",
+      answers: finalAnswers
+    }));
+
+    setProcessingPercent(10);
+
+    const interval = setInterval(() => {
+      setProcessingPercent(previous =>
+        Math.min(previous + Math.floor(Math.random() * 12) + 5, 92)
+      );
+    }, 500);
+
+    try {
+      const data = await api("/api/analyze", {
+        method: "POST",
+        body: JSON.stringify({
+          situation: state.situation,
+          category: state.category,
+          answers: finalAnswers,
+          questions: state.questions,
+          attachments: state.attachments
+        })
+      });
+
+      clearInterval(interval);
+      setProcessingPercent(100);
+
+      await new Promise(resolve => setTimeout(resolve, 350));
+
+      updateState({
+        screen: "results",
+        result: data?.result || data?.report || data
+      });
+    } catch (requestError) {
+      clearInterval(interval);
+      setError(requestError.message);
+      updateState({
+        screen: "adaptive"
       });
     }
   }
-);
 
-app.use(
-  (req, res) => {
-    res.status(404).json({
-      success: false,
-      error:
-        "Endpoint not found.",
+  function openHistoryItem(item) {
+    const restoredResult =
+      item.result ||
+      item.report ||
+      item.data ||
+      null;
+
+    updateState({
+      screen: restoredResult ? "results" : "input",
+      situation:
+        item.situation ||
+        item.context ||
+        state.situation,
+      category:
+        item.category ||
+        state.category,
+      result: restoredResult
     });
+
+    setHistoryOpen(false);
   }
-);
 
-app.use(
-  (
-    error,
-    req,
-    res,
-    next
-  ) => {
-    console.error(
-      "Unhandled server error:",
-      error
-    );
+  async function logout() {
+    try {
+      await api("/api/auth/logout", {
+        method: "POST"
+      });
+    } catch {}
 
-    res.status(500).json({
-      success: false,
-      error:
-        "Internal server error.",
-    });
+    setAuthUser(null);
   }
-);
 
-// LUCKY NUMBER 888
-
-app.listen(
-  PORT,
-  () => {
-    console.log("");
-    console.log(
-      "=========================================="
-    );
-    console.log(
-      "              VERLO SERVER"
-    );
-    console.log(
-      "=========================================="
-    );
-    console.log(
-      `Port:              ${PORT}`
-    );
-    console.log(
-      `API:               ${API_URL}`
-    );
-    console.log(
-      `Frontend:          ${CLIENT_URL}`
-    );
-    console.log(
-      `Google callback:   ${GOOGLE_REDIRECT_URI}`
-    );
-    console.log(
-      "Adaptive engine:   ENABLED"
-    );
-    console.log(
-      `Adaptive questions: ${MAX_ADAPTIVE_QUESTIONS}`
-    );
-    console.log(
-      "Email verification: ENABLED"
-    );
-    console.log(
-      "Authentication:    HttpOnly cookie"
-    );
-    console.log(
-      "=========================================="
-    );
-    console.log("");
+  function accountAction() {
+    if (authUser) {
+      logout();
+    } else {
+      setAuthMode("login");
+    }
   }
-);
+
+  return (
+    <>
+      {state.screen === "home" && (
+        <Home
+          onStart={() => updateState({ screen: "input" })}
+          onHistory={() => setHistoryOpen(true)}
+          onAccount={accountAction}
+        />
+      )}
+
+      {state.screen === "input" && (
+        <InputPage
+          situation={state.situation}
+          setSituation={value => updateState({ situation: value })}
+          category={state.category}
+          setCategory={value => updateState({ category: value })}
+          attachments={state.attachments}
+          setAttachments={value => updateState({ attachments: value })}
+          onBack={() => updateState({ screen: "home" })}
+          onContinue={startAssessment}
+          loading={loading}
+        />
+      )}
+
+      {state.screen === "adaptive" && (
+        <AdaptiveAssessment
+          situation={state.situation}
+          category={state.category}
+          attachments={state.attachments}
+          questions={state.questions}
+          setQuestions={value => updateState({
+            questions:
+              typeof value === "function"
+                ? value(state.questions)
+                : value
+          })}
+          answers={state.answers}
+          setAnswers={value => updateState({
+            answers:
+              typeof value === "function"
+                ? value(state.answers)
+                : value
+          })}
+          questionIndex={state.questionIndex}
+          setQuestionIndex={value => updateState({
+            questionIndex:
+              typeof value === "function"
+                ? value(state.questionIndex)
+                : value
+          })}
+          onComplete={runAnalysis}
+          onBack={() => updateState({ screen: "input" })}
+          loading={loading}
+          setLoading={setLoading}
+          error={error}
+          setError={setError}
+        />
+      )}
+
+      {state.screen === "processing" && (
+        <Processing percent={processingPercent} />
+      )}
+
+      {state.screen === "results" && (
+        <Results
+          result={state.result}
+          situation={state.situation}
+          onNewAssessment={resetAssessment}
+          onHistory={() => setHistoryOpen(true)}
+          onAccount={accountAction}
+        />
+      )}
+
+      {error && state.screen !== "adaptive" && (
+        <div className="global-error" role="alert">
+          <span>{error}</span>
+          <button onClick={() => setError("")}>
+            <Icon name="close" size={15} />
+          </button>
+        </div>
+      )}
+
+      {authMode && (
+        <AuthModal
+          mode={authMode}
+          setMode={setAuthMode}
+          onClose={() => setAuthMode(null)}
+          onAuthenticated={user => setAuthUser(user)}
+          setVerification={setVerification}
+        />
+      )}
+
+      {verification.required && (
+        <VerificationModal
+          email={verification.email}
+          onClose={() =>
+            setVerification({
+              required: false,
+              email: ""
+            })
+          }
+        />
+      )}
+
+      {historyOpen && (
+        <HistoryPanel
+          onClose={() => setHistoryOpen(false)}
+          onOpen={openHistoryItem}
+        />
+      )}
+    </>
+  );
+}
