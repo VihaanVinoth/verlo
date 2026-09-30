@@ -1895,37 +1895,27 @@ async function generateAdaptiveQuestion({
   const answerEntries =
     Object.entries(
       previousAnswers || {}
+    ).filter(
+      ([key]) =>
+        key !== "_skippedQuestions"
     );
 
   const previousAnswerText =
     answerEntries.length > 0
       ? answerEntries
           .map(
-            (
-              [
-                key,
-                value,
-              ],
-              index
-            ) =>
-              `Question ${
-                index + 1
-              } (${key}): ${String(
-                value
-              )}`
+            ([key, value], index) =>
+              `Answer ${index + 1} (${key}): ${String(value)}`
           )
           .join("\n")
       : "No answers yet.";
 
   const previousQuestionText =
-    previousQuestions.length >
-    0
+    Array.isArray(previousQuestions) &&
+    previousQuestions.length > 0
       ? previousQuestions
           .map(
-            (
-              question,
-              index
-            ) =>
+            (question, index) =>
               `${index + 1}. ${
                 question.question ||
                 question.stem ||
@@ -1949,18 +1939,25 @@ async function generateAdaptiveQuestion({
       previousAnswers
     );
 
-  const situationText =
-    `${title} ${description} ${context}`.toLowerCase();
+  const originalSituationText =
+    [
+      title,
+      description,
+      context,
+    ]
+      .filter(Boolean)
+      .join(" ");
 
   const evidenceMentioned =
-    /email|message|letter|receipt|photo|screenshot|document|proof|contract|invoice|record|evidence/.test(
-      situationText
+    /email|message|letter|receipt|photo|screenshot|document|proof|contract|invoice|record|evidence/i.test(
+      originalSituationText
     );
 
   const allowedEvidenceRule =
     evidenceMentioned
       ? `
 Evidence has been mentioned in the user's situation, so you MAY ask about it if it is genuinely useful.
+
 Do not assume the user has additional documents or files.
 Do not ask them to upload anything unless the interface explicitly supports uploads.
 `
@@ -1989,29 +1986,71 @@ You are VERLO's adaptive assessment engine.
 
 Generate exactly ONE useful follow-up question for the user's specific situation.
 
-Your job is NOT to make a generic questionnaire.
+Your job is to identify the single most important piece of information that is STILL UNKNOWN and could change the final action pathway.
 
-Your job is to identify the single most important piece of information that is still missing and could change the user's final action pathway.
+The original situation, previous questions, AND previous answers are all part of the user's existing information.
 
-QUESTION DIVERSITY IS IMPORTANT.
+CRITICAL RULE:
 
-A question can be worded differently but still be repetitive.
+Before generating a question, determine what information is ALREADY KNOWN.
 
-For example, these are considered the SAME information area:
+Information explicitly stated in:
+- the original situation
+- the title
+- additional context
+- previous answers
+
+MUST be treated as known.
+
+Never ask the user to provide information that is already known.
+
+For example, if the original situation says:
+
+"My laptop keeps disconnecting from Wi-Fi."
+
+Then these questions are INVALID:
+
+- "What problem are you experiencing with your laptop?"
+- "What is wrong with your laptop?"
+- "What issue is your laptop having?"
+- "Can you describe the problem?"
+
+The problem is already known.
+
+If the original situation says:
+
+"My laptop keeps disconnecting from Wi-Fi while I am trying to do schoolwork."
+
+Then the system already knows:
+- the device is a laptop
+- the connection involved is Wi-Fi
+- the connection repeatedly disconnects
+- the user is trying to do schoolwork
+
+Do NOT ask for those facts again.
+
+QUESTION DIVERSITY:
+
+A question can be worded differently but still request the same information.
+
+For example:
 
 - "What is wrong with your computer?"
 - "What problem is your computer having?"
 - "What exactly is happening with the computer?"
 - "Can you describe the issue with the computer?"
 
-If one of those has already been asked, do NOT ask another version of it.
+These all request the same information area.
 
-Instead, move to another useful area such as:
+If the situation already establishes the problem, all of these are invalid.
 
-- when the problem started
-- what changed before it started
+Instead, move to a genuinely different information area such as:
+- when it started
+- what changed beforehand
+- frequency
 - current impact
-- what the user has already tried
+- what has already been tried
+- whether the problem affects other devices
 - warranty or responsibility
 - financial impact
 - deadline
@@ -2034,29 +2073,35 @@ Rules:
 
 1. Return exactly ONE question.
 
-2. Never repeat a previous question.
+2. Treat the original situation as existing knowledge, not as something that still needs to be discovered.
 
-3. Never ask a reworded version of a previous question.
+3. Treat every previous answer as existing knowledge.
 
-4. Never ask for information that the user has already provided.
+4. Never ask for information that is already explicitly stated.
 
-5. Before writing the question, mentally compare it with every previous question and answer.
+5. Never repeat a previous question.
 
-6. Choose a DIFFERENT information area whenever possible.
+6. Never ask a reworded version of a previous question.
 
-7. Prefer questions that the user can answer directly from their own knowledge.
+7. Do not ask a generic "what is the problem?" question when the problem is already established.
 
-8. Do not assume the user has documents, screenshots, receipts, emails, photos, contracts, records, or attachments.
+8. Compare the candidate question against the ORIGINAL SITUATION as well as every previous question and answer.
 
-9. Do not ask the user to upload something.
+9. Choose information that is genuinely missing.
 
-10. Do not ask about evidence unless the user's situation already mentions evidence or a specific record.
+10. Prefer information that could change the final action pathway.
 
-11. Do not create an evidence/document question just because it might theoretically be useful.
+11. Prefer questions that the user can answer directly from their own knowledge.
 
-12. If the user has already said they do not have something, never ask for it again.
+12. Do not assume the user has documents, screenshots, receipts, emails, photos, contracts, records, or attachments.
 
-13. Prioritise information that could change:
+13. Do not ask the user to upload something.
+
+14. Do not ask about evidence unless the user's situation already mentions evidence or a specific record.
+
+15. If the user has already said they do not have something, never ask for it again.
+
+16. Prioritise information that could change:
     - urgency
     - deadlines
     - financial exposure
@@ -2067,68 +2112,53 @@ Rules:
     - troubleshooting
     - desired outcome
 
-14. Make the question clearly relevant to the exact situation.
+17. Make the question clearly relevant to the exact situation.
 
-15. Do not ask generic questions such as:
+18. Do not ask:
     - "Can you tell me more?"
     - "What happened?"
-    - "Can you provide more details?"
-    unless that information genuinely has not been established and no more specific question is possible.
+    - "What is the problem?"
+    - "What issue are you experiencing?"
+    - "Can you describe the situation?"
+    when the requested information is already established.
 
-16. If the situation is about a computer, phone, laptop, software, hardware, or another device, deliberately separate:
+19. If the situation is about a computer, phone, laptop, software, hardware, or another device, deliberately separate:
     - the actual problem
     - when it started
     - what changed beforehand
     - current impact
+    - frequency or pattern
     - troubleshooting already attempted
     - warranty/purchase information
     - desired outcome
 
-17. If the situation is about travel, deliberately separate:
-    - what happened
-    - timing
-    - money paid
-    - provider response
-    - insurance/coverage
-    - desired outcome
+20. If one of these areas is already established, skip it and move to another area.
 
-18. If the situation is about housing, deliberately separate:
-    - problem
-    - timing
-    - communication
-    - responsibility
-    - desired outcome
+21. If the user's previous answer provides information about another area, treat that area as covered too.
 
-19. If the situation is about money, deliberately separate:
-    - amount
-    - payment status
-    - reason for the charge
-    - communication
-    - desired outcome
+22. Use mcq when a small set of clear options genuinely helps.
 
-20. Use mcq when a small set of clear options genuinely helps.
+23. Use text when a written answer is more appropriate.
 
-21. Use text when a written answer is more appropriate.
+24. For ordinary factual, yes/no, confirmation, availability, date, amount, or short-answer questions, use answerType "short_text".
 
-22. For ordinary factual, yes/no, confirmation, availability, date, amount, or short-answer questions, use answerType "short_text".
+25. For questions that genuinely require explanation, description, multiple details, or a longer response, use answerType "long_text".
 
-23. For questions that genuinely require explanation, description, multiple details, or a longer response, use answerType "long_text".
+26. Do not use long_text simply because the question itself is long.
 
-24. Do not use long_text simply because the question itself is long.
+27. MCQs must contain 3 to 5 choices.
 
-25. MCQs must contain 3 to 5 choices.
+28. If an image is genuinely necessary and an existing attachment is available, use imageUrl from that attachment.
 
-26. If an image is genuinely necessary and an existing attachment is available, use imageUrl from that attachment.
+29. Do not invent an image URL.
 
-27. Do not invent an image URL.
+30. Keep the question concise.
 
-28. Keep the question concise.
+31. Return JSON only.
 
-29. Return JSON only.
+32. Do not use markdown.
 
-30. Do not use markdown.
-
-31. Do not explain your reasoning.
+33. Do not explain your reasoning.
 
 Required JSON:
 
@@ -2188,11 +2218,19 @@ ${
     : "None"
 }
 
+IMPORTANT:
+
+The original situation itself may already contain the answer to a potential question.
+
+Do not ask the user to repeat information that appears in the original situation.
+
+Do not ask the user to repeat information that appears in a previous answer.
+
+First identify what is already known.
+
+Then choose ONE genuinely missing piece of information.
+
 Generate the next adaptive question now.
-
-Choose a genuinely different information area from the previous questions whenever possible.
-
-The user should be able to answer the question directly in the textbox.
 `;
 
   for (
@@ -2208,11 +2246,13 @@ The user should be able to answer the question directly in the textbox.
             ? userPrompt
             : `${userPrompt}
 
-Your previous question was rejected because it was too similar to information already requested.
+Your previous question was rejected because it requested information that was already known or was too similar to an existing question.
 
-Choose a DIFFERENT information area.
+Choose a genuinely NEW information area.
 
-Do not ask another version of the same question.
+Check the original situation and every previous answer again.
+
+Do not ask what the problem is if the problem is already stated.
 
 Do not ask for documents, screenshots, receipts, emails, photos, attachments, or other evidence unless the user explicitly mentioned them.
 
@@ -2223,8 +2263,8 @@ Do not include extra text.`,
           {
             temperature:
               attempt === 0
-                ? 0.35
-                : 0.55,
+                ? 0.3
+                : 0.5,
             max_tokens: 900,
           }
         );
@@ -2311,8 +2351,61 @@ Do not include extra text.`,
         );
       }
 
+      const originalSituationKey =
+        questionKey(
+          originalSituationText
+        );
+
+      const generatedKey =
+        questionKey(
+          normalised.question
+        );
+
+      const knownProblemPatterns = [
+        "what is the problem",
+        "what problem",
+        "what issue",
+        "what is wrong",
+        "what happened",
+        "describe the problem",
+        "describe the issue",
+        "what exactly",
+        "what are you experiencing",
+        "what is happening",
+      ];
+
+      const asksForKnownProblem =
+        knownProblemPatterns.some(
+          (pattern) =>
+            generatedKey.includes(
+              questionKey(pattern)
+            )
+        );
+
+      const situationHasKnownProblem =
+        /\b(problem|issue|disconnect|disconnecting|error|broken|fault|not working|doesn't work|does not work|unable|can't|cannot|keeps|stops|fails|failure|difficulty|trouble)\b/i.test(
+          originalSituationText
+        );
+
+      if (
+        asksForKnownProblem &&
+        situationHasKnownProblem
+      ) {
+        throw new Error(
+          "Adaptive engine asked for a problem that was already established."
+        );
+      }
+
       return normalised;
-    } catch {}
+    } catch (error) {
+      if (attempt === 1) {
+        console.warn(
+          "Adaptive question rejected; using fallback:",
+          error?.message ||
+            "Unknown reason"
+        );
+      }
+    }
   }
 
   return buildFallbackQuestion(
