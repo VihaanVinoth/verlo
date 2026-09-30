@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import "./index.css";
+import "./style.css";
 
-const API_URL = import.meta.env.VITE_API_URL || "https://verlo-30xs.onrender.com";
+const API_URL =
+  import.meta.env.VITE_API_URL || "https://verlo-30xs.onrender.com";
+
 const STORAGE_KEY = "verlo_app_state_v4";
 const MAX_ADAPTIVE_QUESTIONS = 7;
 
-const DEFAULT_STATE = {
+const initialState = {
   screen: "home",
   situation: "",
   title: "",
-  category: "General",
+  category: "",
   context: "",
   questions: [],
   answers: [],
@@ -21,49 +23,21 @@ const DEFAULT_STATE = {
 };
 
 function loadState() {
-  if (typeof window === "undefined") return DEFAULT_STATE;
-
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (!saved) return DEFAULT_STATE;
+
+    if (!saved) {
+      return initialState;
+    }
 
     const parsed = JSON.parse(saved);
 
     return {
-      ...DEFAULT_STATE,
-      ...parsed,
-      questions: Array.isArray(parsed.questions) ? parsed.questions : [],
-      answers: Array.isArray(parsed.answers) ? parsed.answers : [],
-      attachments: Array.isArray(parsed.attachments) ? parsed.attachments : []
+      ...initialState,
+      ...parsed
     };
   } catch {
-    return DEFAULT_STATE;
-  }
-}
-
-function saveState(state) {
-  if (typeof window === "undefined") return;
-
-  try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        screen: state.screen,
-        situation: state.situation,
-        title: state.title,
-        category: state.category,
-        context: state.context,
-        questions: state.questions,
-        answers: state.answers,
-        questionIndex: state.questionIndex,
-        result: state.result,
-        attachments: state.attachments,
-        verificationEmail: state.verificationEmail,
-        verificationRequired: state.verificationRequired
-      })
-    );
-  } catch {
-    return;
+    return initialState;
   }
 }
 
@@ -77,154 +51,153 @@ async function api(path, options = {}) {
     }
   });
 
-  let data = {};
+  let data = null;
 
   try {
     data = await response.json();
   } catch {
-    data = {};
+    data = null;
   }
 
   if (!response.ok) {
     throw new Error(
-      data.error ||
-        data.message ||
-        `Request failed with status ${response.status}.`
+      data?.error ||
+        data?.message ||
+        `Request failed with status ${response.status}`
     );
   }
 
   return data;
 }
 
-const ICON_PATHS = {
-  "arrow-right": (
-    <>
-      <path d="M5 12h14" />
-      <path d="m13 6 6 6-6 6" />
-    </>
-  ),
-  "arrow-left": (
-    <>
-      <path d="M19 12H5" />
-      <path d="m11 18-6-6 6-6" />
-    </>
-  ),
-  check: <path d="m5 12 4 4L19 6" />,
-  skip: (
-    <>
-      <path d="m8 5 8 7-8 7V5Z" />
-      <path d="M19 5v14" />
-    </>
-  ),
-  plus: (
-    <>
-      <path d="M12 5v14" />
-      <path d="M5 12h14" />
-    </>
-  ),
-  upload: (
-    <>
-      <path d="M12 16V4" />
-      <path d="m7 9 5-5 5 5" />
-      <path d="M5 20h14" />
-    </>
-  ),
-  paperclip: (
-    <>
-      <path d="m21.44 11.05-8.49 8.49a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-    </>
-  ),
-  clock: (
-    <>
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="M12 7v5l3 2" />
-    </>
-  ),
-  spark: (
-    <>
-      <path d="m12 3 1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6L12 3Z" />
-      <path d="m19 16 .7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7L19 16Z" />
-    </>
-  ),
-  shield: (
-    <>
-      <path d="M12 3 19 6v5c0 4.5-2.8 8.1-7 10-4.2-1.9-7-5.5-7-10V6l7-3Z" />
-      <path d="m9 12 2 2 4-4" />
-    </>
-  ),
-  compass: (
-    <>
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="m15.5 8.5-2.2 4.8-4.8 2.2 2.2-4.8 4.8-2.2Z" />
-    </>
-  ),
-  history: (
-    <>
-      <path d="M3 12a9 9 0 1 0 3-6.7" />
-      <path d="M3 5v5h5" />
-      <path d="M12 7v5l3 2" />
-    </>
-  ),
-  user: (
-    <>
-      <circle cx="12" cy="8" r="3.5" />
-      <path d="M5 21a7 7 0 0 1 14 0" />
-    </>
-  ),
-  close: (
-    <>
-      <path d="m6 6 12 12" />
-      <path d="m18 6-12 12" />
-    </>
-  ),
-  send: (
-    <>
-      <path d="m4 4 16 8-16 8 3-8-3-8Z" />
-      <path d="M7 12h9" />
-    </>
-  ),
-  chevron: <path d="m7 10 5 5 5-5" />,
-  external: (
-    <>
-      <path d="M14 5h5v5" />
-      <path d="M19 5 10 14" />
-      <path d="M18 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
-    </>
-  ),
-  warning: (
-    <>
-      <path d="M12 4 21 20H3L12 4Z" />
-      <path d="M12 9v5" />
-      <path d="M12 17h.01" />
-    </>
-  )
-};
+function Icon({ name, size = 20 }) {
+  const common = {
+    width: size,
+    height: size,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    "aria-hidden": true,
+    focusable: "false"
+  };
 
-function Icon({ name, size = 18, strokeWidth = 1.8 }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={strokeWidth}
-      aria-hidden="true"
-      focusable="false"
-    >
-      {ICON_PATHS[name] || ICON_PATHS.spark}
-    </svg>
-  );
+  const paths = {
+    arrow: (
+      <>
+        <path d="M5 12h14" />
+        <path d="m13 6 6 6-6 6" />
+      </>
+    ),
+    back: (
+      <>
+        <path d="M19 12H5" />
+        <path d="m11 18-6-6 6-6" />
+      </>
+    ),
+    check: <path d="m5 12 4 4L19 6" />,
+    close: (
+      <>
+        <path d="M6 6l12 12" />
+        <path d="M18 6 6 18" />
+      </>
+    ),
+    history: (
+      <>
+        <path d="M3 12a9 9 0 1 0 3-6.7" />
+        <path d="M3 4v5h5" />
+        <path d="M12 7v5l3 2" />
+      </>
+    ),
+    user: (
+      <>
+        <circle cx="12" cy="8" r="3.5" />
+        <path d="M5 20c.8-3.3 3.1-5 7-5s6.2 1.7 7 5" />
+      </>
+    ),
+    plus: (
+      <>
+        <path d="M12 5v14" />
+        <path d="M5 12h14" />
+      </>
+    ),
+    upload: (
+      <>
+        <path d="M12 16V4" />
+        <path d="m7 9 5-5 5 5" />
+        <path d="M5 20h14" />
+      </>
+    ),
+    send: (
+      <>
+        <path d="m4 4 16 8-16 8 3-8-3-8Z" />
+        <path d="M7 12h13" />
+      </>
+    ),
+    lock: (
+      <>
+        <rect x="5" y="10" width="14" height="10" rx="2" />
+        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+      </>
+    ),
+    mail: (
+      <>
+        <rect x="3" y="5" width="18" height="14" rx="2" />
+        <path d="m4 7 8 6 8-6" />
+      </>
+    ),
+    google: (
+      <>
+        <path d="M21 12.2c0-.7-.1-1.4-.2-2H12v3.8h5a4.3 4.3 0 0 1-1.9 2.8v2.3h3.1c1.8-1.7 2.8-4.1 2.8-6.9Z" />
+        <path d="M12 21c2.6 0 4.8-.9 6.4-2.4l-3.1-2.3c-.9.6-2 1-3.3 1-2.5 0-4.7-1.7-5.4-4H3.4v2.4A9.7 9.7 0 0 0 12 21Z" />
+        <path d="M6.6 13.3a5.8 5.8 0 0 1 0-2.6V8.3H3.4a9 9 0 0 0 0 8.1l3.2-3.1Z" />
+        <path d="M12 6.7c1.5 0 2.8.5 3.8 1.5l2.8-2.8C16.8 3.9 14.6 3 12 3a9.7 9.7 0 0 0-8.6 5.3l3.2 2.4c.7-2.3 2.9-4 5.4-4Z" />
+      </>
+    ),
+    spark: (
+      <>
+        <path d="m12 2 1.7 6.3L20 10l-6.3 1.7L12 18l-1.7-6.3L4 10l6.3-1.7L12 2Z" />
+        <path d="m19 15 .7 2.3L22 18l-2.3.7L19 21l-.7-2.3L16 18l2.3-.7L19 15Z" />
+      </>
+    ),
+    paperclip: (
+      <path d="m20 11.5-8.3 8.3a5 5 0 0 1-7.1-7.1l8.5-8.5a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-2.8-2.8l7.9-7.9" />
+    ),
+    skip: (
+      <>
+        <path d="M6 5v14l10-7L6 5Z" />
+        <path d="M19 5v14" />
+      </>
+    ),
+    warning: (
+      <>
+        <path d="M12 3 2.8 20h18.4L12 3Z" />
+        <path d="M12 9v4" />
+        <path d="M12 17h.01" />
+      </>
+    ),
+    external: (
+      <>
+        <path d="M14 5h5v5" />
+        <path d="m19 5-8 8" />
+        <path d="M19 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" />
+      </>
+    )
+  };
+
+  return <svg {...common}>{paths[name] || paths.spark}</svg>;
 }
 
-function Logo({ compact = false }) {
+function Logo({ onClick }) {
   return (
-    <span className={`logo ${compact ? "logo-compact" : ""}`}>
-      <span className="logo-mark">V</span>
-      <span className="logo-name">VERLO</span>
-    </span>
+    <button className="brand-button" onClick={onClick} type="button">
+      <span className="brand-mark">
+        <Icon name="spark" size={18} />
+      </span>
+      <span className="brand-name">VERLO</span>
+    </button>
   );
 }
 
@@ -242,153 +215,180 @@ function AuthModal({
   mode,
   setMode,
   onClose,
-  onSuccess,
+  onAuthenticated,
   onVerificationRequired
 }) {
-  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  async function submit(event) {
+  const submit = async event => {
     event.preventDefault();
     setError("");
     setLoading(true);
 
     try {
-      const endpoint = mode === "login" ? "/api/auth/login" : "/api/auth/signup";
+      const endpoint =
+        mode === "login" ? "/api/auth/login" : "/api/auth/signup";
+
+      const body =
+        mode === "login"
+          ? {
+              email,
+              password
+            }
+          : {
+              name,
+              email,
+              password
+            };
 
       const data = await api(endpoint, {
         method: "POST",
-        body: JSON.stringify({
-          name,
-          email,
-          password
-        })
+        body: JSON.stringify(body)
       });
 
-      if (data.verificationRequired || data.requiresVerification) {
+      if (data?.verificationRequired || data?.requiresVerification) {
         onVerificationRequired(email);
         return;
       }
 
-      onSuccess(data.user || data);
-      onClose();
+      onAuthenticated(data?.user || data);
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Something went wrong.");
     } finally {
       setLoading(false);
     }
-  }
+  };
 
-  async function googleLogin() {
-    setError("");
-
-    try {
-      const data = await api("/api/auth/google", {
-        method: "GET"
-      });
-
-      if (data.url) {
-        window.location.href = data.url;
-        return;
-      }
-
-      setError("Google sign-in is not available right now.");
-    } catch (err) {
-      setError(err.message);
-    }
-  }
+  const handleGoogle = () => {
+    window.location.href = `${API_URL}/api/auth/google`;
+  };
 
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+    <div className="modal-backdrop" onMouseDown={onClose}>
       <div
         className="auth-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="auth-heading"
         onMouseDown={event => event.stopPropagation()}
       >
-        <button className="modal-close" onClick={onClose} aria-label="Close">
-          <Icon name="close" />
+        <button
+          className="modal-close"
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+        >
+          <Icon name="close" size={19} />
         </button>
 
         <div className="auth-heading">
-          <span className="eyebrow">{mode === "login" ? "WELCOME BACK" : "CREATE ACCOUNT"}</span>
-          <h2 id="auth-heading">
-            {mode === "login" ? "Sign in to VERLO" : "Create your VERLO account"}
-          </h2>
-          <p>
-            {mode === "login"
-              ? "Access your saved decisions and reports."
-              : "Save your decisions and return to them whenever you need."}
-          </p>
+          <span className="auth-icon">
+            <Icon name="lock" size={19} />
+          </span>
+
+          <div>
+            <h2>{mode === "login" ? "Welcome back" : "Create your account"}</h2>
+            <p>
+              {mode === "login"
+                ? "Continue where you left off."
+                : "Save your decisions and access them anywhere."}
+            </p>
+          </div>
         </div>
 
-        <button className="google-button" type="button" onClick={googleLogin}>
-          <span className="google-mark">G</span>
-          Continue with Google
-        </button>
+        <form onSubmit={submit} className="auth-form">
+          {mode === "signup" && (
+            <label className="auth-field">
+              <span>Name</span>
+              <div className="input-wrap">
+                <Icon name="user" size={18} />
+                <input
+                  value={name}
+                  onChange={event => setName(event.target.value)}
+                  placeholder="Your name"
+                  autoComplete="name"
+                  required
+                />
+              </div>
+            </label>
+          )}
+
+          <label className="auth-field">
+            <span>Email</span>
+            <div className="input-wrap">
+              <Icon name="mail" size={18} />
+              <input
+                value={email}
+                onChange={event => setEmail(event.target.value)}
+                placeholder="you@example.com"
+                type="email"
+                autoComplete="email"
+                required
+              />
+            </div>
+          </label>
+
+          <label className="auth-field">
+            <span>Password</span>
+            <div className="input-wrap">
+              <Icon name="lock" size={18} />
+              <input
+                value={password}
+                onChange={event => setPassword(event.target.value)}
+                placeholder="Your password"
+                type="password"
+                autoComplete={
+                  mode === "login" ? "current-password" : "new-password"
+                }
+                required
+              />
+            </div>
+          </label>
+
+          {error && <div className="form-error">{error}</div>}
+
+          <button className="auth-submit" type="submit" disabled={loading}>
+            {loading ? (
+              <LoadingDots />
+            ) : mode === "login" ? (
+              "Sign in"
+            ) : (
+              "Create account"
+            )}
+          </button>
+        </form>
 
         <div className="auth-divider">
           <span>or</span>
         </div>
 
-        <form onSubmit={submit} className="auth-form">
-          {mode === "signup" && (
-            <label className="input-wrap">
-              <span>Name</span>
-              <input
-                value={name}
-                onChange={event => setName(event.target.value)}
-                autoComplete="name"
-                required
-              />
-            </label>
-          )}
-
-          <label className="input-wrap">
-            <span>Email</span>
-            <input
-              value={email}
-              onChange={event => setEmail(event.target.value)}
-              type="email"
-              autoComplete="email"
-              required
-            />
-          </label>
-
-          <label className="input-wrap">
-            <span>Password</span>
-            <input
-              value={password}
-              onChange={event => setPassword(event.target.value)}
-              type="password"
-              autoComplete={mode === "login" ? "current-password" : "new-password"}
-              required
-            />
-          </label>
-
-          {error && <div className="form-error">{error}</div>}
-
-          <button className="continue-button auth-submit" disabled={loading}>
-            {loading ? <LoadingDots /> : mode === "login" ? "Sign in" : "Create account"}
-          </button>
-        </form>
-
         <button
-          className="auth-switch"
+          className="google-button"
           type="button"
-          onClick={() => {
-            setError("");
-            setMode(mode === "login" ? "signup" : "login");
-          }}
+          onClick={handleGoogle}
         >
-          {mode === "login"
-            ? "Don't have an account? Create one"
-            : "Already have an account? Sign in"}
+          <Icon name="google" size={18} />
+          Continue with Google
         </button>
+
+        <div className="auth-switch">
+          <span>
+            {mode === "login"
+              ? "Don't have an account?"
+              : "Already have an account?"}
+          </span>
+
+          <button
+            type="button"
+            onClick={() => {
+              setError("");
+              setMode(mode === "login" ? "signup" : "login");
+            }}
+          >
+            {mode === "login" ? "Create one" : "Sign in"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -396,15 +396,15 @@ function AuthModal({
 
 function VerificationModal({ email, onClose, onVerified }) {
   const [code, setCode] = useState("");
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-  async function verify(event) {
+  const verify = async event => {
     event.preventDefault();
     setError("");
-    setMessage("");
+    setSuccess("");
     setLoading(true);
 
     try {
@@ -416,78 +416,94 @@ function VerificationModal({ email, onClose, onVerified }) {
         })
       });
 
-      onVerified(data.user || data);
+      setSuccess(data?.message || "Your email has been verified.");
+
+      setTimeout(() => {
+        onVerified(data?.user || data);
+      }, 600);
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Verification failed.");
     } finally {
       setLoading(false);
     }
-  }
+  };
 
-  async function resend() {
+  const resend = async () => {
     setError("");
-    setMessage("");
+    setSuccess("");
     setResending(true);
 
     try {
-      await api("/api/auth/resend-verification", {
+      const data = await api("/api/auth/resend-verification", {
         method: "POST",
         body: JSON.stringify({ email })
       });
 
-      setMessage("A new verification code has been sent.");
+      setSuccess(data?.message || "A new verification code has been sent.");
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Unable to resend the code.");
     } finally {
       setResending(false);
     }
-  }
+  };
 
   return (
-    <div className="modal-backdrop" role="presentation">
+    <div className="modal-backdrop" onMouseDown={onClose}>
       <div
         className="auth-modal verification-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="verification-heading"
+        onMouseDown={event => event.stopPropagation()}
       >
-        <button className="modal-close" onClick={onClose} aria-label="Close">
-          <Icon name="close" />
+        <button
+          className="modal-close"
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+        >
+          <Icon name="close" size={19} />
         </button>
 
         <div className="verification-icon">
-          <Icon name="shield" size={28} />
+          <Icon name="mail" size={24} />
         </div>
 
         <div className="auth-heading">
-          <span className="eyebrow">VERIFY EMAIL</span>
-          <h2 id="verification-heading">Check your inbox</h2>
-          <p>
-            Enter the verification code sent to <strong>{email}</strong>.
-          </p>
+          <div>
+            <h2>Check your email</h2>
+            <p>
+              We sent a verification code to <strong>{email}</strong>.
+            </p>
+          </div>
         </div>
 
         <form onSubmit={verify} className="auth-form">
-          <label className="input-wrap">
+          <label className="auth-field">
             <span>Verification code</span>
-            <input
-              value={code}
-              onChange={event => setCode(event.target.value)}
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              required
-            />
+            <div className="input-wrap">
+              <input
+                value={code}
+                onChange={event => setCode(event.target.value)}
+                placeholder="Enter your code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                required
+              />
+            </div>
           </label>
 
           {error && <div className="form-error">{error}</div>}
-          {message && <div className="form-success">{message}</div>}
+          {success && <div className="form-success">{success}</div>}
 
-          <button className="continue-button auth-submit" disabled={loading}>
+          <button className="auth-submit" type="submit" disabled={loading}>
             {loading ? <LoadingDots /> : "Verify email"}
           </button>
         </form>
 
-        <button className="resend-button" onClick={resend} disabled={resending}>
+        <button
+          className="resend-button"
+          type="button"
+          disabled={resending}
+          onClick={resend}
+        >
           {resending ? "Sending..." : "Resend code"}
         </button>
       </div>
@@ -495,205 +511,261 @@ function VerificationModal({ email, onClose, onVerified }) {
   );
 }
 
-function Home({ onStart, onHistory, onAccount, user }) {
+function Home({ onStart, onHistory, user, onAuth }) {
   return (
-    <main className="home-page">
+    <div className="home-page">
       <header className="site-header">
-        <button className="brand-button" onClick={onStart} aria-label="VERLO home">
-          <Logo />
-        </button>
+        <Logo
+          onClick={() =>
+            window.scrollTo({
+              top: 0,
+              behavior: "smooth"
+            })
+          }
+        />
 
-        <nav className="site-nav" aria-label="Primary navigation">
+        <nav className="site-nav">
           {user && (
-            <button className="history-nav-button" onClick={onHistory}>
+            <button
+              className="history-nav-button"
+              type="button"
+              onClick={onHistory}
+            >
               <Icon name="history" size={17} />
               History
             </button>
           )}
 
-          <button className="account-button" onClick={onAccount}>
-            <Icon name="user" size={17} />
-            {user ? user.name || user.email || "Account" : "Sign in"}
+          {user ? (
+            <button className="account-button" type="button">
+              <span>
+                {user.name || user.email?.charAt(0)?.toUpperCase()}
+              </span>
+            </button>
+          ) : (
+            <button
+              className="account-button"
+              type="button"
+              onClick={() => onAuth("login")}
+            >
+              Sign in
+            </button>
+          )}
+
+          <button className="header-cta" type="button" onClick={onStart}>
+            Start
+            <Icon name="arrow" size={16} />
           </button>
         </nav>
       </header>
 
-      <section className="hero-section">
-        <div className="hero-content">
-          <span className="eyebrow">DECISION INTELLIGENCE</span>
+      <main>
+        <section className="hero-section">
+          <div className="hero-content">
+            <div className="eyebrow">
+              <Icon name="spark" size={14} />
+              Decision intelligence
+            </div>
 
-          <h1>
-            Make sense of
-            <br />
-            <span>what comes next.</span>
-          </h1>
+            <h1>
+              Think clearly.
+              <br />
+              <span>Decide confidently.</span>
+            </h1>
 
-          <p className="hero-description">
-            VERLO turns complicated situations into clear, structured
-            decisions, practical next steps and useful drafts.
-          </p>
+            <p className="hero-description">
+              VERLO turns complicated situations into structured thinking,
+              useful questions and practical next steps.
+            </p>
 
-          <div className="hero-actions">
-            <button className="hero-button" onClick={onStart}>
-              Start with a situation
-              <Icon name="arrow-right" />
-            </button>
-
-            {user && (
-              <button className="secondary-button" onClick={onHistory}>
-                View history
+            <div className="hero-actions">
+              <button className="hero-button" type="button" onClick={onStart}>
+                Start thinking
+                <Icon name="arrow" size={18} />
               </button>
-            )}
-          </div>
 
-          <div className="hero-note">
-            <Icon name="shield" size={15} />
-            <span>Your information stays private to your VERLO session.</span>
-          </div>
-        </div>
-
-        <div className="hero-visual" aria-hidden="true">
-          <div className="hero-orbit orbit-one" />
-          <div className="hero-orbit orbit-two" />
-          <div className="hero-orbit orbit-three" />
-          <div className="hero-core">
-            <Icon name="compass" size={42} strokeWidth={1.4} />
-          </div>
-
-          <div className="floating-card card-one">
-            <span className="floating-label">SITUATION</span>
-            <strong>Understood</strong>
-            <Icon name="check" size={16} />
-          </div>
-
-          <div className="floating-card card-two">
-            <span className="floating-label">NEXT STEP</span>
-            <strong>Clarified</strong>
-            <Icon name="arrow-right" size={16} />
-          </div>
-
-          <div className="floating-card card-three">
-            <Icon name="spark" size={16} />
-            <span>Adaptive analysis</span>
-          </div>
-        </div>
-      </section>
-
-      <section className="feature-section">
-        <div className="section-heading">
-          <span className="eyebrow">HOW IT WORKS</span>
-          <h2>A clearer way forward.</h2>
-        </div>
-
-        <div className="feature-grid">
-          <article className="feature-card">
-            <div className="feature-number">01</div>
-            <div className="feature-icon">
-              <Icon name="compass" />
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() =>
+                  document
+                    .getElementById("features")
+                    ?.scrollIntoView({ behavior: "smooth" })
+                }
+              >
+                See how it works
+              </button>
             </div>
-            <h3>Explain the situation</h3>
-            <p>
-              Start with what is happening, what you are deciding, or what
-              you are unsure about.
-            </p>
-          </article>
 
-          <article className="feature-card">
-            <div className="feature-number">02</div>
-            <div className="feature-icon">
-              <Icon name="spark" />
+            <div className="hero-note">
+              <Icon name="check" size={15} />
+              No right answer. Just clearer thinking.
             </div>
-            <h3>Answer what matters</h3>
-            <p>
-              VERLO asks adaptive questions based on the information you have
-              already provided.
-            </p>
-          </article>
+          </div>
 
-          <article className="feature-card">
-            <div className="feature-number">03</div>
-            <div className="feature-icon">
-              <Icon name="arrow-right" />
+          <div className="hero-visual" aria-hidden="true">
+            <div className="hero-orbit hero-orbit-one" />
+            <div className="hero-orbit hero-orbit-two" />
+
+            <div className="hero-core">
+              <Icon name="spark" size={32} />
             </div>
-            <h3>Get a practical plan</h3>
+
+            <div className="floating-card floating-card-one">
+              <span>Situation</span>
+              <strong>What actually matters?</strong>
+            </div>
+
+            <div className="floating-card floating-card-two">
+              <span>Perspective</span>
+              <strong>What are you missing?</strong>
+            </div>
+
+            <div className="floating-card floating-card-three">
+              <span>Next step</span>
+              <strong>What can you do now?</strong>
+            </div>
+          </div>
+        </section>
+
+        <section className="feature-section" id="features">
+          <div className="section-heading">
+            <div className="eyebrow">A better way to think</div>
+
+            <h2>From uncertainty to a clear path.</h2>
+
             <p>
-              Receive a structured report with next steps, considerations,
-              resources and useful drafts.
+              VERLO does more than generate an answer. It adapts its questions
+              to understand what actually matters in your situation.
             </p>
-          </article>
-        </div>
-      </section>
-    </main>
+          </div>
+
+          <div className="feature-grid">
+            <article className="feature-card">
+              <span className="feature-number">01</span>
+
+              <div className="feature-icon">
+                <Icon name="spark" size={20} />
+              </div>
+
+              <h3>Understand</h3>
+
+              <p>
+                Start with what is happening. VERLO identifies the important
+                context before jumping to conclusions.
+              </p>
+            </article>
+
+            <article className="feature-card">
+              <span className="feature-number">02</span>
+
+              <div className="feature-icon">
+                <Icon name="arrow" size={20} />
+              </div>
+
+              <h3>Explore</h3>
+
+              <p>
+                Answer adaptive questions that change depending on what you
+                have already told VERLO.
+              </p>
+            </article>
+
+            <article className="feature-card">
+              <span className="feature-number">03</span>
+
+              <div className="feature-icon">
+                <Icon name="check" size={20} />
+              </div>
+
+              <h3>Act</h3>
+
+              <p>
+                Receive a structured report with options, considerations and
+                practical next steps.
+              </p>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
   );
 }
 
 function InputPage({
   situation,
   setSituation,
-  title,
-  setTitle,
   category,
   setCategory,
-  context,
-  setContext,
   attachments,
   setAttachments,
   onBack,
   onStart,
-  loading,
-  error
+  loading
 }) {
   const fileInputRef = useRef(null);
 
-  function handleFiles(event) {
+  const categories = [
+    "School",
+    "Work",
+    "Relationships",
+    "Personal",
+    "Money",
+    "Health",
+    "Other"
+  ];
+
+  const addFiles = event => {
     const files = Array.from(event.target.files || []);
 
-    const next = files.map(file => ({
-      name: file.name,
-      type: file.type,
-      size: file.size
-    }));
+    if (!files.length) {
+      return;
+    }
 
-    setAttachments(previous => [...previous, ...next]);
+    setAttachments(previous => [
+      ...previous,
+      ...files.map(file => ({
+        name: file.name,
+        type: file.type,
+        size: file.size
+      }))
+    ]);
+
     event.target.value = "";
-  }
+  };
 
-  function removeAttachment(index) {
-    setAttachments(previous => previous.filter((_, i) => i !== index));
-  }
+  const removeAttachment = index => {
+    setAttachments(previous =>
+      previous.filter((_, attachmentIndex) => attachmentIndex !== index)
+    );
+  };
 
   return (
-    <main className="assessment-page">
-      <header className="assessment-header">
-        <button className="brand-button" onClick={onBack} aria-label="Back to home">
-          <Logo />
-        </button>
+    <div className="assessment-page">
+      <header className="site-header">
+        <Logo onClick={onBack} />
 
-        <button className="back-button" onClick={onBack}>
-          <Icon name="arrow-left" size={17} />
+        <button className="back-button" type="button" onClick={onBack}>
+          <Icon name="back" size={17} />
           Back
         </button>
       </header>
 
-      <div className="assessment-main">
+      <main className="assessment-main">
         <div className="assessment-intro">
-          <span className="eyebrow">START HERE</span>
+          <div className="eyebrow">01 · Your situation</div>
+
           <h1>What are you trying to figure out?</h1>
+
           <p>
-            Give VERLO enough context to understand the situation. You can
-            keep it simple — the adaptive questions will handle the rest.
+            Give VERLO enough context to understand the situation. You do not
+            need to have everything figured out yet.
           </p>
         </div>
 
-        <form
-          className="input-form"
-          onSubmit={event => {
-            event.preventDefault();
-            onStart();
-          }}
-        >
+        <div className="input-container">
           <label className="large-label" htmlFor="situation">
-            Describe the situation
+            Tell us what is happening
           </label>
 
           <div className="textarea-shell">
@@ -705,52 +777,26 @@ function InputPage({
               rows={9}
               maxLength={6000}
             />
-            <div className="textarea-count">
-              {situation.length.toLocaleString()} / 6,000
+
+            <div className="textarea-count">{situation.length}/6000</div>
+          </div>
+
+          <div className="category-row">
+            <span className="category-label">Category</span>
+
+            <div className="category-options">
+              {categories.map(item => (
+                <button
+                  key={item}
+                  type="button"
+                  className={category === item ? "selected" : ""}
+                  onClick={() => setCategory(item)}
+                >
+                  {item}
+                </button>
+              ))}
             </div>
           </div>
-
-          <div className="input-fields-grid">
-            <label className="input-wrap">
-              <span>Title</span>
-              <input
-                value={title}
-                onChange={event => setTitle(event.target.value)}
-                placeholder="Give this situation a name"
-                maxLength={160}
-              />
-            </label>
-
-            <label className="input-wrap">
-              <span>Category</span>
-              <select
-                value={category}
-                onChange={event => setCategory(event.target.value)}
-              >
-                <option>General</option>
-                <option>Travel</option>
-                <option>Money</option>
-                <option>Consumer</option>
-                <option>Technology</option>
-                <option>Education</option>
-                <option>Work</option>
-                <option>Health</option>
-                <option>Legal</option>
-                <option>Other</option>
-              </select>
-            </label>
-          </div>
-
-          <label className="input-wrap">
-            <span>Additional context</span>
-            <textarea
-              value={context}
-              onChange={event => setContext(event.target.value)}
-              placeholder="Anything else VERLO should know?"
-              rows={4}
-              maxLength={3000}
-            />
-          </label>
 
           <div className="attachment-area">
             <input
@@ -758,7 +804,7 @@ function InputPage({
               type="file"
               multiple
               hidden
-              onChange={handleFiles}
+              onChange={addFiles}
             />
 
             <button
@@ -767,21 +813,24 @@ function InputPage({
               onClick={() => fileInputRef.current?.click()}
             >
               <Icon name="paperclip" size={17} />
-              Add supporting files
+              Attach files
             </button>
 
             {attachments.length > 0 && (
               <div className="attachment-list">
-                {attachments.map((file, index) => (
-                  <div className="attachment-item" key={`${file.name}-${index}`}>
-                    <Icon name="paperclip" size={15} />
-                    <span>{file.name}</span>
+                {attachments.map((attachment, index) => (
+                  <div
+                    className="attachment-item"
+                    key={`${attachment.name}-${index}`}
+                  >
+                    <span>{attachment.name}</span>
+
                     <button
                       type="button"
                       onClick={() => removeAttachment(index)}
-                      aria-label={`Remove ${file.name}`}
+                      aria-label={`Remove ${attachment.name}`}
                     >
-                      <Icon name="close" size={14} />
+                      <Icon name="close" size={15} />
                     </button>
                   </div>
                 ))}
@@ -789,102 +838,102 @@ function InputPage({
             )}
           </div>
 
-          {error && (
-            <div className="form-error input-error">
-              <Icon name="warning" size={16} />
-              {error}
-            </div>
-          )}
-
           <div className="input-footer">
-            <span>
-              <Icon name="shield" size={15} />
-              VERLO asks only what it needs.
-            </span>
+            <span>Your answers help VERLO ask better questions.</span>
 
             <button
               className="continue-button"
-              type="submit"
-              disabled={loading || situation.trim().length < 5}
+              type="button"
+              disabled={!situation.trim() || loading}
+              onClick={onStart}
             >
               {loading ? (
                 <LoadingDots />
               ) : (
                 <>
                   Continue
-                  <Icon name="arrow-right" />
+                  <Icon name="arrow" size={17} />
                 </>
               )}
             </button>
           </div>
-        </form>
-      </div>
-    </main>
+        </div>
+      </main>
+    </div>
   );
 }
 
-function normalizeQuestion(question, index) {
+function normalizeQuestion(question, index = 0) {
+  if (!question) {
+    return null;
+  }
+
   if (typeof question === "string") {
     return {
       id: `question-${index + 1}`,
-      type: "text",
       question,
-      stem: question,
-      choices: [],
-      imageUrl: "",
-      imageAlt: "",
-      imageCaption: "",
-      multiline: undefined,
-      answerType: "",
-      placeholder: "",
-      required: true
+      type: "text",
+      placeholder: "Type your answer here...",
+      multiline: false,
+      required: true,
+      options: []
     };
   }
 
-  const source = question || {};
-  const rawChoices = source.choices || source.options || [];
-
-  const choices = Array.isArray(rawChoices)
-    ? rawChoices
-        .map(choice => {
-          if (typeof choice === "string") return choice;
-          return choice?.label || choice?.text || choice?.value || "";
-        })
-        .filter(Boolean)
-    : [];
+  const answerType = String(
+    question.answerType ||
+      question.inputType ||
+      question.responseType ||
+      ""
+  ).toLowerCase();
 
   return {
     id:
-      source.id ||
-      source.questionId ||
-      source.key ||
+      question.id ||
+      question.questionId ||
+      question.key ||
       `question-${index + 1}`,
-    type: source.type || "text",
     question:
-      source.question ||
-      source.questionText ||
-      source.prompt ||
-      source.stem ||
+      question.question ||
+      question.text ||
+      question.questionText ||
+      question.prompt ||
       "",
-    stem: source.stem || source.question || source.prompt || "",
-    choices,
-    imageUrl: source.imageUrl || source.image || "",
-    imageAlt: source.imageAlt || "",
-    imageCaption: source.imageCaption || "",
+    type: question.type || "text",
+    placeholder:
+      question.placeholder ||
+      "Type your answer here...",
+    options: Array.isArray(question.options)
+      ? question.options
+      : Array.isArray(question.choices)
+        ? question.choices
+        : [],
+    image:
+      question.image ||
+      question.imageUrl ||
+      null,
+    imageAlt:
+      question.imageAlt ||
+      "",
+    imageCaption:
+      question.imageCaption ||
+      "",
+    required: question.required !== false,
     multiline:
-      typeof source.multiline === "boolean"
-        ? source.multiline
-        : typeof source.multiLine === "boolean"
-          ? source.multiLine
-          : undefined,
-    answerType: source.answerType || source.inputType || "",
-    placeholder: source.placeholder || "",
-    required:
-      typeof source.required === "boolean" ? source.required : true
+      question.multiline === true ||
+      question.multiLine === true ||
+      ["long_text", "textarea", "paragraph", "multi_line", "multiline"].includes(
+        answerType
+      ),
+    answerType
   };
 }
 
 function isMultilineQuestion(question) {
+  if (!question) {
+    return false;
+  }
+
   if (question.multiline === true || question.multiLine === true) {
     return true;
   }
@@ -894,39 +943,26 @@ function isMultilineQuestion(question) {
   }
 
   const answerType = String(
-    question.answerType || question.inputType || question.type || ""
+    question.answerType ||
+      question.inputType ||
+      question.responseType ||
+      question.type ||
+      ""
   ).toLowerCase();
 
   if (
-    [
-      "long_text",
-      "long-text",
-      "textarea",
-      "paragraph",
-      "multi_line",
-      "multi-line",
-      "multiline"
-    ].includes(answerType)
+    ["long_text", "textarea", "paragraph", "multi_line", "multiline"].includes(
+      answerType
+    )
   ) {
     return true;
   }
 
   if (
-    [
-      "short_text",
-      "short-text",
-      "single_line",
-      "single-line",
-      "text",
-      "string",
-      "short",
-      "input"
-    ].includes(answerType)
+    ["short_text", "single_line", "text", "string", "short", "input"].includes(
+      answerType
+    )
   ) {
-    if (String(question.inputType).toLowerCase() === "textarea") {
-      return true;
-    }
-
     return false;
   }
 
@@ -941,9 +977,20 @@ function isMultilineQuestion(question) {
   }
 
   if (
-    /\b(explain|describe|in your own words|provide details|tell me about|what happened|what has happened|what records|what evidence|what documents|what problem .* and what|why)\b/i.test(
-      text
-    )
+    /\b(
+      explain|
+      describe|
+      in your own words|
+      provide details|
+      tell me about|
+      what happened|
+      what has happened|
+      what records|
+      what evidence|
+      what documents|
+      what problem .* and what|
+      why
+    )\b/ix.test(text)
   ) {
     return true;
   }
@@ -952,1336 +999,54 @@ function isMultilineQuestion(question) {
 }
 
 function AdaptiveAssessment({
+  situation,
+  title,
+  category,
+  context,
   questions,
-  questionIndex,
+  setQuestions,
   answers,
   setAnswers,
-  onBack,
-  onContinue,
-  onSkip,
-  loading,
-  error
+  questionIndex,
+  setQuestionIndex,
+  attachments,
+  onComplete
 }) {
+  // LUCKY NUMBER 888
   const question = questions[questionIndex];
 
-  if (!question) {
-    return null;
-  }
-
+  const [loading, setLoading] = useState(false);
   const [value, setValue] = useState("");
+  const [error, setError] = useState("");
+
   const multiline = useMemo(
     () => isMultilineQuestion(question),
     [question]
   );
 
-  // LUCKY NUMBER 888
-  const currentAnswer =
-    answers.find(answer => answer.questionId === question.id)?.answer || "";
-
   useEffect(() => {
-    const answer =
-      answers.find(item => item.questionId === question.id)?.answer || "";
-    setValue(answer);
-  }, [question.id, answers]);
-
-  function updateAnswer(nextValue) {
-    setValue(nextValue);
-
-    setAnswers(previous => {
-      const existing = previous.findIndex(
-        answer => answer.questionId === question.id
-      );
-
-      if (existing === -1) {
-        return [
-          ...previous,
-          {
-            questionId: question.id,
-            question: question.question,
-            answer: nextValue
-          }
-        ];
-      }
-
-      return previous.map((answer, index) =>
-        index === existing ? { ...answer, answer: nextValue } : answer
-      );
-    });
-  }
-
-  function continueQuestion() {
-    const trimmed = value.trim();
-
-    if (question.required !== false && !trimmed) {
+    if (!question) {
+      setValue("");
       return;
     }
 
-    onContinue({
-      questionId: question.id,
-      question: question.question,
-      answer: value
-    });
-  }
+    const currentAnswer =
+      answers.find(answer => answer.questionId === question.id)?.answer || "";
 
-  function skipQuestion() {
-    onSkip({
-      questionId: question.id,
-      question: question.question,
-      answer: "[Skipped]"
-    });
-  }
+    setValue(currentAnswer);
+    setError("");
+  }, [question?.id, answers]);
 
-  function handleKeyDown(event) {
-    if (!multiline && event.key === "Enter") {
-      event.preventDefault();
-      if (!loading) continueQuestion();
-      return;
-    }
-
-    if (multiline && event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-      event.preventDefault();
-      if (!loading) continueQuestion();
-    }
-  }
-
-  const hasAnswer = Boolean(value.trim());
   const progress = Math.min(
     100,
-    ((questionIndex + 1) / Math.max(questions.length, 1)) * 100
+    Math.round(
+      ((questionIndex + 1) / MAX_ADAPTIVE_QUESTIONS) * 100
+    )
   );
 
-  return (
-    <main className="assessment-page">
-      <header className="assessment-header">
-        <button className="brand-button" onClick={onBack} aria-label="Back to home">
-          <Logo />
-        </button>
-
-        <div className="assessment-progress">
-          <span>
-            Question {questionIndex + 1}
-            {questions.length > 1 ? ` of up to ${MAX_ADAPTIVE_QUESTIONS}` : ""}
-          </span>
-          <div className="assessment-progress-bar">
-            <span style={{ width: `${progress}%` }} />
-          </div>
-        </div>
-      </header>
-
-      <div className="adaptive-main">
-        <div className="question-card">
-          <div className="question-meta">
-            <span>ADAPTIVE QUESTION</span>
-            <span>{String(questionIndex + 1).padStart(2, "0")}</span>
-          </div>
-
-          <h1>{question.question}</h1>
-
-          {question.imageUrl && (
-            <figure className="question-image">
-              <img
-                src={question.imageUrl}
-                alt={question.imageAlt || ""}
-              />
-              {question.imageCaption && (
-                <figcaption>{question.imageCaption}</figcaption>
-              )}
-            </figure>
-          )}
-
-          {question.type === "mcq" || question.choices.length > 0 ? (
-            <div className="choice-list" role="radiogroup">
-              {question.choices.map((choice, index) => {
-                const selected = value === choice;
-
-                return (
-                  <button
-                    type="button"
-                    className={`choice-option ${selected ? "selected" : ""}`}
-                    key={`${choice}-${index}`}
-                    onClick={() => updateAnswer(choice)}
-                    role="radio"
-                    aria-checked={selected}
-                  >
-                    <span className="choice-radio">
-                      {selected && <span />}
-                    </span>
-                    <span>{choice}</span>
-                  </button>
-                );
-              })}
-            </div>
-          ) : multiline ? (
-            <div className="question-input-shell multiline-input-shell">
-              <textarea
-                value={value}
-                onChange={event => updateAnswer(event.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={
-                  question.placeholder ||
-                  "Write as much detail as you think is useful..."
-                }
-                rows={7}
-                aria-label="Your answer"
-              />
-            </div>
-          ) : (
-            <div className="question-input-shell single-line-input-shell">
-              <input
-                type="text"
-                value={value}
-                onChange={event => updateAnswer(event.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={
-                  question.placeholder || "Type your answer and press Enter..."
-                }
-                aria-label="Your answer"
-                autoComplete="off"
-              />
-            </div>
-          )}
-
-          {error && (
-            <div className="form-error question-error">
-              <Icon name="warning" size={16} />
-              {error}
-            </div>
-          )}
-
-          <div className="question-footer">
-            <span className="question-hint">
-              {multiline
-                ? "Tip: press ⌘/Ctrl + Enter to continue."
-                : "Press Enter to continue."}
-            </span>
-
-            <div className="question-actions">
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={skipQuestion}
-                disabled={loading}
-              >
-                <Icon name="skip" size={16} />
-                Skip
-              </button>
-
-              <button
-                type="button"
-                className="continue-button"
-                onClick={continueQuestion}
-                disabled={
-                  loading ||
-                  (!hasAnswer && question.required !== false)
-                }
-              >
-                {loading ? (
-                  <LoadingDots />
-                ) : (
-                  <>
-                    Continue
-                    <Icon name="arrow-right" />
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </main>
-  );
-}
-
-function Processing({ progress = 0 }) {
-  return (
-    <main className="processing-page">
-      <div className="processing-inner" aria-live="polite">
-        <div className="processing-orb">
-          <div className="processing-orb-ring" />
-          <Icon name="spark" size={32} />
-        </div>
-
-        <span className="eyebrow">ANALYSING YOUR SITUATION</span>
-        <h1>Putting the pieces together.</h1>
-        <p>
-          VERLO is reviewing your answers and building a structured report.
-        </p>
-
-        <div className="processing-progress">
-          <div className="processing-progress-bar">
-            <span style={{ width: `${Math.min(progress, 100)}%` }} />
-          </div>
-          <span className="processing-percent">
-            {Math.round(Math.min(progress, 100))}%
-          </span>
-        </div>
-      </div>
-    </main>
-  );
-}
-
-function getResultValue(result, keys, fallback = "") {
-  if (!result) return fallback;
-
-  for (const key of keys) {
-    const value = result[key];
-
-    if (value !== undefined && value !== null && value !== "") {
-      return value;
-    }
-  }
-
-  return fallback;
-}
-
-function normalizeText(value) {
-  if (value === undefined || value === null) return "";
-
-  if (typeof value === "string") return value;
-
-  if (Array.isArray(value)) {
-    return value
-      .map(item => normalizeText(item))
-      .filter(Boolean)
-      .join("\n");
-  }
-
-  if (typeof value === "object") {
-    if (value.text) return normalizeText(value.text);
-    if (value.content) return normalizeText(value.content);
-    if (value.description) return normalizeText(value.description);
-
-    return Object.entries(value)
-      .map(([key, item]) => `${key}: ${normalizeText(item)}`)
-      .join("\n");
-  }
-
-  return String(value);
-}
-
-function parseInlineMarkdown(text) {
-  const source = String(text ?? "");
-
-  const pattern =
-    /(`[^`]+`|\[[^\]]+\]\((?:https?:\/\/|mailto:)[^)]+\)|\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*|_[^_]+_)/g;
-
-  const parts = [];
-  let lastIndex = 0;
-  let match;
-
-  while ((match = pattern.exec(source))) {
-    if (match.index > lastIndex) {
-      parts.push(source.slice(lastIndex, match.index));
-    }
-
-    const token = match[0];
-
-    if (token.startsWith("`")) {
-      parts.push(
-        <code key={`code-${match.index}`} className="markdown-inline-code">
-          {token.slice(1, -1)}
-        </code>
-      );
-    } else if (token.startsWith("[")) {
-      const linkMatch = token.match(
-        /^\[([^\]]+)\]\(((?:https?:\/\/|mailto:)[^)]+)\)$/
-      );
-
-      if (linkMatch) {
-        parts.push(
-          <a
-            key={`link-${match.index}`}
-            href={linkMatch[2]}
-            target="_blank"
-            rel="noreferrer noopener"
-          >
-            {linkMatch[1]}
-          </a>
-        );
-      } else {
-        parts.push(token);
-      }
-    } else if (
-      token.startsWith("**") ||
-      token.startsWith("__")
-    ) {
-      parts.push(
-        <strong key={`strong-${match.index}`}>
-          {token.slice(2, -2)}
-        </strong>
-      );
-    } else if (token.startsWith("*") || token.startsWith("_")) {
-      parts.push(
-        <em key={`em-${match.index}`}>
-          {token.slice(1, -1)}
-        </em>
-      );
-    } else {
-      parts.push(token);
-    }
-
-    lastIndex = match.index + token.length;
-  }
-
-  if (lastIndex < source.length) {
-    parts.push(source.slice(lastIndex));
-  }
-
-  return parts;
-}
-
-function splitTableRow(line) {
-  let value = line.trim();
-
-  if (value.startsWith("|")) value = value.slice(1);
-  if (value.endsWith("|")) value = value.slice(0, -1);
-
-  return value.split("|").map(cell => cell.trim());
-}
-
-function isTableDivider(line) {
-  const cells = splitTableRow(line);
-
-  return (
-    cells.length > 0 &&
-    cells.every(cell => /^:?-{3,}:?$/.test(cell.trim()))
-  );
-}
-
-function MarkdownContent({ content }) {
-  const markdown = normalizeText(content);
-
-  if (!markdown.trim()) {
-    return null;
-  }
-
-  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
-  const blocks = [];
-  let index = 0;
-
-  while (index < lines.length) {
-    const line = lines[index];
-
-    if (!line.trim()) {
-      index += 1;
-      continue;
-    }
-
-    if (line.trim().startsWith("```")) {
-      const language = line.trim().slice(3).trim();
-      const codeLines = [];
-      index += 1;
-
-      while (
-        index < lines.length &&
-        !lines[index].trim().startsWith("```")
-      ) {
-        codeLines.push(lines[index]);
-        index += 1;
-      }
-
-      if (index < lines.length) index += 1;
-
-      blocks.push(
-        <pre className="markdown-code-block" key={`code-block-${index}`}>
-          <code data-language={language || undefined}>
-            {codeLines.join("\n")}
-          </code>
-        </pre>
-      );
-
-      continue;
-    }
-
-    const heading = line.match(/^(#{1,6})\s+(.+)$/);
-
-    if (heading) {
-      const level = heading[1].length;
-      const HeadingTag = `h${level}`;
-
-      blocks.push(
-        <HeadingTag key={`heading-${index}`}>
-          {parseInlineMarkdown(heading[2])}
-        </HeadingTag>
-      );
-
-      index += 1;
-      continue;
-    }
-
-    if (
-      index + 1 < lines.length &&
-      line.includes("|") &&
-      isTableDivider(lines[index + 1])
-    ) {
-      const headers = splitTableRow(line);
-      const rows = [];
-      index += 2;
-
-      while (index < lines.length && lines[index].trim() && lines[index].includes("|")) {
-        rows.push(splitTableRow(lines[index]));
-        index += 1;
-      }
-
-      blocks.push(
-        <div className="markdown-table-wrap" key={`table-${index}`}>
-          <table className="markdown-table">
-            <thead>
-              <tr>
-                {headers.map((header, cellIndex) => (
-                  <th key={`head-${cellIndex}`}>
-                    {parseInlineMarkdown(header)}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-
-            <tbody>
-              {rows.map((row, rowIndex) => (
-                <tr key={`row-${rowIndex}`}>
-                  {headers.map((_, cellIndex) => (
-                    <td key={`cell-${rowIndex}-${cellIndex}`}>
-                      {parseInlineMarkdown(row[cellIndex] || "")}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      );
-
-      continue;
-    }
-
-    if (/^>\s?/.test(line)) {
-      const quoteLines = [];
-
-      while (index < lines.length && /^>\s?/.test(lines[index])) {
-        quoteLines.push(lines[index].replace(/^>\s?/, ""));
-        index += 1;
-      }
-
-      blocks.push(
-        <blockquote key={`quote-${index}`}>
-          {quoteLines.map((quoteLine, quoteIndex) => (
-            <p key={quoteIndex}>{parseInlineMarkdown(quoteLine)}</p>
-          ))}
-        </blockquote>
-      );
-
-      continue;
-    }
-
-    if (/^\s*[-*+]\s+/.test(line)) {
-      const items = [];
-
-      while (
-        index < lines.length &&
-        /^\s*[-*+]\s+/.test(lines[index])
-      ) {
-        items.push(lines[index].replace(/^\s*[-*+]\s+/, ""));
-        index += 1;
-      }
-
-      blocks.push(
-        <ul key={`ul-${index}`}>
-          {items.map((item, itemIndex) => (
-            <li key={itemIndex}>{parseInlineMarkdown(item)}</li>
-          ))}
-        </ul>
-      );
-
-      continue;
-    }
-
-    if (/^\s*\d+\.\s+/.test(line)) {
-      const items = [];
-
-      while (
-        index < lines.length &&
-        /^\s*\d+\.\s+/.test(lines[index])
-      ) {
-        items.push(lines[index].replace(/^\s*\d+\.\s+/, ""));
-        index += 1;
-      }
-
-      blocks.push(
-        <ol key={`ol-${index}`}>
-          {items.map((item, itemIndex) => (
-            <li key={itemIndex}>{parseInlineMarkdown(item)}</li>
-          ))}
-        </ol>
-      );
-
-      continue;
-    }
-
-    const paragraphLines = [line];
-    index += 1;
-
-    while (
-      index < lines.length &&
-      lines[index].trim() &&
-      !/^#{1,6}\s+/.test(lines[index]) &&
-      !/^>\s?/.test(lines[index]) &&
-      !/^\s*[-*+]\s+/.test(lines[index]) &&
-      !/^\s*\d+\.\s+/.test(lines[index]) &&
-      !lines[index].trim().startsWith("```") &&
-      !(
-        index + 1 < lines.length &&
-        lines[index].includes("|") &&
-        isTableDivider(lines[index + 1])
-      )
-    ) {
-      paragraphLines.push(lines[index]);
-      index += 1;
-    }
-
-    blocks.push(
-      <p key={`paragraph-${index}`}>
-        {paragraphLines.map((paragraphLine, paragraphIndex) => (
-          <span key={paragraphIndex}>
-            {paragraphIndex > 0 && <br />}
-            {parseInlineMarkdown(paragraphLine)}
-          </span>
-        ))}
-      </p>
-    );
-  }
-
-  return <div className="markdown-content">{blocks}</div>;
-}
-
-function ResultSection({ icon, title, children, className = "" }) {
-  return (
-    <section className={`report-section ${className}`}>
-      <div className="report-section-heading">
-        <div className="report-heading-icon">
-          <Icon name={icon} size={18} />
-        </div>
-        <h2>{title}</h2>
-      </div>
-
-      <div className="report-section-content">{children}</div>
-    </section>
-  );
-}
-
-function Results({
-  result,
-  title,
-  situation,
-  category,
-  context,
-  onNew,
-  onHistory,
-  user
-}) {
-  const [chatInput, setChatInput] = useState("");
-  const [chatMessages, setChatMessages] = useState([]);
-  const [chatLoading, setChatLoading] = useState(false);
-  const chatEndRef = useRef(null);
-
-  const summary = getResultValue(
-    result,
-    ["summary", "overview", "conclusion"],
-    ""
-  );
-
-  const riskAssessment = getResultValue(
-    result,
-    ["riskAssessment", "risk", "risks"],
-    ""
-  );
-
-  const nextSteps = getResultValue(
-    result,
-    ["nextSteps", "steps", "recommendations"],
-    []
-  );
-
-  const panels = getResultValue(
-    result,
-    ["personalizedPanels", "panels", "considerations"],
-    []
-  );
-
-  const draftTemplate = getResultValue(
-    result,
-    ["draftTemplate", "draft", "template"],
-    ""
-  );
-
-  const resources = getResultValue(
-    result,
-    ["resources", "resourceList"],
-    []
-  );
-
-  const references = getResultValue(
-    result,
-    ["referenceLinks", "references", "sources"],
-    []
-  );
-
-  const confidence = getResultValue(
-    result,
-    ["confidence"],
-    ""
-  );
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "nearest"
-    });
-  }, [chatMessages, chatLoading]);
-
-  function normalizeList(value) {
-    if (Array.isArray(value)) return value;
-
-    if (typeof value === "string") {
-      return value
-        .split(/\n+/)
-        .map(item => item.replace(/^\s*[-*]\s*/, "").trim())
-        .filter(Boolean);
-    }
-
-    return [];
-  }
-
-  async function sendChat(event) {
-    event?.preventDefault();
-
-    const message = chatInput.trim();
-
-    if (!message || chatLoading) return;
-
-    setChatInput("");
-
-    const userMessage = {
-      role: "user",
-      content: message
-    };
-
-    setChatMessages(previous => [...previous, userMessage]);
-    setChatLoading(true);
-
-    try {
-      const data = await api("/api/chat", {
-        method: "POST",
-        body: JSON.stringify({
-          question: message,
-          message,
-          currentSituation: situation,
-          context,
-          attachment: null
-        })
-      });
-
-      const reply =
-        data.reply ||
-        data.response ||
-        data.message ||
-        data.content ||
-        data.answer ||
-        data?.choices?.[0]?.message?.content ||
-        "";
-
-      if (!reply) {
-        throw new Error("VERLO did not return a response.");
-      }
-
-      setChatMessages(previous => [
-        ...previous,
-        {
-          role: "assistant",
-          content: String(reply)
-        }
-      ]);
-    } catch (error) {
-      setChatMessages(previous => [
-        ...previous,
-        {
-          role: "assistant",
-          content: `I couldn't complete that follow-up. ${error.message}`
-        }
-      ]);
-    } finally {
-      setChatLoading(false);
-    }
-  }
-
-  function handleChatKeyDown(event) {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      sendChat(event);
-    }
-  }
-
-  const stepItems = normalizeList(nextSteps);
-  const panelItems = Array.isArray(panels) ? panels : [];
-  const resourceItems = Array.isArray(resources) ? resources : [];
-  const referenceItems = Array.isArray(references) ? references : [];
-
-  return (
-    <main className="results-page">
-      <header className="site-header report-header">
-        <button className="brand-button" onClick={onNew} aria-label="VERLO home">
-          <Logo />
-        </button>
-
-        <nav className="site-nav" aria-label="Report navigation">
-          {user && (
-            <button className="history-nav-button" onClick={onHistory}>
-              <Icon name="history" size={17} />
-              History
-            </button>
-          )}
-
-          <button className="header-cta" onClick={onNew}>
-            New situation
-            <Icon name="plus" size={16} />
-          </button>
-        </nav>
-      </header>
-
-      <div className="report-container">
-        <section className="report-hero">
-          <div className="report-hero-copy">
-            <span className="eyebrow">VERLO REPORT</span>
-            <h1>{title || "Your decision report"}</h1>
-
-            <div className="report-context">
-              <span>{category || "General"}</span>
-              {confidence && (
-                <>
-                  <span className="report-context-divider" />
-                  <span>Confidence: {normalizeText(confidence)}</span>
-                </>
-              )}
-            </div>
-
-            <p>{summary || "VERLO has finished analysing your situation."}</p>
-          </div>
-
-          <div className="report-hero-mark" aria-hidden="true">
-            <Icon name="compass" size={44} strokeWidth={1.35} />
-          </div>
-        </section>
-
-        <div className="report-grid">
-          {summary && (
-            <ResultSection icon="spark" title="Summary">
-              <MarkdownContent content={summary} />
-            </ResultSection>
-          )}
-
-          {riskAssessment && (
-            <ResultSection icon="shield" title="Risk and considerations">
-              <MarkdownContent content={riskAssessment} />
-            </ResultSection>
-          )}
-
-          {stepItems.length > 0 && (
-            <ResultSection icon="arrow-right" title="Next steps">
-              <div className="next-step-list">
-                {stepItems.map((step, index) => (
-                  <div className="next-step" key={index}>
-                    <span>{String(index + 1).padStart(2, "0")}</span>
-                    <div>
-                      <MarkdownContent content={step} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </ResultSection>
-          )}
-
-          {panelItems.length > 0 && (
-            <ResultSection icon="compass" title="Things to consider">
-              <div className="consideration-list">
-                {panelItems.map((panel, index) => {
-                  const panelTitle =
-                    typeof panel === "object"
-                      ? panel.title || panel.heading || `Consideration ${index + 1}`
-                      : `Consideration ${index + 1}`;
-
-                  const panelContent =
-                    typeof panel === "object"
-                      ? panel.content || panel.description || panel.text || ""
-                      : panel;
-
-                  return (
-                    <article className="consideration" key={index}>
-                      <h3>{panelTitle}</h3>
-                      <MarkdownContent content={panelContent} />
-                    </article>
-                  );
-                })}
-              </div>
-            </ResultSection>
-          )}
-
-          {draftTemplate && (
-            <ResultSection icon="send" title="Draft you can use">
-              <div className="draft-box">
-                <MarkdownContent content={draftTemplate} />
-              </div>
-            </ResultSection>
-          )}
-
-          {resourceItems.length > 0 && (
-            <ResultSection icon="external" title="Resources">
-              <div className="resource-grid">
-                {resourceItems.map((resource, index) => {
-                  const resourceTitle =
-                    typeof resource === "object"
-                      ? resource.title || resource.name || `Resource ${index + 1}`
-                      : resource;
-
-                  const resourceDescription =
-                    typeof resource === "object"
-                      ? resource.description || resource.text || ""
-                      : "";
-
-                  const resourceUrl =
-                    typeof resource === "object"
-                      ? resource.url || resource.href || ""
-                      : "";
-
-                  return (
-                    <article className="resource-card" key={index}>
-                      <h3>{resourceTitle}</h3>
-                      {resourceDescription && (
-                        <MarkdownContent content={resourceDescription} />
-                      )}
-
-                      {/^https?:\/\//i.test(resourceUrl) && (
-                        <a
-                          href={resourceUrl}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                        >
-                          Open resource
-                          <Icon name="external" size={14} />
-                        </a>
-                      )}
-                    </article>
-                  );
-                })}
-              </div>
-            </ResultSection>
-          )}
-
-          {referenceItems.length > 0 && (
-            <ResultSection icon="paperclip" title="References">
-              <div className="reference-list">
-                {referenceItems.map((reference, index) => {
-                  const referenceTitle =
-                    typeof reference === "object"
-                      ? reference.title || reference.name || reference.label || `Reference ${index + 1}`
-                      : reference;
-
-                  const referenceUrl =
-                    typeof reference === "object"
-                      ? reference.url || reference.href || ""
-                      : "";
-
-                  return (
-                    <div className="reference-row" key={index}>
-                      <span>{String(index + 1).padStart(2, "0")}</span>
-
-                      <div>
-                        {/^https?:\/\//i.test(referenceUrl) ? (
-                          <a
-                            href={referenceUrl}
-                            target="_blank"
-                            rel="noreferrer noopener"
-                          >
-                            {referenceTitle}
-                            <Icon name="external" size={14} />
-                          </a>
-                        ) : (
-                          <MarkdownContent content={referenceTitle} />
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </ResultSection>
-          )}
-
-          <section className="report-chat">
-            <div className="report-chat-heading">
-              <div>
-                <span className="eyebrow">FOLLOW UP</span>
-                <h2>Ask VERLO about this report</h2>
-              </div>
-
-              <div className="chat-status">
-                <span />
-                Ready
-              </div>
-            </div>
-
-            <div className="chat-messages" aria-live="polite">
-              {chatMessages.length === 0 ? (
-                <div className="chat-empty">
-                  <Icon name="spark" size={20} />
-                  <p>
-                    Ask a follow-up about your situation, the report, or one of
-                    the suggested next steps.
-                  </p>
-                </div>
-              ) : (
-                chatMessages.map((message, index) => (
-                  <div
-                    className={
-                      message.role === "user"
-                        ? "user-message"
-                        : "assistant-message"
-                    }
-                    key={index}
-                  >
-                    <div className="chat-message-label">
-                      {message.role === "user" ? "YOU" : "VERLO"}
-                    </div>
-                    <MarkdownContent content={message.content} />
-                  </div>
-                ))
-              )}
-
-              {chatLoading && (
-                <div className="assistant-message">
-                  <div className="chat-message-label">VERLO</div>
-                  <LoadingDots />
-                </div>
-              )}
-
-              <div ref={chatEndRef} />
-            </div>
-
-            <form className="chat-form" onSubmit={sendChat}>
-              <textarea
-                value={chatInput}
-                onChange={event => setChatInput(event.target.value)}
-                onKeyDown={handleChatKeyDown}
-                placeholder="Ask a follow-up question..."
-                rows={2}
-                aria-label="Ask VERLO a follow-up question"
-              />
-
-              <button
-                type="submit"
-                className="continue-button"
-                disabled={!chatInput.trim() || chatLoading}
-                aria-label="Send message"
-              >
-                <Icon name="send" size={17} />
-              </button>
-            </form>
-
-            <p className="chat-note">
-              Press Enter to send. Shift + Enter for a new line.
-            </p>
-          </section>
-        </div>
-      </div>
-    </main>
-  );
-}
-
-function HistoryPanel({ onClose, onSelect }) {
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    let active = true;
-
-    async function loadHistory() {
-      try {
-        const data = await api("/api/history");
-
-        if (!active) return;
-
-        setHistory(
-          Array.isArray(data)
-            ? data
-            : data.history || data.items || []
-        );
-      } catch (err) {
-        if (active) setError(err.message);
-      } finally {
-        if (active) setLoading(false);
-      }
-    }
-
-    loadHistory();
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
-      <div
-        className="history-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="history-heading"
-        onMouseDown={event => event.stopPropagation()}
-      >
-        <div className="history-heading">
-          <div>
-            <span className="eyebrow">YOUR WORK</span>
-            <h2 id="history-heading">History</h2>
-          </div>
-
-          <button className="modal-close" onClick={onClose} aria-label="Close">
-            <Icon name="close" />
-          </button>
-        </div>
-
-        {loading && (
-          <div className="history-loading">
-            <LoadingDots />
-          </div>
-        )}
-
-        {!loading && error && (
-          <div className="form-error">{error}</div>
-        )}
-
-        {!loading && !error && history.length === 0 && (
-          <div className="history-empty">
-            <Icon name="history" size={25} />
-            <h3>No saved reports yet</h3>
-            <p>
-              Complete a VERLO assessment and your reports will appear here.
-            </p>
-          </div>
-        )}
-
-        {!loading && history.length > 0 && (
-          <div className="history-list">
-            {history.map((item, index) => {
-              const itemTitle =
-                item.title ||
-                item.name ||
-                item.situation ||
-                `Report ${index + 1}`;
-
-              const date =
-                item.createdAt ||
-                item.updatedAt ||
-                item.date ||
-                "";
-
-              return (
-                <button
-                  className="history-item"
-                  key={item.id || item._id || index}
-                  onClick={() => onSelect(item)}
-                >
-                  <div>
-                    <span className="history-item-category">
-                      {item.category || "General"}
-                    </span>
-                    <h3>{itemTitle}</h3>
-                    {date && (
-                      <span className="history-item-date">
-                        {new Date(date).toLocaleDateString()}
-                      </span>
-                    )}
-                  </div>
-
-                  <Icon name="arrow-right" size={17} />
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-export default function App() {
-  const initial = useMemo(() => loadState(), []);
-
-  const [screen, setScreen] = useState(initial.screen);
-  const [situation, setSituation] = useState(initial.situation);
-  const [title, setTitle] = useState(initial.title);
-  const [category, setCategory] = useState(initial.category);
-  const [context, setContext] = useState(initial.context);
-  const [questions, setQuestions] = useState(initial.questions);
-  const [answers, setAnswers] = useState(initial.answers);
-  const [questionIndex, setQuestionIndex] = useState(initial.questionIndex);
-  const [result, setResult] = useState(initial.result);
-  const [attachments, setAttachments] = useState(initial.attachments);
-  const [verificationEmail, setVerificationEmail] = useState(
-    initial.verificationEmail
-  );
-  const [verificationRequired, setVerificationRequired] = useState(
-    initial.verificationRequired
-  );
-
-  const [user, setUser] = useState(null);
-  const [authOpen, setAuthOpen] = useState(false);
-  const [authMode, setAuthMode] = useState("login");
-  const [historyOpen, setHistoryOpen] = useState(false);
-
-  const [loading, setLoading] = useState(false);
-  const [processingProgress, setProcessingProgress] = useState(0);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    saveState({
-      screen,
-      situation,
-      title,
-      category,
-      context,
-      questions,
-      answers,
-      questionIndex,
-      result,
-      attachments,
-      verificationEmail,
-      verificationRequired
-    });
-  }, [
-    screen,
-    situation,
-    title,
-    category,
-    context,
-    questions,
-    answers,
-    questionIndex,
-    result,
-    attachments,
-    verificationEmail,
-    verificationRequired
-  ]);
-
-  useEffect(() => {
-    let active = true;
-
-    async function checkAuth() {
-      try {
-        const data = await api("/api/auth/me");
-
-        if (active) {
-          setUser(data.user || data);
-        }
-      } catch {
-        if (active) {
-          setUser(null);
-        }
-      }
-    }
-
-    checkAuth();
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (screen !== "processing") {
-      setProcessingProgress(0);
-      return;
-    }
-
-    let value = 0;
-
-    const timer = window.setInterval(() => {
-      value += Math.random() * 5 + 1;
-
-      if (value > 94) {
-        value = 94;
-      }
-
-      setProcessingProgress(value);
-    }, 450);
-
-    return () => window.clearInterval(timer);
-  }, [screen]);
-
-  function resetAssessment() {
-    setSituation("");
-    setTitle("");
-    setCategory("General");
-    setContext("");
-    setQuestions([]);
-    setAnswers([]);
-    setQuestionIndex(0);
-    setResult(null);
-    setAttachments([]);
-    setError("");
-    setScreen("input");
-  }
-
-  function goHome() {
-    setError("");
-    setScreen("home");
-  }
-
-  async function startAssessment() {
-    if (situation.trim().length < 5 || loading) return;
-
+  const runAnalysis = async finalAnswers => {
     setLoading(true);
     setError("");
-
-    try {
-      const data = await api("/api/adaptive-question", {
-        method: "POST",
-        body: JSON.stringify({
-          title,
-          description: situation,
-          context,
-          previousAnswers: [],
-          previousQuestions: [],
-          questionNumber: 1,
-          maxQuestions: MAX_ADAPTIVE_QUESTIONS,
-          attachments
-        })
-      });
-
-      const rawQuestion =
-        data.question ||
-        data.questions?.[0] ||
-        data.questionText ||
-        data.data?.question;
-
-      if (!rawQuestion) {
-        throw new Error("Adaptive engine failed to create the first question.");
-      }
-
-      const firstQuestion = normalizeQuestion(rawQuestion, 0);
-
-      setQuestions([firstQuestion]);
-      setAnswers([]);
-      setQuestionIndex(0);
-      setScreen("assessment");
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function runAnalysis(finalAnswers = answers) {
-    setLoading(false);
-    setProcessingProgress(10);
-    setScreen("processing");
 
     try {
       const data = await api("/api/analyze", {
@@ -2293,48 +1058,23 @@ export default function App() {
           context,
           answers: finalAnswers,
           questions,
-          attachment: attachments[0] || null,
+          attachment: attachments?.[0] || null,
           attachments
         })
       });
 
-      if (!data.success && !data.result) {
-        throw new Error(data.error || "VERLO could not complete the analysis.");
-      }
-
-      setProcessingProgress(100);
-      setResult(data.result || data);
-      setScreen("results");
-
-      if (user) {
-        try {
-          await api("/api/history/save", {
-            method: "POST",
-            body: JSON.stringify({
-              title,
-              category,
-              situation,
-              result: data.result || data
-            })
-          });
-        } catch {
-          return;
-        }
-      }
+      onComplete(data?.result || data);
     } catch (err) {
-      setError(err.message);
-      setScreen("assessment");
+      setError(
+        err.message ||
+          "Unable to analyse your situation."
+      );
+    } finally {
+      setLoading(false);
     }
-  }
+  };
 
-  async function requestNextQuestion(updatedAnswers) {
-    if (loading) return;
-
-    if (questionIndex + 1 >= MAX_ADAPTIVE_QUESTIONS) {
-      await runAnalysis(updatedAnswers);
-      return;
-    }
-
+  const requestNextQuestion = async finalAnswers => {
     setLoading(true);
     setError("");
 
@@ -2345,8 +1085,12 @@ export default function App() {
           title,
           description: situation,
           context,
-          previousAnswers: updatedAnswers,
-          previousQuestions: questions,
+          previousAnswers: finalAnswers,
+          previousQuestions: questions.map(item => ({
+            id: item.id,
+            question: item.question,
+            type: item.type
+          })),
           questionNumber: questionIndex + 2,
           maxQuestions: MAX_ADAPTIVE_QUESTIONS,
           attachments
@@ -2354,139 +1098,2294 @@ export default function App() {
       });
 
       if (
-        data.complete ||
-        data.done ||
-        data.finished ||
-        data.completed
+        data?.complete ||
+        data?.done ||
+        data?.finished
       ) {
-        await runAnalysis(updatedAnswers);
+        await runAnalysis(finalAnswers);
         return;
       }
 
       const rawQuestion =
-        data.question ||
-        data.questions?.[0] ||
-        data.questionText ||
-        data.data?.question;
-
-      if (!rawQuestion) {
-        await runAnalysis(updatedAnswers);
-        return;
-      }
+        data?.question ||
+        data?.questions?.[0] ||
+        data?.questionText;
 
       const nextQuestion = normalizeQuestion(
         rawQuestion,
-        questions.length
+        questionIndex + 1
       );
 
-      setQuestions(previous => [...previous, nextQuestion]);
+      if (!nextQuestion || !nextQuestion.question) {
+        await runAnalysis(finalAnswers);
+        return;
+      }
+
+      setQuestions(previous => [
+        ...previous,
+        nextQuestion
+      ]);
+
       setQuestionIndex(previous => previous + 1);
     } catch (err) {
-      setError(err.message);
+      setError(
+        err.message ||
+          "Unable to create the next question."
+      );
     } finally {
       setLoading(false);
     }
-  }
+  };
 
-  async function handleContinue(answer) {
-    const updatedAnswers = [
-      ...answers.filter(item => item.questionId !== answer.questionId),
-      answer
+  const saveAnswerAndContinue = async answerValue => {
+    const finalAnswers = [
+      ...answers.filter(
+        answer => answer.questionId !== question.id
+      ),
+      {
+        questionId: question.id,
+        question: question.question,
+        answer: answerValue
+      }
     ];
 
-    setAnswers(updatedAnswers);
-    await requestNextQuestion(updatedAnswers);
+    setAnswers(finalAnswers);
+
+    if (
+      questionIndex + 1 >=
+      MAX_ADAPTIVE_QUESTIONS
+    ) {
+      await runAnalysis(finalAnswers);
+      return;
+    }
+
+    await requestNextQuestion(finalAnswers);
+  };
+
+  const handleContinue = async () => {
+    if (!question || loading) {
+      return;
+    }
+
+    setError("");
+
+    if (
+      question.required &&
+      !value.trim()
+    ) {
+      setError(
+        "Please answer the question or choose Skip."
+      );
+      return;
+    }
+
+    await saveAnswerAndContinue(
+      value.trim()
+    );
+  };
+
+  const skipQuestion = async () => {
+    if (!question || loading) {
+      return;
+    }
+
+    await saveAnswerAndContinue("");
+  };
+
+  const handleTextKeyDown = event => {
+    if (!multiline && event.key === "Enter") {
+      event.preventDefault();
+      handleContinue();
+      return;
+    }
+
+    if (
+      multiline &&
+      event.key === "Enter" &&
+      (event.metaKey || event.ctrlKey)
+    ) {
+      event.preventDefault();
+      handleContinue();
+    }
+  };
+
+  if (!question) {
+    return (
+      <div className="assessment-page">
+        <header className="site-header">
+          <Logo
+            onClick={() =>
+              window.location.reload()
+            }
+          />
+        </header>
+
+        <main className="adaptive-main">
+          <div className="question-card">
+            <div className="processing-inner">
+              <LoadingDots />
+              <p>
+                Preparing your first question...
+              </p>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
   }
 
-  async function handleSkip(answer) {
-    const updatedAnswers = [
-      ...answers.filter(item => item.questionId !== answer.questionId),
-      answer
-    ];
+  const isChoice =
+    question.type === "choice" ||
+    question.type === "mcq" ||
+    question.type === "select" ||
+    question.options.length > 0;
 
-    setAnswers(updatedAnswers);
-    await requestNextQuestion(updatedAnswers);
+  return (
+    <div className="assessment-page">
+      <header className="site-header">
+        <Logo
+          onClick={() =>
+            window.location.reload()
+          }
+        />
+
+        <div className="assessment-progress-label">
+          Question {questionIndex + 1} of{" "}
+          {MAX_ADAPTIVE_QUESTIONS}
+        </div>
+      </header>
+
+      <main className="adaptive-main">
+        <div className="assessment-progress">
+          <div className="assessment-progress-track">
+            <div
+              className="assessment-progress-fill"
+              style={{
+                width: `${progress}%`
+              }}
+            />
+          </div>
+        </div>
+
+        <div className="question-card">
+          <div className="question-meta">
+            <span>
+              QUESTION{" "}
+              {String(
+                questionIndex + 1
+              ).padStart(2, "0")}
+            </span>
+
+            {question.required && (
+              <span>REQUIRED</span>
+            )}
+          </div>
+
+          <div className="question-content">
+            <h1>{question.question}</h1>
+
+            {question.image && (
+              <div className="question-image-wrap">
+                <img
+                  className="question-image"
+                  src={question.image}
+                  alt={question.imageAlt}
+                />
+
+                {question.imageCaption && (
+                  <span className="question-image-caption">
+                    {question.imageCaption}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {isChoice ? (
+              <div className="choice-list">
+                {question.options.map(
+                  (option, optionIndex) => {
+                    const optionValue =
+                      typeof option === "string"
+                        ? option
+                        : option?.value ||
+                          option?.label ||
+                          "";
+
+                    const optionLabel =
+                      typeof option === "string"
+                        ? option
+                        : option?.label ||
+                          option?.value ||
+                          "";
+
+                    return (
+                      <button
+                        type="button"
+                        className={`choice-option ${
+                          value === optionValue
+                            ? "selected"
+                            : ""
+                        }`}
+                        key={`${optionValue}-${optionIndex}`}
+                        onClick={() =>
+                          setValue(
+                            optionValue
+                          )
+                        }
+                        disabled={loading}
+                      >
+                        <span className="choice-radio">
+                          {value ===
+                            optionValue && (
+                            <span />
+                          )}
+                        </span>
+
+                        <span>
+                          {optionLabel}
+                        </span>
+                      </button>
+                    );
+                  }
+                )}
+              </div>
+            ) : multiline ? (
+              <div className="adaptive-textarea-shell multiline-answer">
+                <textarea
+                  value={value}
+                  onChange={event =>
+                    setValue(
+                      event.target.value
+                    )
+                  }
+                  onKeyDown={
+                    handleTextKeyDown
+                  }
+                  placeholder={
+                    question.placeholder ||
+                    "Type your answer here..."
+                  }
+                  rows={7}
+                  maxLength={4000}
+                  disabled={loading}
+                  aria-label={
+                    question.question
+                  }
+                />
+
+                <div className="adaptive-textarea-count">
+                  {value.length}/4000
+                </div>
+              </div>
+            ) : (
+              <div className="adaptive-input-shell single-line-answer">
+                <input
+                  type="text"
+                  value={value}
+                  onChange={event =>
+                    setValue(
+                      event.target.value
+                    )
+                  }
+                  onKeyDown={
+                    handleTextKeyDown
+                  }
+                  placeholder={
+                    question.placeholder ||
+                    "Type your answer here..."
+                  }
+                  maxLength={1000}
+                  disabled={loading}
+                  aria-label={
+                    question.question
+                  }
+                  autoComplete="off"
+                />
+              </div>
+            )}
+          </div>
+
+          {error && (
+            <div
+              className="form-error"
+              role="alert"
+            >
+              {error}
+            </div>
+          )}
+
+          <div className="question-footer">
+            <button
+              className="skip-button"
+              type="button"
+              onClick={skipQuestion}
+              disabled={loading}
+            >
+              <Icon
+                name="skip"
+                size={16}
+              />
+              Skip
+            </button>
+
+            <button
+              className="continue-button"
+              type="button"
+              onClick={handleContinue}
+              disabled={loading}
+            >
+              {loading ? (
+                <LoadingDots />
+              ) : (
+                <>
+                  Continue
+                  <Icon
+                    name="arrow"
+                    size={17}
+                  />
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function Processing({ progress = 0 }) {
+  return (
+    <div className="assessment-page processing-page">
+      <header className="site-header">
+        <Logo
+          onClick={() =>
+            window.location.reload()
+          }
+        />
+      </header>
+
+      <main className="processing-container">
+        <div className="processing-inner">
+          <div className="processing-orb">
+            <div className="processing-orb-core">
+              <Icon
+                name="spark"
+                size={28}
+              />
+            </div>
+          </div>
+
+          <div className="eyebrow">
+            VERLO is thinking
+          </div>
+
+          <h1>
+            Building your decision map.
+          </h1>
+
+          <p>
+            We are bringing your situation
+            and answers together into a
+            structured report.
+          </p>
+
+          <div className="processing-progress">
+            <div className="processing-progress-track">
+              <div
+                className="processing-progress-fill"
+                style={{
+                  width: `${progress}%`
+                }}
+              />
+            </div>
+
+            <span className="processing-percent">
+              {progress}%
+            </span>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function getResultValue(
+  result,
+  keys,
+  fallback = ""
+) {
+  if (!result) {
+    return fallback;
   }
 
-  async function handleLogout() {
-    try {
-      await api("/api/auth/logout", {
-        method: "POST"
+  for (const key of keys) {
+    if (
+      result[key] !== undefined &&
+      result[key] !== null
+    ) {
+      return result[key];
+    }
+  }
+
+  return fallback;
+}
+
+function ResultSection({
+  icon,
+  title,
+  children
+}) {
+  return (
+    <section className="report-section">
+      <div className="report-section-heading">
+        <span className="report-heading-icon">
+          <Icon
+            name={icon}
+            size={17}
+          />
+        </span>
+
+        <h2>{title}</h2>
+      </div>
+
+      <div className="report-section-content">
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function MarkdownInline({ children }) {
+  const text = String(children ?? "");
+
+  const tokenPattern =
+    /(\[[^\]]+\]\(https?:\/\/[^)\s]+\)|`[^`]+`|\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*|_[^_]+_)/g;
+
+  const parts = text.split(tokenPattern);
+
+  return (
+    <>
+      {parts.map((part, index) => {
+        if (!part) {
+          return null;
+        }
+
+        if (
+          part.startsWith("**") &&
+          part.endsWith("**")
+        ) {
+          return (
+            <strong key={index}>
+              {part.slice(2, -2)}
+            </strong>
+          );
+        }
+
+        if (
+          part.startsWith("__") &&
+          part.endsWith("__")
+        ) {
+          return (
+            <strong key={index}>
+              {part.slice(2, -2)}
+            </strong>
+          );
+        }
+
+        if (
+          part.startsWith("`") &&
+          part.endsWith("`")
+        ) {
+          return (
+            <code key={index}>
+              {part.slice(1, -1)}
+            </code>
+          );
+        }
+
+        if (
+          part.startsWith("*") &&
+          part.endsWith("*") &&
+          !part.startsWith("**")
+        ) {
+          return (
+            <em key={index}>
+              {part.slice(1, -1)}
+            </em>
+          );
+        }
+
+        if (
+          part.startsWith("_") &&
+          part.endsWith("_") &&
+          !part.startsWith("__")
+        ) {
+          return (
+            <em key={index}>
+              {part.slice(1, -1)}
+            </em>
+          );
+        }
+
+        const linkMatch = part.match(
+          /^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/
+        );
+
+        if (linkMatch) {
+          return (
+            <a
+              key={index}
+              href={linkMatch[2]}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {linkMatch[1]}
+            </a>
+          );
+        }
+
+        return (
+          <span key={index}>
+            {part}
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
+function splitMarkdownTableRow(line) {
+  let value = String(line).trim();
+
+  if (value.startsWith("|")) {
+    value = value.slice(1);
+  }
+
+  if (value.endsWith("|")) {
+    value = value.slice(0, -1);
+  }
+
+  return value
+    .split("|")
+    .map(cell => cell.trim());
+}
+
+function isMarkdownTableSeparator(line) {
+  const cells = splitMarkdownTableRow(
+    line
+  );
+
+  return (
+    cells.length > 0 &&
+    cells.every(cell =>
+      /^:?-{3,}:?$/.test(cell)
+    )
+  );
+}
+
+function MarkdownContent({
+  content,
+  className = ""
+}) {
+  const source =
+    content === undefined ||
+    content === null
+      ? ""
+      : String(content);
+
+  const lines = source.replace(
+    /\r\n/g,
+    "\n"
+  ).split("\n");
+
+  const blocks = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index];
+
+    if (!line.trim()) {
+      index += 1;
+      continue;
+    }
+
+    if (
+      line.trim().startsWith("```")
+    ) {
+      const language =
+        line.trim().slice(3).trim();
+
+      const codeLines = [];
+      index += 1;
+
+      while (
+        index < lines.length &&
+        !lines[index]
+          .trim()
+          .startsWith("```")
+      ) {
+        codeLines.push(lines[index]);
+        index += 1;
+      }
+
+      if (
+        index < lines.length &&
+        lines[index]
+          .trim()
+          .startsWith("```")
+      ) {
+        index += 1;
+      }
+
+      blocks.push({
+        type: "code",
+        language,
+        value: codeLines.join("\n")
       });
-    } catch {
+
+      continue;
+    }
+
+    const headingMatch =
+      line.match(/^(#{1,6})\s+(.+)$/);
+
+    if (headingMatch) {
+      blocks.push({
+        type: "heading",
+        level:
+          headingMatch[1].length,
+        value: headingMatch[2]
+      });
+
+      index += 1;
+      continue;
+    }
+
+    if (
+      line.trim().startsWith("> ")
+    ) {
+      const quoteLines = [];
+
+      while (
+        index < lines.length &&
+        lines[index]
+          .trim()
+          .startsWith(">")
+      ) {
+        quoteLines.push(
+          lines[index]
+            .trim()
+            .replace(/^>\s?/, "")
+        );
+
+        index += 1;
+      }
+
+      blocks.push({
+        type: "quote",
+        value: quoteLines.join("\n")
+      });
+
+      continue;
+    }
+
+    const unordered =
+      line.match(/^\s*[-*+]\s+(.+)$/);
+
+    if (unordered) {
+      const items = [];
+
+      while (index < lines.length) {
+        const match =
+          lines[index].match(
+            /^\s*[-*+]\s+(.+)$/
+          );
+
+        if (!match) {
+          break;
+        }
+
+        items.push(match[1]);
+        index += 1;
+      }
+
+      blocks.push({
+        type: "unordered",
+        items
+      });
+
+      continue;
+    }
+
+    const ordered =
+      line.match(/^\s*\d+[.)]\s+(.+)$/);
+
+    if (ordered) {
+      const items = [];
+
+      while (index < lines.length) {
+        const match =
+          lines[index].match(
+            /^\s*\d+[.)]\s+(.+)$/
+          );
+
+        if (!match) {
+          break;
+        }
+
+        items.push(match[1]);
+        index += 1;
+      }
+
+      blocks.push({
+        type: "ordered",
+        items
+      });
+
+      continue;
+    }
+
+    if (
+      line.includes("|") &&
+      index + 1 < lines.length &&
+      isMarkdownTableSeparator(
+        lines[index + 1]
+      )
+    ) {
+      const headers =
+        splitMarkdownTableRow(line);
+
+      index += 2;
+
+      const rows = [];
+
+      while (
+        index < lines.length &&
+        lines[index].includes("|") &&
+        lines[index].trim()
+      ) {
+        rows.push(
+          splitMarkdownTableRow(
+            lines[index]
+          )
+        );
+
+        index += 1;
+      }
+
+      blocks.push({
+        type: "table",
+        headers,
+        rows
+      });
+
+      continue;
+    }
+
+    const paragraphLines = [
+      line
+    ];
+
+    index += 1;
+
+    while (
+      index < lines.length &&
+      lines[index].trim() &&
+      !/^#{1,6}\s+/.test(
+        lines[index]
+      ) &&
+      !/^\s*[-*+]\s+/.test(
+        lines[index]
+      ) &&
+      !/^\s*\d+[.)]\s+/.test(
+        lines[index]
+      ) &&
+      !lines[index]
+        .trim()
+        .startsWith(">") &&
+      !lines[index]
+        .trim()
+        .startsWith("```")
+    ) {
+      if (
+        lines[index].includes("|") &&
+        index + 1 < lines.length &&
+        isMarkdownTableSeparator(
+          lines[index + 1]
+        )
+      ) {
+        break;
+      }
+
+      paragraphLines.push(
+        lines[index]
+      );
+
+      index += 1;
+    }
+
+    blocks.push({
+      type: "paragraph",
+      value: paragraphLines.join(
+        "\n"
+      )
+    });
+  }
+
+  return (
+    <div
+      className={`markdown-content ${className}`}
+    >
+      {blocks.map((block, blockIndex) => {
+        if (block.type === "heading") {
+          const Heading =
+            `h${Math.min(
+              block.level,
+              6
+            )}`;
+
+          return (
+            <Heading key={blockIndex}>
+              <MarkdownInline>
+                {block.value}
+              </MarkdownInline>
+            </Heading>
+          );
+        }
+
+        if (block.type === "paragraph") {
+          const lines =
+            block.value.split("\n");
+
+          return (
+            <p key={blockIndex}>
+              {lines.map(
+                (paragraphLine, lineIndex) => (
+                  <span
+                    key={lineIndex}
+                  >
+                    {lineIndex > 0 && (
+                      <br />
+                    )}
+                    <MarkdownInline>
+                      {paragraphLine}
+                    </MarkdownInline>
+                  </span>
+                )
+              )}
+            </p>
+          );
+        }
+
+        if (
+          block.type === "unordered"
+        ) {
+          return (
+            <ul key={blockIndex}>
+              {block.items.map(
+                (item, itemIndex) => (
+                  <li
+                    key={itemIndex}
+                  >
+                    <MarkdownInline>
+                      {item}
+                    </MarkdownInline>
+                  </li>
+                )
+              )}
+            </ul>
+          );
+        }
+
+        if (
+          block.type === "ordered"
+        ) {
+          return (
+            <ol key={blockIndex}>
+              {block.items.map(
+                (item, itemIndex) => (
+                  <li
+                    key={itemIndex}
+                  >
+                    <MarkdownInline>
+                      {item}
+                    </MarkdownInline>
+                  </li>
+                )
+              )}
+            </ol>
+          );
+        }
+
+        if (block.type === "quote") {
+          return (
+            <blockquote
+              key={blockIndex}
+            >
+              <MarkdownContent
+                content={
+                  block.value
+                }
+              />
+            </blockquote>
+          );
+        }
+
+        if (block.type === "code") {
+          return (
+            <pre
+              key={blockIndex}
+            >
+              <code>
+                {block.value}
+              </code>
+            </pre>
+          );
+        }
+
+        if (block.type === "table") {
+          return (
+            <div
+              className="markdown-table-wrap"
+              key={blockIndex}
+            >
+              <table>
+                <thead>
+                  <tr>
+                    {block.headers.map(
+                      (
+                        header,
+                        headerIndex
+                      ) => (
+                        <th
+                          key={
+                            headerIndex
+                          }
+                        >
+                          <MarkdownInline>
+                            {header}
+                          </MarkdownInline>
+                        </th>
+                      )
+                    )}
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {block.rows.map(
+                    (
+                      row,
+                      rowIndex
+                    ) => (
+                      <tr
+                        key={
+                          rowIndex
+                        }
+                      >
+                        {block.headers.map(
+                          (
+                            _,
+                            columnIndex
+                          ) => (
+                            <td
+                              key={
+                                columnIndex
+                              }
+                            >
+                              <MarkdownInline>
+                                {row[
+                                  columnIndex
+                                ] ||
+                                  ""}
+                              </MarkdownInline>
+                            </td>
+                          )
+                        )}
+                      </tr>
+                    )
+                  )}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
+
+        return null;
+      })}
+    </div>
+  );
+}
+
+function valueToText(value) {
+  if (
+    value === undefined ||
+    value === null
+  ) {
+    return "";
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map(item => valueToText(item))
+      .filter(Boolean)
+      .join("\n\n");
+  }
+
+  if (typeof value === "object") {
+    if (value.text) {
+      return valueToText(
+        value.text
+      );
+    }
+
+    if (value.description) {
+      return valueToText(
+        value.description
+      );
+    }
+
+    if (value.content) {
+      return valueToText(
+        value.content
+      );
+    }
+
+    if (value.answer) {
+      return valueToText(
+        value.answer
+      );
+    }
+
+    return Object.entries(value)
+      .map(
+        ([key, item]) =>
+          `${key}: ${valueToText(item)}`
+      )
+      .join("\n");
+  }
+
+  return "";
+}
+
+function safeUrl(url) {
+  try {
+    const parsed =
+      new URL(url);
+
+    if (
+      parsed.protocol ===
+        "https:" ||
+      parsed.protocol ===
+        "http:"
+    ) {
+      return parsed.href;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function Results({
+  result,
+  situation,
+  answers,
+  onHome,
+  onHistory
+}) {
+  const [message, setMessage] =
+    useState("");
+
+  const [chatMessages, setChatMessages] =
+    useState([]);
+
+  const [chatLoading, setChatLoading] =
+    useState(false);
+
+  const chatEndRef = useRef(null);
+
+  const title = getResultValue(
+    result,
+    [
+      "title",
+      "headline",
+      "summaryTitle"
+    ],
+    "Your decision report"
+  );
+
+  const summary = getResultValue(
+    result,
+    [
+      "summary",
+      "overview",
+      "analysis"
+    ],
+    "VERLO has analysed your situation."
+  );
+
+  const riskAssessment =
+    getResultValue(
+      result,
+      [
+        "riskAssessment",
+        "risk",
+        "risks"
+      ],
+      ""
+    );
+
+  const options =
+    getResultValue(
+      result,
+      [
+        "options",
+        "possibleOptions",
+        "choices"
+      ],
+      []
+    );
+
+  const nextSteps =
+    getResultValue(
+      result,
+      [
+        "nextSteps",
+        "steps",
+        "actions"
+      ],
+      []
+    );
+
+  const considerations =
+    getResultValue(
+      result,
+      [
+        "considerations",
+        "thingsToConsider"
+      ],
+      []
+    );
+
+  const personalizedPanels =
+    getResultValue(
+      result,
+      [
+        "personalizedPanels",
+        "panels"
+      ],
+      []
+    );
+
+  const draft =
+    getResultValue(
+      result,
+      [
+        "draft",
+        "draftTemplate",
+        "suggestedResponse",
+        "messageDraft"
+      ],
+      ""
+    );
+
+  const resources =
+    getResultValue(
+      result,
+      [
+        "resources",
+        "helpfulResources"
+      ],
+      []
+    );
+
+  const references =
+    getResultValue(
+      result,
+      [
+        "referenceLinks",
+        "references",
+        "sources"
+      ],
+      []
+    );
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest"
+    });
+  }, [
+    chatMessages,
+    chatLoading
+  ]);
+
+  const sendMessage = async event => {
+    event.preventDefault();
+
+    if (
+      !message.trim() ||
+      chatLoading
+    ) {
       return;
+    }
+
+    const userMessage =
+      message.trim();
+
+    const historyForRequest = [
+      ...chatMessages,
+      {
+        role: "user",
+        content: userMessage
+      }
+    ];
+
+    setMessage("");
+
+    setChatMessages(
+      previous => [
+        ...previous,
+        {
+          role: "user",
+          content: userMessage
+        }
+      ]
+    );
+
+    setChatLoading(true);
+
+    try {
+      const data = await api(
+        "/api/chat",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            question: userMessage,
+            message: userMessage,
+            currentSituation:
+              situation,
+            context: valueToText(
+              result
+            ),
+            attachment: null,
+            history:
+              historyForRequest
+          })
+        }
+      );
+
+      const reply =
+        data?.reply ||
+        data?.response ||
+        data?.message ||
+        data?.content ||
+        data?.answer ||
+        data?.choices?.[0]
+          ?.message?.content ||
+        "I could not generate a response.";
+
+      setChatMessages(
+        previous => [
+          ...previous,
+          {
+            role: "assistant",
+            content: String(
+              reply
+            )
+          }
+        ]
+      );
+    } catch (err) {
+      setChatMessages(
+        previous => [
+          ...previous,
+          {
+            role: "assistant",
+            content:
+              err.message ||
+              "I couldn't connect to the decision assistant right now."
+          }
+        ]
+      );
     } finally {
-      setUser(null);
+      setChatLoading(false);
+    }
+  };
+
+  const renderList = items => {
+    const normalized =
+      Array.isArray(items)
+        ? items
+        : [items];
+
+    return (
+      <div className="next-step-list">
+        {normalized.map(
+          (item, index) => {
+            const text =
+              typeof item === "string"
+                ? item
+                : item?.text ||
+                  item?.description ||
+                  item?.title ||
+                  valueToText(
+                    item
+                  );
+
+            return (
+              <div
+                className="next-step"
+                key={`${text}-${index}`}
+              >
+                <span>
+                  {String(
+                    index + 1
+                  ).padStart(2, "0")}
+                </span>
+
+                <div>
+                  <MarkdownContent
+                    content={text}
+                  />
+                </div>
+              </div>
+            );
+          }
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="assessment-page results-page">
+      <header className="site-header">
+        <Logo onClick={onHome} />
+
+        <nav className="site-nav">
+          <button
+            className="history-nav-button"
+            type="button"
+            onClick={onHistory}
+          >
+            <Icon
+              name="history"
+              size={17}
+            />
+            History
+          </button>
+
+          <button
+            className="header-cta"
+            type="button"
+            onClick={onHome}
+          >
+            New decision
+            <Icon
+              name="plus"
+              size={16}
+            />
+          </button>
+        </nav>
+      </header>
+
+      <main className="report-container">
+        <section className="report-hero">
+          <div className="report-hero-copy">
+            <div className="eyebrow">
+              <Icon
+                name="check"
+                size={14}
+              />
+              Decision report
+            </div>
+
+            <h1>{title}</h1>
+
+            <MarkdownContent
+              content={summary}
+            />
+          </div>
+
+          <div className="report-context">
+            <span>
+              Your original situation
+            </span>
+
+            <MarkdownContent
+              content={situation}
+            />
+          </div>
+        </section>
+
+        <div className="report-grid">
+          <div>
+            <ResultSection
+              icon="spark"
+              title="What this means"
+            >
+              <MarkdownContent
+                content={summary}
+              />
+            </ResultSection>
+
+            {riskAssessment && (
+              <ResultSection
+                icon="warning"
+                title="Risk and uncertainty"
+              >
+                <MarkdownContent
+                  content={valueToText(
+                    riskAssessment
+                  )}
+                />
+              </ResultSection>
+            )}
+
+            {options.length > 0 && (
+              <ResultSection
+                icon="arrow"
+                title="Your options"
+              >
+                {renderList(
+                  options
+                )}
+              </ResultSection>
+            )}
+
+            {nextSteps.length >
+              0 && (
+              <ResultSection
+                icon="check"
+                title="Suggested next steps"
+              >
+                {renderList(
+                  nextSteps
+                )}
+              </ResultSection>
+            )}
+
+            {considerations.length >
+              0 && (
+              <ResultSection
+                icon="spark"
+                title="Things to consider"
+              >
+                <div className="consideration-list">
+                  {(Array.isArray(
+                    considerations
+                  )
+                    ? considerations
+                    : [
+                        considerations
+                      ]
+                  ).map(
+                    (
+                      item,
+                      index
+                    ) => (
+                      <div
+                        className="consideration"
+                        key={index}
+                      >
+                        <MarkdownContent
+                          content={valueToText(
+                            item
+                          )}
+                        />
+                      </div>
+                    )
+                  )}
+                </div>
+              </ResultSection>
+            )}
+
+            {personalizedPanels.length >
+              0 && (
+              <ResultSection
+                icon="spark"
+                title="Personalised guidance"
+              >
+                <div className="personalized-panels">
+                  {(Array.isArray(
+                    personalizedPanels
+                  )
+                    ? personalizedPanels
+                    : [
+                        personalizedPanels
+                      ]
+                  ).map(
+                    (
+                      panel,
+                      index
+                    ) => (
+                      <div
+                        className="personalized-panel"
+                        key={index}
+                      >
+                        <MarkdownContent
+                          content={valueToText(
+                            panel
+                          )}
+                        />
+                      </div>
+                    )
+                  )}
+                </div>
+              </ResultSection>
+            )}
+
+            {draft && (
+              <ResultSection
+                icon="mail"
+                title="Possible wording"
+              >
+                <div className="draft-box">
+                  <MarkdownContent
+                    content={valueToText(
+                      draft
+                    )}
+                  />
+                </div>
+              </ResultSection>
+            )}
+
+            {resources.length >
+              0 && (
+              <ResultSection
+                icon="arrow"
+                title="Useful resources"
+              >
+                <div className="resource-grid">
+                  {(Array.isArray(
+                    resources
+                  )
+                    ? resources
+                    : [resources]
+                  ).map(
+                    (
+                      resource,
+                      index
+                    ) => {
+                      const label =
+                        typeof resource ===
+                        "string"
+                          ? resource
+                          : resource?.title ||
+                            resource?.name ||
+                            "Resource";
+
+                      const description =
+                        typeof resource ===
+                        "string"
+                          ? ""
+                          : resource?.description ||
+                            "";
+
+                      const url =
+                        typeof resource ===
+                        "object"
+                          ? safeUrl(
+                              resource?.url
+                            )
+                          : null;
+
+                      return (
+                        <div
+                          className="resource-card"
+                          key={index}
+                        >
+                          <h3>
+                            {label}
+                          </h3>
+
+                          {description && (
+                            <MarkdownContent
+                              content={
+                                description
+                              }
+                            />
+                          )}
+
+                          {url && (
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              Open resource
+                              <Icon
+                                name="external"
+                                size={15}
+                              />
+                            </a>
+                          )}
+                        </div>
+                      );
+                    }
+                  )}
+                </div>
+              </ResultSection>
+            )}
+
+            {references.length >
+              0 && (
+              <ResultSection
+                icon="check"
+                title="References"
+              >
+                <div className="reference-list">
+                  {(Array.isArray(
+                    references
+                  )
+                    ? references
+                    : [references]
+                  ).map(
+                    (
+                      reference,
+                      index
+                    ) => {
+                      const label =
+                        typeof reference ===
+                        "string"
+                          ? reference
+                          : reference?.title ||
+                            reference?.name ||
+                            reference?.url ||
+                            "Reference";
+
+                      const url =
+                        typeof reference ===
+                        "object"
+                          ? safeUrl(
+                              reference?.url
+                            )
+                          : safeUrl(
+                              reference
+                            );
+
+                      return (
+                        <div
+                          className="reference-row"
+                          key={index}
+                        >
+                          {url ? (
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {label}
+                            </a>
+                          ) : (
+                            <span>
+                              {label}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    }
+                  )}
+                </div>
+              </ResultSection>
+            )}
+          </div>
+
+          <aside className="report-chat">
+            <div className="report-chat-heading">
+              <div>
+                <span className="eyebrow">
+                  Continue thinking
+                </span>
+
+                <h2>
+                  Ask VERLO
+                </h2>
+              </div>
+
+              <span className="chat-status">
+                <span />
+                Ready
+              </span>
+            </div>
+
+            <div
+              className="chat-messages"
+              aria-live="polite"
+            >
+              {chatMessages.length ===
+              0 ? (
+                <div className="chat-empty">
+                  <Icon
+                    name="spark"
+                    size={22}
+                  />
+
+                  <p>
+                    Ask a follow-up
+                    question about
+                    your report,
+                    options or next
+                    steps.
+                  </p>
+                </div>
+              ) : (
+                chatMessages.map(
+                  (
+                    item,
+                    index
+                  ) => (
+                    <div
+                      className={
+                        item.role ===
+                        "user"
+                          ? "user-message"
+                          : "assistant-message"
+                      }
+                      key={index}
+                    >
+                      <MarkdownContent
+                        content={
+                          item.content
+                        }
+                      />
+                    </div>
+                  )
+                )
+              )}
+
+              {chatLoading && (
+                <div className="assistant-message">
+                  <LoadingDots />
+                </div>
+              )}
+
+              <div
+                ref={chatEndRef}
+                aria-hidden="true"
+              />
+            </div>
+
+            <form
+              className="chat-input"
+              onSubmit={sendMessage}
+            >
+              <textarea
+                value={message}
+                onChange={event =>
+                  setMessage(
+                    event.target.value
+                  )
+                }
+                onKeyDown={event => {
+                  if (
+                    event.key ===
+                      "Enter" &&
+                    !event.shiftKey
+                  ) {
+                    event.preventDefault();
+                    sendMessage(event);
+                  }
+                }}
+                placeholder="Ask a follow-up..."
+                rows={2}
+                disabled={chatLoading}
+                aria-label="Ask VERLO a follow-up question"
+              />
+
+              <button
+                type="submit"
+                disabled={
+                  !message.trim() ||
+                  chatLoading
+                }
+                aria-label="Send message"
+              >
+                <Icon
+                  name="send"
+                  size={18}
+                />
+              </button>
+            </form>
+          </aside>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function HistoryPanel({
+  onClose,
+  onSelect
+}) {
+  const [history, setHistory] =
+    useState([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState("");
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadHistory =
+      async () => {
+        try {
+          const data =
+            await api(
+              "/api/history"
+            );
+
+          if (!mounted) {
+            return;
+          }
+
+          setHistory(
+            Array.isArray(data)
+              ? data
+              : data?.history ||
+                  data?.items ||
+                  []
+          );
+        } catch (err) {
+          if (mounted) {
+            setError(
+              err.message ||
+                "Unable to load history."
+            );
+          }
+        } finally {
+          if (mounted) {
+            setLoading(false);
+          }
+        }
+      };
+
+    loadHistory();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  return (
+    <div
+      className="modal-backdrop"
+      onMouseDown={onClose}
+    >
+      <div
+        className="history-modal"
+        onMouseDown={event =>
+          event.stopPropagation()
+        }
+      >
+        <div className="history-heading">
+          <div>
+            <span className="eyebrow">
+              Saved decisions
+            </span>
+
+            <h2>History</h2>
+          </div>
+
+          <button
+            className="modal-close"
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            <Icon
+              name="close"
+              size={19}
+            />
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="history-loading">
+            <LoadingDots />
+          </div>
+        ) : error ? (
+          <div className="form-error">
+            {error}
+          </div>
+        ) : history.length === 0 ? (
+          <div className="history-empty">
+            <Icon
+              name="history"
+              size={25}
+            />
+
+            <h3>
+              No saved decisions yet
+            </h3>
+
+            <p>
+              Your completed VERLO
+              decisions will appear
+              here.
+            </p>
+          </div>
+        ) : (
+          <div className="history-list">
+            {history.map(
+              (item, index) => {
+                const id =
+                  item.id ||
+                  item._id ||
+                  index;
+
+                const title =
+                  item.title ||
+                  item.result?.title ||
+                  item.situation ||
+                  "Untitled decision";
+
+                const date =
+                  item.createdAt ||
+                  item.created_at ||
+                  item.date ||
+                  "";
+
+                return (
+                  <button
+                    className="history-item"
+                    type="button"
+                    key={id}
+                    onClick={() =>
+                      onSelect(
+                        item
+                      )
+                    }
+                  >
+                    <div>
+                      <strong>
+                        {title}
+                      </strong>
+
+                      {date && (
+                        <span>
+                          {new Date(
+                            date
+                          ).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+
+                    <Icon
+                      name="arrow"
+                      size={17}
+                    />
+                  </button>
+                );
+              }
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function App() {
+  const [state, setState] =
+    useState(loadState);
+
+  const [user, setUser] =
+    useState(null);
+
+  const [authMode, setAuthMode] =
+    useState(null);
+
+  const [
+    verificationEmail,
+    setVerificationEmail
+  ] = useState("");
+
+  const [historyOpen, setHistoryOpen] =
+    useState(false);
+
+  const [starting, setStarting] =
+    useState(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(state)
+      );
+    } catch {}
+  }, [state]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const checkAuth =
+      async () => {
+        try {
+          const data =
+            await api(
+              "/api/auth/me"
+            );
+
+          if (mounted) {
+            setUser(
+              data?.user ||
+                data ||
+                null
+            );
+          }
+        } catch {
+          if (mounted) {
+            setUser(null);
+          }
+        }
+      };
+
+    checkAuth();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const updateState = updates => {
+    setState(previous => ({
+      ...previous,
+      ...updates
+    }));
+  };
+
+  const resetAssessment =
+    () => {
+      updateState({
+        screen: "input",
+        situation: "",
+        title: "",
+        category: "",
+        context: "",
+        questions: [],
+        answers: [],
+        questionIndex: 0,
+        result: null,
+        attachments: []
+      });
+    };
+
+  const start = () => {
+    resetAssessment();
+  };
+
+  const startAssessment =
+    async () => {
+      if (
+        !state.situation.trim() ||
+        starting
+      ) {
+        return;
+      }
+
+      setStarting(true);
+
+      try {
+        const data =
+          await api(
+            "/api/adaptive-question",
+            {
+              method: "POST",
+              body: JSON.stringify({
+                title:
+                  state.title ||
+                  "Decision",
+                description:
+                  state.situation,
+                context:
+                  state.context ||
+                  state.category ||
+                  "",
+                previousAnswers: [],
+                previousQuestions: [],
+                questionNumber: 1,
+                maxQuestions:
+                  MAX_ADAPTIVE_QUESTIONS,
+                attachments:
+                  state.attachments
+              })
+            }
+          );
+
+        const rawQuestion =
+          data?.question ||
+          data?.questions?.[0] ||
+          data?.questionText;
+
+        const firstQuestion =
+          normalizeQuestion(
+            rawQuestion,
+            0
+          );
+
+        if (
+          !firstQuestion ||
+          !firstQuestion.question
+        ) {
+          throw new Error(
+            "Adaptive engine failed to create the first question."
+          );
+        }
+
+        updateState({
+          screen: "adaptive",
+          questions: [
+            firstQuestion
+          ],
+          answers: [],
+          questionIndex: 0,
+          result: null
+        });
+      } catch (err) {
+        window.alert(
+          err.message ||
+            "Unable to start the assessment."
+        );
+      } finally {
+        setStarting(false);
+      }
+    };
+
+  const completeAssessment =
+    result => {
+      updateState({
+        screen: "results",
+        result
+      });
+    };
+
+  const handleAuthenticated =
+    authenticatedUser => {
+      setUser(
+        authenticatedUser || null
+      );
+      setAuthMode(null);
+    };
+
+  const handleVerificationRequired =
+    email => {
+      setAuthMode(null);
+      setVerificationEmail(
+        email
+      );
+    };
+
+  const handleVerified =
+    verifiedUser => {
+      setUser(
+        verifiedUser || null
+      );
+      setVerificationEmail("");
+    };
+
+  const handleHome = () => {
+    updateState({
+      screen: "home"
+    });
+  };
+
+  const handleHistorySelect =
+    item => {
       setHistoryOpen(false);
-    }
-  }
 
-  function openAccount() {
-    if (user) {
-      handleLogout();
-      return;
-    }
+      updateState({
+        screen: "results",
+        situation:
+          item.situation ||
+          item.prompt ||
+          "",
+        category:
+          item.category ||
+          "",
+        answers:
+          item.answers ||
+          [],
+        result:
+          item.result ||
+          item
+      });
+    };
 
-    setAuthMode("login");
-    setAuthOpen(true);
-  }
-
-  function handleAuthenticated(nextUser) {
-    setUser(nextUser);
-    setAuthOpen(false);
-    setVerificationRequired(false);
-  }
-
-  function handleVerificationRequired(email) {
-    setVerificationEmail(email);
-    setVerificationRequired(true);
-    setAuthOpen(false);
-  }
-
-  function handleHistorySelect(item) {
-    const savedResult = item.result || item.report || item.data || item;
-
-    setTitle(item.title || item.name || "Saved report");
-    setCategory(item.category || "General");
-    setSituation(item.situation || item.prompt || "");
-    setContext(item.context || "");
-    setResult(savedResult);
-    setHistoryOpen(false);
-    setScreen("results");
-  }
+  const screen = useMemo(
+    () => state.screen,
+    [state.screen]
+  );
 
   if (screen === "home") {
     return (
       <>
         <Home
-          onStart={() => setScreen("input")}
-          onHistory={() => setHistoryOpen(true)}
-          onAccount={openAccount}
+          onStart={start}
+          onHistory={() =>
+            setHistoryOpen(true)
+          }
           user={user}
+          onAuth={mode =>
+            setAuthMode(mode)
+          }
         />
 
-        {authOpen && (
+        {authMode && (
           <AuthModal
             mode={authMode}
             setMode={setAuthMode}
-            onClose={() => setAuthOpen(false)}
-            onSuccess={handleAuthenticated}
-            onVerificationRequired={handleVerificationRequired}
+            onClose={() =>
+              setAuthMode(null)
+            }
+            onAuthenticated={
+              handleAuthenticated
+            }
+            onVerificationRequired={
+              handleVerificationRequired
+            }
           />
         )}
 
-        {verificationRequired && (
+        {verificationEmail && (
           <VerificationModal
-            email={verificationEmail}
-            onClose={() => setVerificationRequired(false)}
-            onVerified={handleAuthenticated}
+            email={
+              verificationEmail
+            }
+            onClose={() =>
+              setVerificationEmail(
+                ""
+              )
+            }
+            onVerified={
+              handleVerified
+            }
           />
         )}
 
         {historyOpen && (
           <HistoryPanel
-            onClose={() => setHistoryOpen(false)}
-            onSelect={handleHistorySelect}
+            onClose={() =>
+              setHistoryOpen(false)
+            }
+            onSelect={
+              handleHistorySelect
+            }
           />
         )}
       </>
@@ -2495,80 +3394,116 @@ export default function App() {
 
   if (screen === "input") {
     return (
-      <>
-        <InputPage
-          situation={situation}
-          setSituation={setSituation}
-          title={title}
-          setTitle={setTitle}
-          category={category}
-          setCategory={setCategory}
-          context={context}
-          setContext={setContext}
-          attachments={attachments}
-          setAttachments={setAttachments}
-          onBack={goHome}
-          onStart={startAssessment}
-          loading={loading}
-          error={error}
-        />
-
-        {authOpen && (
-          <AuthModal
-            mode={authMode}
-            setMode={setAuthMode}
-            onClose={() => setAuthOpen(false)}
-            onSuccess={handleAuthenticated}
-            onVerificationRequired={handleVerificationRequired}
-          />
-        )}
-      </>
+      <InputPage
+        situation={state.situation}
+        setSituation={situation =>
+          updateState({
+            situation
+          })
+        }
+        category={state.category}
+        setCategory={category =>
+          updateState({
+            category
+          })
+        }
+        attachments={
+          state.attachments
+        }
+        setAttachments={
+          attachments =>
+            updateState({
+              attachments
+            })
+        }
+        onBack={handleHome}
+        onStart={startAssessment}
+        loading={starting}
+      />
     );
   }
 
-  if (screen === "assessment") {
+  if (screen === "adaptive") {
     return (
       <AdaptiveAssessment
-        questions={questions}
-        questionIndex={questionIndex}
-        answers={answers}
-        setAnswers={setAnswers}
-        onBack={() => setScreen("input")}
-        onContinue={handleContinue}
-        onSkip={handleSkip}
-        loading={loading}
-        error={error}
+        situation={state.situation}
+        title={state.title}
+        category={state.category}
+        context={state.context}
+        questions={
+          state.questions
+        }
+        setQuestions={
+          questions =>
+            updateState({
+              questions
+            })
+        }
+        answers={state.answers}
+        setAnswers={answers =>
+          updateState({
+            answers
+          })
+        }
+        questionIndex={
+          state.questionIndex
+        }
+        setQuestionIndex={
+          questionIndex =>
+            updateState({
+              questionIndex
+            })
+        }
+        attachments={
+          state.attachments
+        }
+        onComplete={
+          completeAssessment
+        }
       />
     );
   }
 
   if (screen === "processing") {
-    return <Processing progress={processingProgress} />;
+    return (
+      <Processing
+        progress={75}
+      />
+    );
   }
 
   if (screen === "results") {
     return (
       <>
         <Results
-          result={result}
-          title={title}
-          situation={situation}
-          category={category}
-          context={context}
-          onNew={resetAssessment}
-          onHistory={() => setHistoryOpen(true)}
-          user={user}
+          result={state.result}
+          situation={state.situation}
+          answers={state.answers}
+          onHome={handleHome}
+          onHistory={() =>
+            setHistoryOpen(true)
+          }
         />
 
         {historyOpen && (
           <HistoryPanel
-            onClose={() => setHistoryOpen(false)}
-            onSelect={handleHistorySelect}
+            onClose={() =>
+              setHistoryOpen(false)
+            }
+            onSelect={
+              handleHistorySelect
+            }
           />
         )}
       </>
     );
   }
 
-  return null;
+  return (
+    <Home
+      onStart={start}
+      user={user}
+      onAuth={setAuthMode}
+    />
+  );
 }
