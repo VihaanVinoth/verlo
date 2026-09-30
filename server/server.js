@@ -1031,6 +1031,52 @@ function getUsedQuestionTopics(
   ];
 }
 
+function getCoveredInformationTopics(title, description, context, previousAnswers) {
+  const text = [
+    title,
+    description,
+    context,
+    ...Object.values(previousAnswers || {}),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  const covered = new Set();
+
+  if (
+    /\b(started|began|since|for the past|for about|for around|yesterday|today|last week|last month|weeks ago|months ago)\b/i.test(text)
+  ) {
+    covered.add("timing");
+  }
+
+  if (
+    /\b(problem|issue|error|broken|fault|not working|doesn't work|does not work|disconnect|disconnecting|fails|failure|trouble|difficulty|unable|can't|cannot)\b/i.test(text)
+  ) {
+    covered.add("problem");
+  }
+
+  if (
+    /\b(tried|attempted|restarted|rebooted|reset|reinstalled|updated|uninstalled|forgot|reconnected|troubleshoot|troubleshooting)\b/i.test(text)
+  ) {
+    covered.add("troubleshooting");
+  }
+
+  if (
+    /\b(want|would like|need|hoping to|looking for|goal|replace|replacement|refund|repair|fix it|fixed)\b/i.test(text)
+  ) {
+    covered.add("desiredOutcome");
+  }
+
+  if (
+    /\b(changed|change|updated|update|installed|installation|new software|new app|recently installed|recent update)\b/i.test(text)
+  ) {
+    covered.add("constraints");
+  }
+
+  return covered;
+}
+
 function getSituationTopics(
   title,
   description,
