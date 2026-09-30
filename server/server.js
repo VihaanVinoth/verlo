@@ -2256,6 +2256,8 @@ Do not ask what the problem is if the problem is already stated.
 
 Do not ask for documents, screenshots, receipts, emails, photos, attachments, or other evidence unless the user explicitly mentioned them.
 
+Do NOT drill into the same subtopic when other useful information areas are unexplored.
+
 Return one valid JSON object only.
 Do not include reasoning.
 Do not include markdown.
