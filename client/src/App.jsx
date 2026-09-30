@@ -18,7 +18,6 @@ const tabs = [
   ["overview", "Overview"],
   ["panels", "Panels"],
   ["steps", "Action Steps"],
-  ["letter", "Letter"],
   ["resources", "Resources"],
 ];
 
@@ -35,7 +34,6 @@ export default function App() {
 
   const [selectedMcqAnswers, setSelectedMcqAnswers] = useState({});
   const [adaptiveTextAnswers, setAdaptiveTextAnswers] = useState({});
-  const [skippedAdaptiveQuestions, setSkippedAdaptiveQuestions] = useState({});
   const [activeAssessmentIndex, setActiveAssessmentIndex] = useState(0);
 
   const [isAdaptiveLoading, setIsAdaptiveLoading] = useState(false);
@@ -49,9 +47,6 @@ export default function App() {
 
   const [processingStage, setProcessingStage] = useState(0);
   const [error, setError] = useState(null);
-
-  const [copied, setCopied] = useState(false);
-  const [copyCount, setCopyCount] = useState(0);
 
   const [customAlert, setCustomAlert] = useState(null);
   const [alertExiting, setAlertExiting] = useState(false);
@@ -99,13 +94,16 @@ export default function App() {
       setIsAuthLoading(true);
 
       try {
-        const res = await fetch(`${API_URL}/api/auth/me`, {
-          method: "GET",
-          credentials: "include",
-          headers: {
-            Accept: "application/json",
-          },
-        });
+        const res = await fetch(
+          `${API_URL}/api/auth/me`,
+          {
+            method: "GET",
+            credentials: "include",
+            headers: {
+              Accept: "application/json",
+            },
+          }
+        );
 
         if (!res.ok) {
           setCurrentUser(null);
@@ -215,20 +213,6 @@ export default function App() {
     loadHistory();
   }, [currentUser]);
 
-  /*
-   * When the final report opens, always start
-   * at the beginning of the report.
-   */
-  useEffect(() => {
-    if (step === "results") {
-      window.scrollTo({
-        top: 0,
-        left: 0,
-        behavior: "auto",
-      });
-    }
-  }, [step]);
-
   const authenticatedFetch = async (
     url,
     options = {}
@@ -242,465 +226,63 @@ export default function App() {
     });
   };
 
-  /*
-   * VERLO Markdown renderer.
-   *
-   * The AI can sometimes return escaped Markdown such
-   * as \## or \|. This cleans those characters first,
-   * then renders headings, tables, lists, links,
-   * code blocks, blockquotes and inline formatting.
-   */
   const renderMarkdownToHTML = (content) => {
     if (!content) {
       return "";
     }
 
-    let source = String(content)
-      .replace(/\\([#*_`|>~])/g, "$1")
-      .replace(/\\-/g, "-");
-
-    source = source
+    let html = String(content)
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
 
-    const escapeAttribute = (value) =>
-      String(value)
-        .replace(/&/g, "&amp;")
-        .replace(/"/g, "&quot;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
+    html = html.replace(
+      /```([\s\S]*?)```/g,
+      '<pre class="markdown-code"><code>$1</code></pre>'
+    );
 
-    const formatInline = (text) => {
-      if (!text) {
-        return "";
-      }
+    html = html.replace(
+      /\*\*(.*?)\*\*/g,
+      "<strong>$1</strong>"
+    );
 
-      let value = text;
+    html = html.replace(
+      /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener noreferrer" class="markdown-link">$1</a>'
+    );
 
-      value = value.replace(
-        /`([^`]+)`/g,
-        '<code class="markdown-inline-code">$1</code>'
-      );
+    const lines = html.split("\n");
+    let inList = false;
 
-      value = value.replace(
-        /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
-        (_, label, url) =>
-          `<a href="${escapeAttribute(
-            url
-          )}" target="_blank" rel="noopener noreferrer" class="markdown-link">${label}</a>`
-      );
-
-      value = value.replace(
-        /\*\*\*(.+?)\*\*\*/g,
-        "<strong><em>$1</em></strong>"
-      );
-
-      value = value.replace(
-        /___(.+?)___/g,
-        "<strong><em>$1</em></strong>"
-      );
-
-      value = value.replace(
-        /\*\*(.+?)\*\*/g,
-        "<strong>$1</strong>"
-      );
-
-      value = value.replace(
-        /__(.+?)__/g,
-        "<strong>$1</strong>"
-      );
-
-      value = value.replace(
-        /(^|[^\*])\*([^*\n]+)\*(?!\*)/g,
-        "$1<em>$2</em>"
-      );
-
-      value = value.replace(
-        /(^|[^_])_([^_\n]+)_(?!_)/g,
-        "$1<em>$2</em>"
-      );
-
-      value = value.replace(
-        /~~(.+?)~~/g,
-        "<del>$1</del>"
-      );
-
-      return value;
-    };
-
-    const lines = source.split(/\r?\n/);
-
-    const output = [];
-
-    let index = 0;
-    let inCodeBlock = false;
-    let codeBuffer = [];
-
-    while (index < lines.length) {
-      const line = lines[index];
-
-      /*
-       * Fenced code blocks
-       */
-      if (line.trim().startsWith("```")) {
-        if (!inCodeBlock) {
-          inCodeBlock = true;
-          codeBuffer = [];
-        } else {
-          inCodeBlock = false;
-
-          output.push(
-            `<pre class="markdown-code"><code>${codeBuffer.join(
-              "\n"
-            )}</code></pre>`
-          );
-
-          codeBuffer = [];
-        }
-
-        index += 1;
-        continue;
-      }
-
-      if (inCodeBlock) {
-        codeBuffer.push(line);
-        index += 1;
-        continue;
-      }
-
-      const trimmed = line.trim();
-
-      /*
-       * Empty line
-       */
-      if (!trimmed) {
-        index += 1;
-        continue;
-      }
-
-      /*
-       * Horizontal rule
-       */
+    const output = lines.map((line) => {
       if (
-        /^(-{3,}|\*{3,}|_{3,})$/.test(
-          trimmed
-        )
+        line.trim().startsWith("- ") ||
+        line.trim().startsWith("* ")
       ) {
-        output.push(
-          '<hr class="markdown-divider" />'
-        );
+        const item = line.trim().substring(2);
 
-        index += 1;
-        continue;
-      }
+        if (!inList) {
+          inList = true;
 
-      /*
-       * Headings
-       */
-      const headingMatch =
-        trimmed.match(
-          /^(#{1,6})\s+(.+)$/
-        );
-
-      if (headingMatch) {
-        const level =
-          headingMatch[1].length;
-
-        const headingText =
-          formatInline(
-            headingMatch[2]
-          );
-
-        output.push(
-          `<h${level} class="markdown-heading markdown-h${level}">${headingText}</h${level}>`
-        );
-
-        index += 1;
-        continue;
-      }
-
-      /*
-       * Tables
-       */
-      const nextLine =
-        lines[index + 1]?.trim() || "";
-
-      const isTableHeader =
-        trimmed.includes("|") &&
-        /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(
-          nextLine
-        );
-
-      if (isTableHeader) {
-        const parseTableRow = (row) => {
-          let cleaned = row.trim();
-
-          if (cleaned.startsWith("|")) {
-            cleaned =
-              cleaned.substring(1);
-          }
-
-          if (cleaned.endsWith("|")) {
-            cleaned =
-              cleaned.substring(
-                0,
-                cleaned.length - 1
-              );
-          }
-
-          return cleaned
-            .split("|")
-            .map((cell) =>
-              cell.trim()
-            );
-        };
-
-        const headers =
-          parseTableRow(trimmed);
-
-        index += 2;
-
-        const rows = [];
-
-        while (
-          index < lines.length &&
-          lines[index].trim() &&
-          lines[index].includes("|")
-        ) {
-          rows.push(
-            parseTableRow(
-              lines[index]
-            )
-          );
-
-          index += 1;
+          return `<ul class="markdown-list"><li>${item}</li>`;
         }
 
-        let tableHTML =
-          '<div class="markdown-table-wrapper"><table class="markdown-table"><thead><tr>';
-
-        headers.forEach(
-          (header) => {
-            tableHTML += `<th>${formatInline(
-              header
-            )}</th>`;
-          }
-        );
-
-        tableHTML +=
-          "</tr></thead><tbody>";
-
-        rows.forEach((row) => {
-          tableHTML += "<tr>";
-
-          headers.forEach(
-            (_, cellIndex) => {
-              tableHTML += `<td>${formatInline(
-                row[cellIndex] || ""
-              )}</td>`;
-            }
-          );
-
-          tableHTML += "</tr>";
-        });
-
-        tableHTML +=
-          "</tbody></table></div>";
-
-        output.push(tableHTML);
-
-        continue;
+        return `<li>${item}</li>`;
       }
 
-      /*
-       * Blockquotes
-       */
-      if (trimmed.startsWith(">")) {
-        const quoteLines = [];
+      if (inList) {
+        inList = false;
 
-        while (
-          index < lines.length &&
-          lines[index]
-            .trim()
-            .startsWith(">")
-        ) {
-          quoteLines.push(
-            lines[index]
-              .trim()
-              .replace(/^>\s?/, "")
-          );
-
-          index += 1;
-        }
-
-        output.push(
-          `<blockquote class="markdown-blockquote">${quoteLines
-            .map(
-              (quoteLine) =>
-                `<p>${formatInline(
-                  quoteLine
-                )}</p>`
-            )
-            .join("")}</blockquote>`
-        );
-
-        continue;
+        return `</ul><p>${line}</p>`;
       }
 
-      /*
-       * Unordered lists
-       */
-      if (
-        /^[-*+]\s+/.test(trimmed)
-      ) {
-        const items = [];
+      return line.trim()
+        ? `<p>${line}</p>`
+        : "";
+    });
 
-        while (
-          index < lines.length &&
-          /^[-*+]\s+/.test(
-            lines[index].trim()
-          )
-        ) {
-          const item =
-            lines[index]
-              .trim()
-              .replace(
-                /^[-*+]\s+/,
-                ""
-              );
-
-          items.push(
-            `<li>${formatInline(
-              item
-            )}</li>`
-          );
-
-          index += 1;
-        }
-
-        output.push(
-          `<ul class="markdown-list">${items.join(
-            ""
-          )}</ul>`
-        );
-
-        continue;
-      }
-
-      /*
-       * Ordered lists
-       */
-      if (/^\d+\.\s+/.test(trimmed)) {
-        const items = [];
-
-        while (
-          index < lines.length &&
-          /^\d+\.\s+/.test(
-            lines[index].trim()
-          )
-        ) {
-          const item =
-            lines[index]
-              .trim()
-              .replace(
-                /^\d+\.\s+/,
-                ""
-              );
-
-          items.push(
-            `<li>${formatInline(
-              item
-            )}</li>`
-          );
-
-          index += 1;
-        }
-
-        output.push(
-          `<ol class="markdown-list markdown-ordered-list">${items.join(
-            ""
-          )}</ol>`
-        );
-
-        continue;
-      }
-
-      /*
-       * Normal paragraphs
-       */
-      const paragraphLines = [
-        trimmed,
-      ];
-
-      index += 1;
-
-      while (
-        index < lines.length
-      ) {
-        const following =
-          lines[index].trim();
-
-        if (!following) {
-          break;
-        }
-
-        if (
-          /^#{1,6}\s+/.test(
-            following
-          ) ||
-          /^[-*+]\s+/.test(
-            following
-          ) ||
-          /^\d+\.\s+/.test(
-            following
-          ) ||
-          following.startsWith(
-            ">"
-          ) ||
-          following.startsWith(
-            "```"
-          )
-        ) {
-          break;
-        }
-
-        const followingNext =
-          lines[index + 1]?.trim() ||
-          "";
-
-        if (
-          following.includes("|") &&
-          /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(
-            followingNext
-          )
-        ) {
-          break;
-        }
-
-        paragraphLines.push(
-          following
-        );
-
-        index += 1;
-      }
-
-      output.push(
-        `<p>${formatInline(
-          paragraphLines.join(" ")
-        )}</p>`
-      );
-    }
-
-    if (
-      inCodeBlock &&
-      codeBuffer.length
-    ) {
-      output.push(
-        `<pre class="markdown-code"><code>${codeBuffer.join(
-          "\n"
-        )}</code></pre>`
-      );
+    if (inList) {
+      output.push("</ul>");
     }
 
     return output.join("");
@@ -747,11 +329,14 @@ export default function App() {
         `${API_URL}${endpoint}`,
         {
           method: "POST",
+
           credentials: "include",
+
           headers: {
             "Content-Type":
               "application/json",
           },
+
           body: JSON.stringify({
             email: authEmail.trim(),
             password: authPassword,
@@ -858,16 +443,20 @@ export default function App() {
           `${API_URL}/api/history/save`,
           {
             method: "POST",
+
             headers: {
               "Content-Type":
                 "application/json",
             },
+
             body: JSON.stringify({
               report: {
                 title:
                   title ||
                   "Untitled Report",
+
                 description,
+
                 result: resultData,
               },
             }),
@@ -884,8 +473,6 @@ export default function App() {
             "Your login session has expired. Please log in again."
           );
           setShowAuthModal(true);
-
-          // LUCKY NUMBER 888
           return;
         }
 
@@ -950,12 +537,15 @@ export default function App() {
 
       const fileMeta = {
         name: file.name,
+
         size: `${(
           file.size / 1024
         ).toFixed(1)} KB`,
+
         type:
           file.type ||
           "application/octet-stream",
+
         uploadedAt:
           new Date().toISOString(),
       };
@@ -1060,20 +650,16 @@ export default function App() {
     getAllAssessmentItems();
 
   const buildAllAnswers = (
-    textAnswers = adaptiveTextAnswers,
-    mcqAnswers = selectedMcqAnswers,
-    skippedQuestions = skippedAdaptiveQuestions
+    key,
+    value
   ) => ({
-    ...textAnswers,
-    ...mcqAnswers,
-    ...(Object.keys(
-      skippedQuestions
-    ).length > 0
+    ...adaptiveTextAnswers,
+
+    ...selectedMcqAnswers,
+
+    ...(key !== undefined
       ? {
-          _skippedQuestions:
-            Object.keys(
-              skippedQuestions
-            ),
+          [key]: value,
         }
       : {}),
   });
@@ -1190,7 +776,6 @@ export default function App() {
 
       setSelectedMcqAnswers({});
       setAdaptiveTextAnswers({});
-      setSkippedAdaptiveQuestions({});
       setActiveAssessmentIndex(0);
       setAdaptiveQuestionCount(0);
 
@@ -1337,114 +922,26 @@ export default function App() {
         item.id ||
         activeAssessmentIndex;
 
-      const nextTextAnswers = {
-        ...adaptiveTextAnswers,
-      };
-
-      const nextMcqAnswers = {
-        ...selectedMcqAnswers,
-      };
-
-      const nextSkippedQuestions = {
-        ...skippedAdaptiveQuestions,
-      };
-
-      delete nextSkippedQuestions[key];
-
       if (item.type === "mcq") {
-        nextMcqAnswers[key] = answer;
-        delete nextTextAnswers[key];
+        setSelectedMcqAnswers(
+          (prev) => ({
+            ...prev,
+            [key]: answer,
+          })
+        );
       } else {
-        nextTextAnswers[key] = answer;
-        delete nextMcqAnswers[key];
+        setAdaptiveTextAnswers(
+          (prev) => ({
+            ...prev,
+            [key]: answer,
+          })
+        );
       }
-
-      setSelectedMcqAnswers(
-        nextMcqAnswers
-      );
-
-      setAdaptiveTextAnswers(
-        nextTextAnswers
-      );
-
-      setSkippedAdaptiveQuestions(
-        nextSkippedQuestions
-      );
 
       const allAnswers =
         buildAllAnswers(
-          nextTextAnswers,
-          nextMcqAnswers,
-          nextSkippedQuestions
-        );
-
-      if (
-        adaptiveQuestionCount >=
-        MAX_ADAPTIVE_QUESTIONS
-      ) {
-        await handleFinalAssessmentSubmit(
-          allAnswers
-        );
-
-        return;
-      }
-
-      await requestAdaptiveQuestion(
-        allAnswers
-      );
-    };
-
-  const handleAssessmentSkip =
-    async () => {
-      const item =
-        assessmentItems[
-          activeAssessmentIndex
-        ];
-
-      if (
-        !item ||
-        isAdaptiveLoading
-      ) {
-        return;
-      }
-
-      const key =
-        item.id ||
-        activeAssessmentIndex;
-
-      const nextTextAnswers = {
-        ...adaptiveTextAnswers,
-      };
-
-      const nextMcqAnswers = {
-        ...selectedMcqAnswers,
-      };
-
-      const nextSkippedQuestions = {
-        ...skippedAdaptiveQuestions,
-        [key]: true,
-      };
-
-      delete nextTextAnswers[key];
-      delete nextMcqAnswers[key];
-
-      setAdaptiveTextAnswers(
-        nextTextAnswers
-      );
-
-      setSelectedMcqAnswers(
-        nextMcqAnswers
-      );
-
-      setSkippedAdaptiveQuestions(
-        nextSkippedQuestions
-      );
-
-      const allAnswers =
-        buildAllAnswers(
-          nextTextAnswers,
-          nextMcqAnswers,
-          nextSkippedQuestions
+          key,
+          answer
         );
 
       if (
@@ -1602,9 +1099,6 @@ export default function App() {
               personalizedPanels:
                 [],
 
-              draftTemplate:
-                null,
-
               resources: [],
 
               referenceLinks: [],
@@ -1643,39 +1137,6 @@ export default function App() {
         clearInterval(interval);
       }
     };
-
-  const handleCopyDraft = () => {
-    if (
-      !analysisData?.draftTemplate
-    ) {
-      return;
-    }
-
-    const draft =
-      analysisData.draftTemplate;
-
-    navigator.clipboard.writeText(
-      `To: ${draft.recipient}\nSubject: ${draft.subject}\n\n${draft.body}`
-    );
-
-    setCopied(true);
-
-    const nextCount =
-      copyCount + 1;
-
-    setCopyCount(nextCount);
-
-    triggerCustomAlert(
-      nextCount === 1
-        ? "Letter template copied to clipboard!"
-        : `Letter copied (${nextCount}x multi-strike!)! 🎯`
-    );
-
-    setTimeout(
-      () => setCopied(false),
-      3000
-    );
-  };
 
   const handleChatSubmit =
     async (e) => {
@@ -1826,35 +1287,10 @@ export default function App() {
                   !showHistoryDrawer
                 )
               }
-              aria-label={`Open saved history (${userHistory.length} reports)`}
-              aria-expanded={
-                showHistoryDrawer
-              }
-              aria-controls="history-drawer"
             >
-              <svg
-                className="history-icon"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <circle
-                  cx="12"
-                  cy="12"
-                  r="9"
-                />
-
-                <path d="M12 7v5l3 2" />
-              </svg>
-
-              <span>
-                History (
-                {userHistory.length})
-              </span>
+              <span>▣</span>{" "}
+              History (
+              {userHistory.length})
             </button>
 
             {currentUser.picture && (
@@ -1960,18 +1396,7 @@ export default function App() {
                     }
                   >
                     <span className="example-icon">
-                      <svg
-                        className="example-svg-icon"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.7"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden="true"
-                      >
-                        <path d="M21 16.5 13.5 13l-2.2-8.1c-.2-.7-.9-1.1-1.6-.9-.6.2-1 .8-.9 1.4l.8 7-5.9-2.7-1.9 1.2 6.5 4.1-.9 3.8-2.5 1.2v1.2l4.2-1 1.5-2.8 7.2 2.1c.8.2 1.6-.2 1.9-.9.3-.8-.1-1.7-.9-2Z" />
-                      </svg>
+                      ✈
                     </span>
 
                     <div>
@@ -1998,28 +1423,7 @@ export default function App() {
                     }
                   >
                     <span className="example-icon">
-                      <svg
-                        className="example-svg-icon"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.7"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden="true"
-                      >
-                        <rect
-                          x="3"
-                          y="5"
-                          width="18"
-                          height="14"
-                          rx="2"
-                        />
-
-                        <path d="M3 9h18" />
-                        <path d="M7 14h3" />
-                        <path d="M15 14h2" />
-                      </svg>
+                      ▣
                     </span>
 
                     <div>
@@ -2045,20 +1449,7 @@ export default function App() {
                     }
                   >
                     <span className="example-icon">
-                      <svg
-                        className="example-svg-icon"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.7"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden="true"
-                      >
-                        <path d="m3 10.5 9-7 9 7" />
-                        <path d="M5.5 9v10.5h13V9" />
-                        <path d="M9.5 19.5v-5h5v5" />
-                      </svg>
+                      ⌂
                     </span>
 
                     <div>
@@ -2085,28 +1476,7 @@ export default function App() {
                     }
                   >
                     <span className="example-icon">
-                      <svg
-                        className="example-svg-icon"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.7"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden="true"
-                      >
-                        <rect
-                          x="4"
-                          y="4"
-                          width="16"
-                          height="13"
-                          rx="1.5"
-                        />
-
-                        <path d="M2.5 20h19" />
-
-                        <path d="M8.5 20c.3-1.4 1.2-2.5 2.5-2.5s2.2 1.1 2.5 2.5" />
-                      </svg>
+                      ▣
                     </span>
 
                     <div>
@@ -2502,23 +1872,6 @@ export default function App() {
 
                 <div className="assessment-actions">
                   <button
-                    type="button"
-                    className="skip-button"
-                    onClick={
-                      handleAssessmentSkip
-                    }
-                    disabled={
-                      isAdaptiveLoading
-                    }
-                  >
-                    {adaptiveQuestionCount >=
-                    MAX_ADAPTIVE_QUESTIONS
-                      ? "Skip & Synthesise →"
-                      : "Skip Question"}
-                  </button>
-
-                  <button
-                    type="button"
                     className="btn-primary"
                     onClick={
                       handleAssessmentNext
@@ -2633,134 +1986,73 @@ export default function App() {
                   </button>
                 </div>
 
-                <div className="report-intro">
-                  <div className="report-intro-copy">
-                    <span className="report-eyebrow">
-                      VERLO DECISION PATHWAY
+                <div className="result-section result-summary">
+                  <div>
+                    <span
+                      className={`badge ${
+                        analysisData.confidence?.toLowerCase() ||
+                        ""
+                      }`}
+                    >
+                      Confidence:{" "}
+                      {
+                        analysisData.confidence
+                      }
                     </span>
 
-                    <h1>
-                      {title ||
-                        "Your Personalised Pathway"}
-                    </h1>
-
-                    <p>
-                      Your situation has
-                      been analysed and
-                      organised into a
-                      practical set of next
-                      steps.
-                    </p>
-
                     {userContext && (
-                      <div className="report-context">
-                        <span>
-                          Personal context
-                        </span>
-
-                        <strong>
-                          {userContext}
-                        </strong>
+                      <div className="result-context">
+                        Tailored for:{" "}
+                        <em>
+                          "{userContext}"
+                        </em>
                       </div>
                     )}
                   </div>
 
-                  <div className="report-confidence">
-                    <span>
-                      Analysis confidence
-                    </span>
+                  <div className="risk-metrics">
+                    <div>
+                      <span>
+                        Severity:
+                      </span>
 
-                    <strong>
-                      {analysisData.confidence ||
-                        "Moderate"}
-                    </strong>
-                  </div>
-                </div>
-                <div className="report-priority-card">
-                  <div className="priority-label">
-                    START HERE
-                  </div>
-
-                  <h2>
-                    {analysisData.nextSteps?.[0]
-                      ?.step ||
-                      "Review your recommended action pathway."}
-                  </h2>
-
-                  {analysisData.nextSteps?.[0]
-                    ?.why && (
-                    <p>
                       <strong>
-                        Why this matters:
-                      </strong>{" "}
-                      {
-                        analysisData
-                          .nextSteps[0]
-                          .why
-                      }
-                    </p>
-                  )}
+                        {
+                          analysisData
+                            .riskAssessment
+                            ?.severityScore
+                        }
+                        /10
+                      </strong>
+                    </div>
 
-                  <button
-                    type="button"
-                    className="priority-action-button"
-                    onClick={() =>
-                      setActiveTab("steps")
-                    }
-                  >
-                    View all action steps →
-                  </button>
-                </div>
+                    <div>
+                      <span>
+                        Exposure:
+                      </span>
 
-                <div className="report-metrics">
-                  <div className="report-metric">
-                    <span>
-                      Severity
-                    </span>
+                      <strong>
+                        {
+                          analysisData
+                            .riskAssessment
+                            ?.financialExposure
+                        }
+                      </strong>
+                    </div>
 
-                    <strong>
-                      {analysisData
-                        .riskAssessment
-                        ?.severityScore ??
-                        "N/A"}
+                    <div>
+                      <span>
+                        Urgency:
+                      </span>
 
-                      {analysisData
-                        .riskAssessment
-                        ?.severityScore !==
-                        undefined &&
-                      analysisData
-                        .riskAssessment
-                        ?.severityScore !==
-                        "N/A"
-                        ? "/10"
-                        : ""}
-                    </strong>
-                  </div>
-
-                  <div className="report-metric">
-                    <span>
-                      Financial exposure
-                    </span>
-
-                    <strong>
-                      {analysisData
-                        .riskAssessment
-                        ?.financialExposure ||
-                        "Not established"}
-                    </strong>
-                  </div>
-
-                  <div className="report-metric">
-                    <span>
-                      Time sensitivity
-                    </span>
-
-                    <strong>
-                      {analysisData
-                        .riskAssessment
-                        ?.timeSensitivity ||
-                        "Review required"}
-                    </strong>
+                      <strong>
+                        {
+                          analysisData
+                            .riskAssessment
+                            ?.timeSensitivity
+                        }
+                      </strong>
+                    </div>
                   </div>
                 </div>
 
@@ -2790,15 +2082,37 @@ export default function App() {
                 {activeTab ===
                   "overview" && (
                   <div className="result-content">
-                    {analysisData.situation && (
-                      <div className="result-section situation-summary-card">
-                        <span className="section-eyebrow">
-                          SITUATION
-                        </span>
+                    <div className="dominant-action">
+                      <h3>
+                        Immediate
+                        Priority Action
+                      </h3>
 
+                      <h2>
+                        {
+                          analysisData
+                            .nextSteps?.[0]
+                            ?.step
+                        }
+                      </h2>
+
+                      <p>
+                        <strong>
+                          Why this first:
+                        </strong>{" "}
+                        {
+                          analysisData
+                            .nextSteps?.[0]
+                            ?.why
+                        }
+                      </p>
+                    </div>
+
+                    {analysisData.situation && (
+                      <div className="result-section">
                         <h3>
-                          What VERLO
-                          understood
+                          Situation
+                          Summary
                         </h3>
 
                         <p>
@@ -2864,7 +2178,6 @@ export default function App() {
                                   </div>
                                 ) : (
                                   <div
-                                    className="markdown-content"
                                     dangerouslySetInnerHTML={{
                                       __html:
                                         renderMarkdownToHTML(
@@ -2989,7 +2302,6 @@ export default function App() {
                               </strong>
 
                               <div
-                                className="markdown-content"
                                 dangerouslySetInnerHTML={{
                                   __html:
                                     renderMarkdownToHTML(
@@ -3067,43 +2379,6 @@ export default function App() {
                         )
                       )}
                     </div>
-                  </div>
-                )}
-
-                {activeTab ===
-                  "letter" && (
-                  <div className="result-section letter-section">
-                    <div className="letter-header">
-                      <h3>
-                        Automated
-                        Resolution Letter
-                      </h3>
-
-                      <button
-                        onClick={
-                          handleCopyDraft
-                        }
-                      >
-                        {copied
-                          ? "Copied!"
-                          : "Copy Letter Template"}
-                      </button>
-                    </div>
-
-                    {analysisData.draftTemplate ? (
-                      <div className="letter-content">
-                        {`To: ${analysisData.draftTemplate.recipient}
-Subject: ${analysisData.draftTemplate.subject}
-
-${analysisData.draftTemplate.body}`}
-                      </div>
-                    ) : (
-                      <p>
-                        No template
-                        generated for
-                        this situation.
-                      </p>
-                    )}
                   </div>
                 )}
 
@@ -3188,10 +2463,7 @@ ${analysisData.draftTemplate.body}`}
       </footer>
 
       {showHistoryDrawer && (
-        <aside
-          id="history-drawer"
-          className="history-drawer animate-slide-in-right"
-        >
+        <aside className="history-drawer animate-slide-in-right">
           <div className="drawer-header">
             <h3>
               Your Saved Pathways
