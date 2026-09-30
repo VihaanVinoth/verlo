@@ -35,6 +35,7 @@ export default function App() {
 
   const [selectedMcqAnswers, setSelectedMcqAnswers] = useState({});
   const [adaptiveTextAnswers, setAdaptiveTextAnswers] = useState({});
+  const [skippedAdaptiveQuestions, setSkippedAdaptiveQuestions] = useState({});
   const [activeAssessmentIndex, setActiveAssessmentIndex] = useState(0);
 
   const [isAdaptiveLoading, setIsAdaptiveLoading] = useState(false);
@@ -75,12 +76,6 @@ export default function App() {
     ? description.trim().split(/\s+/).length
     : 0;
 
-  /*
-   * --------------------------------------------------
-   * CUSTOM ALERT
-   * --------------------------------------------------
-   */
-
   const triggerCustomAlert = (message, type = "success") => {
     setCustomAlert({
       message,
@@ -98,24 +93,6 @@ export default function App() {
       }, 300);
     }, 3300);
   };
-
-  /*
-   * --------------------------------------------------
-   * RESTORE COOKIE SESSION
-   *
-   * The new server uses an HttpOnly cookie:
-   *
-   * Google
-   *   ↓
-   * backend callback
-   *   ↓
-   * HttpOnly verlo_token cookie
-   *   ↓
-   * redirect to frontend
-   *   ↓
-   * /api/auth/me
-   * --------------------------------------------------
-   */
 
   useEffect(() => {
     const restoreSession = async () => {
@@ -160,12 +137,6 @@ export default function App() {
     restoreSession();
   }, []);
 
-  /*
-   * --------------------------------------------------
-   * CLEAN GOOGLE OAUTH URL
-   * --------------------------------------------------
-   */
-
   useEffect(() => {
     const params = new URLSearchParams(
       window.location.search
@@ -196,16 +167,6 @@ export default function App() {
       return;
     }
 
-    /*
-     * The new OAuth flow does NOT use auth_code.
-     *
-     * If Google successfully authenticates,
-     * the backend sets the HttpOnly cookie and
-     * redirects here.
-     *
-     * Remove any unexpected query parameters.
-     */
-
     if (window.location.search) {
       window.history.replaceState(
         {},
@@ -214,12 +175,6 @@ export default function App() {
       );
     }
   }, []);
-
-  /*
-   * --------------------------------------------------
-   * LOAD HISTORY
-   * --------------------------------------------------
-   */
 
   useEffect(() => {
     if (!currentUser) {
@@ -263,12 +218,6 @@ export default function App() {
     loadHistory();
   }, [currentUser]);
 
-  /*
-   * --------------------------------------------------
-   * CUSTOM AUTH FETCH HELPER
-   * --------------------------------------------------
-   */
-
   const authenticatedFetch = async (
     url,
     options = {}
@@ -281,12 +230,6 @@ export default function App() {
       },
     });
   };
-
-  /*
-   * --------------------------------------------------
-   * MARKDOWN
-   * --------------------------------------------------
-   */
 
   const renderMarkdownToHTML = (content) => {
     if (!content) {
@@ -350,12 +293,6 @@ export default function App() {
     return output.join("");
   };
 
-  /*
-   * --------------------------------------------------
-   * EXAMPLE SITUATIONS
-   * --------------------------------------------------
-   */
-
   const handleExampleSelect = (
     exampleTitle,
     desc,
@@ -369,12 +306,6 @@ export default function App() {
     setError(null);
   };
 
-  /*
-   * --------------------------------------------------
-   * GOOGLE LOGIN
-   * --------------------------------------------------
-   */
-
   const handleGoogleLogin = () => {
     setAuthError(null);
     setIsAuthLoading(true);
@@ -386,12 +317,6 @@ export default function App() {
     window.location.href =
       `${API_URL}/api/auth/google`;
   };
-
-  /*
-   * --------------------------------------------------
-   * EMAIL AUTH
-   * --------------------------------------------------
-   */
 
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
@@ -481,12 +406,6 @@ export default function App() {
     }
   };
 
-  /*
-   * --------------------------------------------------
-   * LOGOUT
-   * --------------------------------------------------
-   */
-
   const handleLogout = async () => {
     try {
       await fetch(
@@ -512,12 +431,6 @@ export default function App() {
       "Logged out successfully."
     );
   };
-
-  /*
-   * --------------------------------------------------
-   * SAVE HISTORY
-   * --------------------------------------------------
-   */
 
   const handleSaveToAccount = async (
     resultData
@@ -593,12 +506,6 @@ export default function App() {
       );
     }
   };
-
-  /*
-   * --------------------------------------------------
-   * FILE ATTACHMENTS
-   * --------------------------------------------------
-   */
 
   const handleSecureFileUpload = async (
     file,
@@ -695,12 +602,6 @@ export default function App() {
     }
   };
 
-  /*
-   * --------------------------------------------------
-   * NORMALISE ADAPTIVE QUESTIONS
-   * --------------------------------------------------
-   */
-
   const getAllAssessmentItems = () => {
     const source =
       assessmentData?.adaptiveQuestions ||
@@ -753,32 +654,19 @@ export default function App() {
   const assessmentItems =
     getAllAssessmentItems();
 
-  /*
-   * --------------------------------------------------
-   * BUILD ANSWERS
-   * --------------------------------------------------
-   */
-
   const buildAllAnswers = (
-    key,
-    value
+    textAnswers = adaptiveTextAnswers,
+    mcqAnswers = selectedMcqAnswers,
+    skippedQuestions = skippedAdaptiveQuestions
   ) => ({
-    ...adaptiveTextAnswers,
-
-    ...selectedMcqAnswers,
-
-    ...(key !== undefined
+    ...textAnswers,
+    ...mcqAnswers,
+    ...(Object.keys(skippedQuestions).length > 0
       ? {
-          [key]: value,
+          _skippedQuestions: Object.keys(skippedQuestions),
         }
       : {}),
   });
-
-  /*
-   * --------------------------------------------------
-   * REQUEST NEXT ADAPTIVE QUESTION
-   * --------------------------------------------------
-   */
 
   const requestAdaptiveQuestion =
     async (
@@ -870,12 +758,6 @@ export default function App() {
       }
     };
 
-  /*
-   * --------------------------------------------------
-   * FIRST SUBMISSION
-   * --------------------------------------------------
-   */
-
   const handleInitialSubmit =
     async (e) => {
       e.preventDefault();
@@ -898,6 +780,7 @@ export default function App() {
 
       setSelectedMcqAnswers({});
       setAdaptiveTextAnswers({});
+      setSkippedAdaptiveQuestions({});
       setActiveAssessmentIndex(0);
       setAdaptiveQuestionCount(0);
 
@@ -985,12 +868,6 @@ export default function App() {
       }
     };
 
-  /*
-   * --------------------------------------------------
-   * CURRENT ANSWER
-   * --------------------------------------------------
-   */
-
   const getCurrentAnswer = () => {
     const item =
       assessmentItems[
@@ -1017,12 +894,6 @@ export default function App() {
       ""
     );
   };
-
-  /*
-   * --------------------------------------------------
-   * NEXT ASSESSMENT QUESTION
-   * --------------------------------------------------
-   */
 
   const handleAssessmentNext =
     async () => {
@@ -1056,26 +927,45 @@ export default function App() {
         item.id ||
         activeAssessmentIndex;
 
+      const nextTextAnswers = {
+        ...adaptiveTextAnswers,
+      };
+
+      const nextMcqAnswers = {
+        ...selectedMcqAnswers,
+      };
+
+      const nextSkippedQuestions = {
+        ...skippedAdaptiveQuestions,
+      };
+
+      delete nextSkippedQuestions[key];
+
       if (item.type === "mcq") {
-        setSelectedMcqAnswers(
-          (prev) => ({
-            ...prev,
-            [key]: answer,
-          })
-        );
+        nextMcqAnswers[key] = answer;
+        delete nextTextAnswers[key];
       } else {
-        setAdaptiveTextAnswers(
-          (prev) => ({
-            ...prev,
-            [key]: answer,
-          })
-        );
+        nextTextAnswers[key] = answer;
+        delete nextMcqAnswers[key];
       }
+
+      setSelectedMcqAnswers(
+        nextMcqAnswers
+      );
+
+      setAdaptiveTextAnswers(
+        nextTextAnswers
+      );
+
+      setSkippedAdaptiveQuestions(
+        nextSkippedQuestions
+      );
 
       const allAnswers =
         buildAllAnswers(
-          key,
-          answer
+          nextTextAnswers,
+          nextMcqAnswers,
+          nextSkippedQuestions
         );
 
       if (
@@ -1094,11 +984,74 @@ export default function App() {
       );
     };
 
-  /*
-   * --------------------------------------------------
-   * PREVIOUS ASSESSMENT QUESTION
-   * --------------------------------------------------
-   */
+  const handleAssessmentSkip =
+    async () => {
+      const item =
+        assessmentItems[
+          activeAssessmentIndex
+        ];
+
+      if (
+        !item ||
+        isAdaptiveLoading
+      ) {
+        return;
+      }
+
+      const key =
+        item.id ||
+        activeAssessmentIndex;
+
+      const nextTextAnswers = {
+        ...adaptiveTextAnswers,
+      };
+
+      const nextMcqAnswers = {
+        ...selectedMcqAnswers,
+      };
+
+      const nextSkippedQuestions = {
+        ...skippedAdaptiveQuestions,
+        [key]: true,
+      };
+
+      delete nextTextAnswers[key];
+      delete nextMcqAnswers[key];
+
+      setAdaptiveTextAnswers(
+        nextTextAnswers
+      );
+
+      setSelectedMcqAnswers(
+        nextMcqAnswers
+      );
+
+      setSkippedAdaptiveQuestions(
+        nextSkippedQuestions
+      );
+
+      const allAnswers =
+        buildAllAnswers(
+          nextTextAnswers,
+          nextMcqAnswers,
+          nextSkippedQuestions
+        );
+
+      if (
+        adaptiveQuestionCount >=
+        MAX_ADAPTIVE_QUESTIONS
+      ) {
+        await handleFinalAssessmentSubmit(
+          allAnswers
+        );
+
+        return;
+      }
+
+      await requestAdaptiveQuestion(
+        allAnswers
+      );
+    };
 
   const handleAssessmentPrev =
     () => {
@@ -1117,12 +1070,6 @@ export default function App() {
         setStep("input");
       }
     };
-
-  /*
-   * --------------------------------------------------
-   * FINAL ANALYSIS
-   * --------------------------------------------------
-   */
 
   const handleFinalAssessmentSubmit =
     async (
@@ -1287,12 +1234,6 @@ export default function App() {
       }
     };
 
-  /*
-   * --------------------------------------------------
-   * COPY LETTER
-   * --------------------------------------------------
-   */
-
   const handleCopyDraft = () => {
     if (
       !analysisData?.draftTemplate
@@ -1325,12 +1266,6 @@ export default function App() {
       3000
     );
   };
-
-  /*
-   * --------------------------------------------------
-   * CHAT
-   * --------------------------------------------------
-   */
 
   const handleChatSubmit =
     async (e) => {
@@ -1433,12 +1368,6 @@ export default function App() {
     assessmentItems[
       activeAssessmentIndex
     ];
-
-  /*
-   * --------------------------------------------------
-   * RENDER
-   * --------------------------------------------------
-   */
 
   return (
     <div className="verlo-app">
@@ -1596,7 +1525,9 @@ export default function App() {
                     }
                   >
                     <span className="example-icon">
-                      ✈
+                      <svg className="example-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M21 16.5 13.5 13l-2.2-8.1c-.2-.7-.9-1.1-1.6-.9-.6.2-1 .8-.9 1.4l.8 7-5.9-2.7-1.9 1.2 6.5 4.1-.9 3.8-2.5 1.2v1.2l4.2-1 1.5-2.8 7.2 2.1c.8.2 1.6-.2 1.9-.9.3-.8-.1-1.7-.9-2Z" />
+                      </svg>
                     </span>
 
                     <div>
@@ -1623,7 +1554,12 @@ export default function App() {
                     }
                   >
                     <span className="example-icon">
-                      ▣
+                      <svg className="example-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <rect x="3" y="5" width="18" height="14" rx="2" />
+                        <path d="M3 9h18" />
+                        <path d="M7 14h3" />
+                        <path d="M15 14h2" />
+                      </svg>
                     </span>
 
                     <div>
@@ -1649,7 +1585,11 @@ export default function App() {
                     }
                   >
                     <span className="example-icon">
-                      ⌂
+                      <svg className="example-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="m3 10.5 9-7 9 7" />
+                        <path d="M5.5 9v10.5h13V9" />
+                        <path d="M9.5 19.5v-5h5v5" />
+                      </svg>
                     </span>
 
                     <div>
@@ -1676,7 +1616,11 @@ export default function App() {
                     }
                   >
                     <span className="example-icon">
-                      ▣
+                      <svg className="example-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <rect x="4" y="4" width="16" height="13" rx="1.5" />
+                        <path d="M2.5 20h19" />
+                        <path d="M8.5 20c.3-1.4 1.2-2.5 2.5-2.5s2.2 1.1 2.5 2.5" />
+                      </svg>
                     </span>
 
                     <div>
@@ -2072,6 +2016,23 @@ export default function App() {
 
                 <div className="assessment-actions">
                   <button
+                    type="button"
+                    className="skip-button"
+                    onClick={
+                      handleAssessmentSkip
+                    }
+                    disabled={
+                      isAdaptiveLoading
+                    }
+                  >
+                    {adaptiveQuestionCount >=
+                    MAX_ADAPTIVE_QUESTIONS
+                      ? "Skip & Synthesise →"
+                      : "Skip Question"}
+                  </button>
+
+                  <button
+                    type="button"
                     className="btn-primary"
                     onClick={
                       handleAssessmentNext

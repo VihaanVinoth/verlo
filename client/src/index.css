@@ -140,10 +140,6 @@ a {
   flex-wrap: wrap;
 }
 
-.user-nav .user-avatar {
-  flex-shrink: 0;
-}
-
 .user-nav > span {
   max-width: 220px;
   overflow: hidden;
@@ -359,6 +355,13 @@ a {
   color: var(--accent);
   background: rgba(16, 185, 129, 0.06);
   font-size: 1rem;
+}
+
+.example-svg-icon {
+  width: 17px;
+  height: 17px;
+  display: block;
+  flex: 0 0 17px;
 }
 
 .verlo-card {
@@ -680,8 +683,43 @@ a {
 
 .assessment-actions {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
   margin-top: 1rem;
+}
+
+.skip-button {
+  width: auto;
+  min-width: 135px;
+  padding: 0.8rem 1.1rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.skip-button:hover:not(:disabled) {
+  color: var(--text-main);
+  border-color: var(--border-accent);
+  background: var(--bg-card-hover);
+  transform: translateY(-1px);
+}
+
+.skip-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.skip-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .assessment-actions .btn-primary {
@@ -1735,6 +1773,17 @@ a {
     font-size: 0.8rem;
   }
 
+  .assessment-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .assessment-actions .skip-button,
+  .assessment-actions .btn-primary {
+    width: 100%;
+    min-width: 0;
+  }
+
   .example-icon {
     width: 28px;
     height: 28px;
@@ -1763,115 +1812,4 @@ a {
   .risk-metrics strong {
     overflow-wrap: anywhere;
   }
-}
-
-.user-avatar {
-  display: block;
-  width: 32px;
-  height: 32px;
-  min-width: 32px;
-  min-height: 32px;
-  flex: 0 0 32px;
-  margin: 0;
-  padding: 0;
-  border-radius: 50%;
-  object-fit: cover;
-  object-position: center;
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-surface);
-  overflow: hidden;
-}
-
-.google-login-button {
-  width: 100%;
-  min-height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  margin: 0;
-  padding: 0.75rem 1rem;
-  border: 1px solid #d7d7d2;
-  border-radius: 9px;
-  background: #ffffff;
-  color: #202124;
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 0.85rem;
-  font-weight: 600;
-  line-height: 1;
-  cursor: pointer;
-  transition:
-    background 0.18s ease,
-    border-color 0.18s ease,
-    box-shadow 0.18s ease,
-    transform 0.18s ease;
-}
-
-.google-login-button:hover:not(:disabled) {
-  background: #f8f9fa;
-  border-color: #c8c8c4;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
-  transform: translateY(-1px);
-}
-
-.google-login-button:active:not(:disabled) {
-  transform: translateY(0);
-  box-shadow: 0 2px 7px rgba(0, 0, 0, 0.1);
-}
-
-.google-login-button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-}
-
-.google-login-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
-.google-login-icon {
-  display: block;
-  width: 20px;
-  height: 20px;
-  flex: 0 0 20px;
-}
-
-.google-login-button span {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 20px;
-}
-
-.adaptive-textarea-shell {
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  overflow: hidden;
-}
-
-.adaptive-textarea-shell {
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  overflow: hidden;
-}
-
-.adaptive-textarea-shell textarea {
-  display: block;
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  min-height: 160px;
-  box-sizing: border-box;
-  resize: vertical;
-  overflow-x: hidden;
-  overflow-y: auto;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  word-break: break-word;
 }

@@ -18,8 +18,10 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 const PORT = process.env.PORT || 5001;
-const API_URL = process.env.API_URL || "https://verlo-30xs.onrender.com";
-const CLIENT_URL = process.env.CLIENT_URL || "https://verloai.netlify.app";
+const API_URL =
+  process.env.API_URL || "https://verlo-30xs.onrender.com";
+const CLIENT_URL =
+  process.env.CLIENT_URL || "https://verloai.netlify.app";
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
@@ -34,7 +36,8 @@ const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL;
 
 const VERIFICATION_CODE_EXPIRY_MS = 15 * 60 * 1000;
 const VERIFICATION_RESEND_COOLDOWN_MS = 60 * 1000;
-const MAX_ADAPTIVE_QUESTIONS = 7;
+
+const MAX_ADAPTIVE_QUESTIONS = 6;
 
 if (!JWT_SECRET) {
   console.error("ERROR: JWT_SECRET is missing.");
@@ -55,7 +58,11 @@ if (!fs.existsSync(DATA_DIR)) {
 
 function ensureJsonFile(file, fallback = []) {
   if (!fs.existsSync(file)) {
-    fs.writeFileSync(file, JSON.stringify(fallback, null, 2), "utf8");
+    fs.writeFileSync(
+      file,
+      JSON.stringify(fallback, null, 2),
+      "utf8"
+    );
   }
 }
 
@@ -77,20 +84,39 @@ function readJson(file, fallback = []) {
 }
 
 function writeJson(file, data) {
-  fs.writeFileSync(file, JSON.stringify(data, null, 2), "utf8");
+  fs.writeFileSync(
+    file,
+    JSON.stringify(data, null, 2),
+    "utf8"
+  );
 }
 
 app.use(
   cors({
     origin: CLIENT_URL,
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "Accept"],
+    methods: [
+      "GET",
+      "POST",
+      "PUT",
+      "DELETE",
+      "OPTIONS",
+    ],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "Accept",
+    ],
   })
 );
 
 app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: "10mb",
+  })
+);
 app.use(cookieParser());
 
 const googleClient = new OAuth2Client(
@@ -166,7 +192,9 @@ function authenticate(req, res, next) {
     const decoded = jwt.verify(token, JWT_SECRET);
     const users = readJson(USERS_FILE, []);
 
-    const user = users.find((item) => item.id === decoded.id);
+    const user = users.find(
+      (item) => item.id === decoded.id
+    );
 
     if (!user) {
       return res.status(401).json({
@@ -181,7 +209,8 @@ function authenticate(req, res, next) {
     ) {
       return res.status(403).json({
         success: false,
-        error: "Email verification is required.",
+        error:
+          "Email verification is required.",
         verificationRequired: true,
         email: user.email,
       });
@@ -217,7 +246,9 @@ function clearAuthCookie(res) {
 }
 
 function createVerificationCode() {
-  return String(crypto.randomInt(100000, 1000000));
+  return String(
+    crypto.randomInt(100000, 1000000)
+  );
 }
 
 function hashVerificationCode(code) {
@@ -238,34 +269,45 @@ function getVerificationLastSent(user) {
     return null;
   }
 
-  const timestamp = Date.parse(user.verificationLastSentAt);
+  const timestamp = Date.parse(
+    user.verificationLastSentAt
+  );
 
-  return Number.isNaN(timestamp) ? null : timestamp;
+  return Number.isNaN(timestamp)
+    ? null
+    : timestamp;
 }
 
 async function sendVerificationEmail(user, code) {
-  if (!RESEND_API_KEY || !RESEND_FROM_EMAIL) {
+  if (
+    !RESEND_API_KEY ||
+    !RESEND_FROM_EMAIL
+  ) {
     throw new Error(
       "Email verification is not configured. Add RESEND_API_KEY and RESEND_FROM_EMAIL."
     );
   }
 
-  const safeName = String(user.name || "there")
+  const safeName = String(
+    user.name || "there"
+  )
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: RESEND_FROM_EMAIL,
-      to: [user.email],
-      subject: "Verify your VERLO account",
-      html: `
+  const response = await fetch(
+    "https://api.resend.com/emails",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: RESEND_FROM_EMAIL,
+        to: [user.email],
+        subject: "Verify your VERLO account",
+        html: `
         <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#171717">
           <h1 style="margin-bottom:8px">Verify your VERLO account</h1>
           <p>Hi ${safeName},</p>
@@ -275,26 +317,33 @@ async function sendVerificationEmail(user, code) {
           <p>If you did not create a VERLO account, you can ignore this email.</p>
         </div>
       `,
-    }),
-  });
+      }),
+    }
+  );
 
   if (!response.ok) {
     let details = "";
 
     try {
       const data = await response.json();
-      details = data?.message || data?.error || "";
+      details =
+        data?.message ||
+        data?.error ||
+        "";
     } catch {}
 
     throw new Error(
-      details || "The verification email could not be sent."
+      details ||
+        "The verification email could not be sent."
     );
   }
 }
 
 function extractJson(raw) {
   if (!raw) {
-    throw new Error("AI returned an empty response.");
+    throw new Error(
+      "AI returned an empty response."
+    );
   }
 
   const cleaned = String(raw)
@@ -306,29 +355,47 @@ function extractJson(raw) {
     return JSON.parse(cleaned);
   } catch {}
 
-  const firstObject = cleaned.indexOf("{");
-  const lastObject = cleaned.lastIndexOf("}");
+  const firstObject =
+    cleaned.indexOf("{");
+  const lastObject =
+    cleaned.lastIndexOf("}");
 
-  if (firstObject !== -1 && lastObject > firstObject) {
+  if (
+    firstObject !== -1 &&
+    lastObject > firstObject
+  ) {
     try {
       return JSON.parse(
-        cleaned.slice(firstObject, lastObject + 1)
+        cleaned.slice(
+          firstObject,
+          lastObject + 1
+        )
       );
     } catch {}
   }
 
-  const firstArray = cleaned.indexOf("[");
-  const lastArray = cleaned.lastIndexOf("]");
+  const firstArray =
+    cleaned.indexOf("[");
+  const lastArray =
+    cleaned.lastIndexOf("]");
 
-  if (firstArray !== -1 && lastArray > firstArray) {
+  if (
+    firstArray !== -1 &&
+    lastArray > firstArray
+  ) {
     try {
       return JSON.parse(
-        cleaned.slice(firstArray, lastArray + 1)
+        cleaned.slice(
+          firstArray,
+          lastArray + 1
+        )
       );
     } catch {}
   }
 
-  throw new Error("AI returned invalid JSON.");
+  throw new Error(
+    "AI returned invalid JSON."
+  );
 }
 
 function normaliseChoice(choice) {
@@ -336,7 +403,10 @@ function normaliseChoice(choice) {
     return choice.trim();
   }
 
-  if (choice && typeof choice === "object") {
+  if (
+    choice &&
+    typeof choice === "object"
+  ) {
     return String(
       choice.text ||
         choice.label ||
@@ -346,10 +416,15 @@ function normaliseChoice(choice) {
     ).trim();
   }
 
-  return String(choice || "").trim();
+  return String(
+    choice || ""
+  ).trim();
 }
 
-function getAnswerType(question, type) {
+function getAnswerType(
+  question,
+  type
+) {
   const explicit = String(
     question.answerType ||
       question.answer_type ||
@@ -422,7 +497,10 @@ function getAnswerType(question, type) {
   return "short_text";
 }
 
-function normaliseQuestion(question, questionNumber) {
+function normaliseQuestion(
+  question,
+  questionNumber
+) {
   if (typeof question === "string") {
     question = {
       question,
@@ -430,17 +508,28 @@ function normaliseQuestion(question, questionNumber) {
     };
   }
 
-  if (!question || typeof question !== "object") {
+  if (
+    !question ||
+    typeof question !== "object"
+  ) {
     return null;
   }
 
-  const requestedType = String(question.type || "").toLowerCase();
+  const requestedType =
+    String(
+      question.type || ""
+    ).toLowerCase();
 
-  const rawChoices = Array.isArray(question.choices)
-    ? question.choices
-    : Array.isArray(question.options)
-      ? question.options
-      : [];
+  const rawChoices =
+    Array.isArray(
+      question.choices
+    )
+      ? question.choices
+      : Array.isArray(
+          question.options
+        )
+        ? question.options
+        : [];
 
   const choices = rawChoices
     .map(normaliseChoice)
@@ -449,8 +538,10 @@ function normaliseQuestion(question, questionNumber) {
   const type =
     requestedType === "mcq" ||
     requestedType === "choice" ||
-    requestedType === "multiple-choice" ||
-    requestedType === "multiple_choice"
+    requestedType ===
+      "multiple-choice" ||
+    requestedType ===
+      "multiple_choice"
       ? "mcq"
       : "text";
 
@@ -464,7 +555,8 @@ function normaliseQuestion(question, questionNumber) {
     return null;
   }
 
-  const cleanQuestion = String(questionText).trim();
+  const cleanQuestion =
+    String(questionText).trim();
 
   const imageUrl =
     question.imageUrl ||
@@ -472,11 +564,20 @@ function normaliseQuestion(question, questionNumber) {
     question.image_url ||
     null;
 
-  if (type === "mcq" && choices.length < 2) {
+  if (
+    type === "mcq" &&
+    choices.length < 2
+  ) {
     return {
-      id: question.id || `adaptive-${questionNumber}`,
+      id:
+        question.id ||
+        `adaptive-${questionNumber}`,
       type: "text",
-      answerType: getAnswerType(question, "text"),
+      answerType:
+        getAnswerType(
+          question,
+          "text"
+        ),
       question: cleanQuestion,
       stem: cleanQuestion,
       choices: [],
@@ -499,12 +600,17 @@ function normaliseQuestion(question, questionNumber) {
   }
 
   return {
-    id: question.id || `adaptive-${questionNumber}`,
+    id:
+      question.id ||
+      `adaptive-${questionNumber}`,
     type,
     answerType:
       type === "mcq"
         ? "choice"
-        : getAnswerType(question, type),
+        : getAnswerType(
+            question,
+            type
+          ),
     question: cleanQuestion,
     stem: cleanQuestion,
     choices,
@@ -540,14 +646,20 @@ function buildFallbackQuestion(
   previousAnswers,
   questionNumber
 ) {
-  const source = `${title} ${description} ${context}`.toLowerCase();
+  const source =
+    `${title} ${description} ${context}`.toLowerCase();
 
-  const answers = Object.values(previousAnswers || {})
-    .map((value) => String(value))
+  const answers = Object.values(
+    previousAnswers || {}
+  )
+    .map((value) =>
+      String(value)
+    )
     .join(" ")
     .toLowerCase();
 
-  const combined = `${source} ${answers}`;
+  const combined =
+    `${source} ${answers}`;
 
   const makeQuestion = (
     question,
@@ -666,30 +778,39 @@ async function askGroq(
   options = {}
 ) {
   if (!groq) {
-    throw new Error("GROQ_API_KEY is not configured.");
+    throw new Error(
+      "GROQ_API_KEY is not configured."
+    );
   }
 
-  const completion = await groq.chat.completions.create({
-    model: "openai/gpt-oss-120b",
-    messages: [
-      {
-        role: "system",
-        content: systemPrompt,
-      },
-      {
-        role: "user",
-        content: userPrompt,
-      },
-    ],
-    temperature: options.temperature ?? 0.5,
-    max_tokens: options.max_tokens ?? 2500,
-  });
+  const completion =
+    await groq.chat.completions.create({
+      model:
+        "openai/gpt-oss-120b",
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt,
+        },
+        {
+          role: "user",
+          content: userPrompt,
+        },
+      ],
+      temperature:
+        options.temperature ?? 0.5,
+      max_tokens:
+        options.max_tokens ?? 2500,
+    });
 
   const content =
-    completion?.choices?.[0]?.message?.content;
+    completion?.choices?.[0]
+      ?.message?.content;
 
   if (!content) {
-    throw new Error("Groq returned an empty response.");
+    throw new Error(
+      "Groq returned an empty response."
+    );
   }
 
   return content;
@@ -704,16 +825,21 @@ async function generateAdaptiveQuestion({
   questionNumber,
   maxQuestions,
 }) {
-  const answerEntries = Object.entries(
-    previousAnswers || {}
-  );
+  const answerEntries =
+    Object.entries(
+      previousAnswers || {}
+    );
 
   const previousAnswerText =
     answerEntries.length > 0
       ? answerEntries
           .map(
             ([key, value], index) =>
-              `Question ${index + 1} (${key}): ${String(value)}`
+              `Question ${
+                index + 1
+              } (${key}): ${String(
+                value
+              )}`
           )
           .join("\n")
       : "No answers yet.";
@@ -821,15 +947,18 @@ ${previousAnswerText}
 Generate the next adaptive question now.
 `;
 
-  let lastError = null;
-
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (
+    let attempt = 0;
+    attempt < 2;
+    attempt += 1
+  ) {
     try {
-      const raw = await askGroq(
-        systemPrompt,
-        attempt === 0
-          ? userPrompt
-          : `${userPrompt}
+      const raw =
+        await askGroq(
+          systemPrompt,
+          attempt === 0
+            ? userPrompt
+            : `${userPrompt}
 
 Your previous response was unusable.
 
@@ -837,13 +966,14 @@ Return one valid JSON object only.
 Do not include reasoning.
 Do not include markdown.
 Do not include extra text.`,
-        {
-          temperature: 0.2,
-          max_tokens: 900,
-        }
-      );
+          {
+            temperature: 0.2,
+            max_tokens: 900,
+          }
+        );
 
-      const parsed = extractJson(raw);
+      const parsed =
+        extractJson(raw);
 
       let question =
         parsed?.question ||
@@ -851,16 +981,20 @@ Do not include extra text.`,
         parsed;
 
       if (
-        Array.isArray(parsed?.questions) &&
+        Array.isArray(
+          parsed?.questions
+        ) &&
         parsed.questions.length
       ) {
-        question = parsed.questions[0];
+        question =
+          parsed.questions[0];
       }
 
-      const normalised = normaliseQuestion(
-        question,
-        questionNumber
-      );
+      const normalised =
+        normaliseQuestion(
+          question,
+          questionNumber
+        );
 
       if (!normalised) {
         throw new Error(
@@ -868,20 +1002,23 @@ Do not include extra text.`,
         );
       }
 
-      const existingKeys = previousQuestions
-        .map(
-          (item) =>
-            item?.question ||
-            item?.stem ||
-            item?.text ||
-            ""
-        )
-        .map(questionKey)
-        .filter(Boolean);
+      const existingKeys =
+        previousQuestions
+          .map(
+            (item) =>
+              item?.question ||
+              item?.stem ||
+              item?.text ||
+              ""
+          )
+          .map(questionKey)
+          .filter(Boolean);
 
       if (
         existingKeys.includes(
-          questionKey(normalised.question)
+          questionKey(
+            normalised.question
+          )
         )
       ) {
         throw new Error(
@@ -890,9 +1027,7 @@ Do not include extra text.`,
       }
 
       return normalised;
-    } catch (error) {
-      lastError = error;
-    }
+    } catch {}
   }
 
   return buildFallbackQuestion(
@@ -910,355 +1045,58 @@ app.get("/", (req, res) => {
     name: "Verlo API",
     status: "online",
     frontend: CLIENT_URL,
-    authentication: "HttpOnly cookie",
+    authentication:
+      "HttpOnly cookie",
     adaptiveEngine: true,
     emailVerification: true,
   });
 });
 
-app.get("/api/health", (req, res) => {
-  res.json({
-    success: true,
-    status: "online",
-    service: "Verlo API",
-    adaptiveEngine: true,
-    emailVerification: true,
-    timestamp: new Date().toISOString(),
-  });
-});
-
-app.post("/api/auth/signup", async (req, res) => {
-  try {
-    const { name, email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        error: "Email and password are required.",
-      });
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({
-        success: false,
-        error: "Password must be at least 6 characters.",
-      });
-    }
-
-    if (!RESEND_API_KEY || !RESEND_FROM_EMAIL) {
-      return res.status(503).json({
-        success: false,
-        error:
-          "Email verification is not configured on the server.",
-      });
-    }
-
-    const normalizedEmail = email.trim().toLowerCase();
-    const users = readJson(USERS_FILE, []);
-
-    const existingUser = users.find(
-      (user) =>
-        user.email?.toLowerCase() === normalizedEmail
-    );
-
-    if (existingUser) {
-      if (
-        existingUser.provider === "local" &&
-        existingUser.verified === false
-      ) {
-        return res.status(409).json({
-          success: false,
-          error:
-            "An unverified account with this email already exists. Request a new verification code.",
-          verificationRequired: true,
-          email: normalizedEmail,
-        });
-      }
-
-      return res.status(409).json({
-        success: false,
-        error:
-          "An account with this email already exists.",
-      });
-    }
-
-    const passwordHash = await bcrypt.hash(password, 12);
-
-    const user = {
-      id: createUserId(),
-      name:
-        name?.trim() ||
-        normalizedEmail.split("@")[0],
-      email: normalizedEmail,
-      passwordHash,
-      picture: null,
-      provider: "local",
-      verified: false,
-      verificationCodeHash: null,
-      verificationExpiresAt: null,
-      verificationLastSentAt: null,
-      createdAt: new Date().toISOString(),
-    };
-
-    const code = createVerificationCode();
-
-    user.verificationCodeHash =
-      hashVerificationCode(code);
-    user.verificationExpiresAt =
-      getVerificationExpiry();
-    user.verificationLastSentAt =
-      new Date().toISOString();
-
-    await sendVerificationEmail(user, code);
-
-    users.push(user);
-    writeJson(USERS_FILE, users);
-
-    return res.status(201).json({
+app.get(
+  "/api/health",
+  (req, res) => {
+    res.json({
       success: true,
-      message:
-        "Account created. Check your email for the verification code.",
-      verificationRequired: true,
-      email: normalizedEmail,
-    });
-  } catch (error) {
-    console.error("Signup error:", error);
-
-    return res.status(500).json({
-      success: false,
-      error:
-        error?.message ||
-        "Could not create account.",
+      status: "online",
+      service: "Verlo API",
+      adaptiveEngine: true,
+      emailVerification: true,
+      timestamp:
+        new Date().toISOString(),
     });
   }
-});
-
-app.post("/api/auth/login", async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        error: "Email and password are required.",
-      });
-    }
-
-    const normalizedEmail = email.trim().toLowerCase();
-    const users = readJson(USERS_FILE, []);
-
-    const user = users.find(
-      (item) =>
-        item.email?.toLowerCase() === normalizedEmail
-    );
-
-    if (!user?.passwordHash) {
-      return res.status(401).json({
-        success: false,
-        error: "Invalid email or password.",
-      });
-    }
-
-    const validPassword = await bcrypt.compare(
-      password,
-      user.passwordHash
-    );
-
-    if (!validPassword) {
-      return res.status(401).json({
-        success: false,
-        error: "Invalid email or password.",
-      });
-    }
-
-    if (
-      user.provider !== "google" &&
-      user.verified === false
-    ) {
-      return res.status(403).json({
-        success: false,
-        error:
-          "Please verify your email before logging in.",
-        verificationRequired: true,
-        email: user.email,
-      });
-    }
-
-    if (
-      user.provider === "local" &&
-      user.verified === undefined
-    ) {
-      user.verified = true;
-      writeJson(USERS_FILE, users);
-    }
-
-    const token = createToken(user);
-    setAuthCookie(res, token);
-
-    return res.json({
-      success: true,
-      message: "Logged in successfully.",
-      user: publicUser(user),
-    });
-  } catch (error) {
-    console.error("Login error:", error);
-
-    return res.status(500).json({
-      success: false,
-      error: "Could not log in.",
-    });
-  }
-});
-
-app.post("/api/auth/verify-email", async (req, res) => {
-  try {
-    const { email, code } = req.body;
-
-    if (!email || !code) {
-      return res.status(400).json({
-        success: false,
-        error:
-          "Email and verification code are required.",
-      });
-    }
-
-    const normalizedEmail = email.trim().toLowerCase();
-    const cleanCode = String(code).trim();
-
-    if (!/^\d{6}$/.test(cleanCode)) {
-      return res.status(400).json({
-        success: false,
-        error:
-          "Enter the six-digit verification code.",
-      });
-    }
-
-    const users = readJson(USERS_FILE, []);
-
-    const user = users.find(
-      (item) =>
-        item.email?.toLowerCase() === normalizedEmail
-    );
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error:
-          "No account was found for that email.",
-      });
-    }
-
-    if (
-      user.provider === "google" ||
-      user.verified === true
-    ) {
-      const token = createToken(user);
-      setAuthCookie(res, token);
-
-      return res.json({
-        success: true,
-        message: "Email is already verified.",
-        user: publicUser(user),
-      });
-    }
-
-    if (
-      !user.verificationCodeHash ||
-      !user.verificationExpiresAt
-    ) {
-      return res.status(400).json({
-        success: false,
-        error:
-          "There is no active verification code. Request a new one.",
-        verificationRequired: true,
-        email: user.email,
-      });
-    }
-
-    const expiry = Date.parse(
-      user.verificationExpiresAt
-    );
-
-    if (
-      Number.isNaN(expiry) ||
-      Date.now() > expiry
-    ) {
-      return res.status(400).json({
-        success: false,
-        error:
-          "That verification code has expired. Request a new one.",
-        verificationRequired: true,
-        email: user.email,
-      });
-    }
-
-    const suppliedHash =
-      hashVerificationCode(cleanCode);
-
-    const suppliedBuffer = Buffer.from(
-      suppliedHash
-    );
-
-    const storedBuffer = Buffer.from(
-      user.verificationCodeHash
-    );
-
-    if (
-      suppliedBuffer.length !==
-        storedBuffer.length ||
-      !crypto.timingSafeEqual(
-        suppliedBuffer,
-        storedBuffer
-      )
-    ) {
-      return res.status(400).json({
-        success: false,
-        error:
-          "That verification code is incorrect.",
-        verificationRequired: true,
-        email: user.email,
-      });
-    }
-
-    user.verified = true;
-    user.verificationCodeHash = null;
-    user.verificationExpiresAt = null;
-    user.verificationLastSentAt = null;
-
-    writeJson(USERS_FILE, users);
-
-    const token = createToken(user);
-    setAuthCookie(res, token);
-
-    return res.json({
-      success: true,
-      message: "Email verified successfully.",
-      user: publicUser(user),
-    });
-  } catch (error) {
-    console.error("Verify email error:", error);
-
-    return res.status(500).json({
-      success: false,
-      error: "Could not verify email.",
-    });
-  }
-});
+);
 
 app.post(
-  "/api/auth/resend-verification",
+  "/api/auth/signup",
   async (req, res) => {
     try {
-      const { email } = req.body;
+      const {
+        name,
+        email,
+        password,
+      } = req.body;
 
-      if (!email) {
+      if (!email || !password) {
         return res.status(400).json({
           success: false,
-          error: "Email is required.",
+          error:
+            "Email and password are required.",
         });
       }
 
-      if (!RESEND_API_KEY || !RESEND_FROM_EMAIL) {
+      if (password.length < 6) {
+        return res.status(400).json({
+          success: false,
+          error:
+            "Password must be at least 6 characters.",
+        });
+      }
+
+      if (
+        !RESEND_API_KEY ||
+        !RESEND_FROM_EMAIL
+      ) {
         return res.status(503).json({
           success: false,
           error:
@@ -1269,13 +1107,286 @@ app.post(
       const normalizedEmail =
         email.trim().toLowerCase();
 
-      const users = readJson(USERS_FILE, []);
+      const users =
+        readJson(
+          USERS_FILE,
+          []
+        );
 
-      const user = users.find(
-        (item) =>
-          item.email?.toLowerCase() ===
-          normalizedEmail
+      const existingUser =
+        users.find(
+          (user) =>
+            user.email?.toLowerCase() ===
+            normalizedEmail
+        );
+
+      if (existingUser) {
+        if (
+          existingUser.provider ===
+            "local" &&
+          existingUser.verified ===
+            false
+        ) {
+          return res.status(409).json({
+            success: false,
+            error:
+              "An unverified account with this email already exists. Request a new verification code.",
+            verificationRequired:
+              true,
+            email:
+              normalizedEmail,
+          });
+        }
+
+        return res.status(409).json({
+          success: false,
+          error:
+            "An account with this email already exists.",
+        });
+      }
+
+      const passwordHash =
+        await bcrypt.hash(
+          password,
+          12
+        );
+
+      const user = {
+        id: createUserId(),
+        name:
+          name?.trim() ||
+          normalizedEmail.split(
+            "@"
+          )[0],
+        email:
+          normalizedEmail,
+        passwordHash,
+        picture: null,
+        provider: "local",
+        verified: false,
+        verificationCodeHash:
+          null,
+        verificationExpiresAt:
+          null,
+        verificationLastSentAt:
+          null,
+        createdAt:
+          new Date().toISOString(),
+      };
+
+      const code =
+        createVerificationCode();
+
+      user.verificationCodeHash =
+        hashVerificationCode(
+          code
+        );
+
+      user.verificationExpiresAt =
+        getVerificationExpiry();
+
+      user.verificationLastSentAt =
+        new Date().toISOString();
+
+      await sendVerificationEmail(
+        user,
+        code
       );
+
+      users.push(user);
+
+      writeJson(
+        USERS_FILE,
+        users
+      );
+
+      return res.status(201).json({
+        success: true,
+        message:
+          "Account created. Check your email for the verification code.",
+        verificationRequired:
+          true,
+        email:
+          normalizedEmail,
+      });
+    } catch (error) {
+      console.error(
+        "Signup error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        error:
+          error?.message ||
+          "Could not create account.",
+      });
+    }
+  }
+);
+
+app.post(
+  "/api/auth/login",
+  async (req, res) => {
+    try {
+      const {
+        email,
+        password,
+      } = req.body;
+
+      if (!email || !password) {
+        return res.status(400).json({
+          success: false,
+          error:
+            "Email and password are required.",
+        });
+      }
+
+      const normalizedEmail =
+        email.trim().toLowerCase();
+
+      const users =
+        readJson(
+          USERS_FILE,
+          []
+        );
+
+      const user =
+        users.find(
+          (item) =>
+            item.email?.toLowerCase() ===
+            normalizedEmail
+        );
+
+      if (!user?.passwordHash) {
+        return res.status(401).json({
+          success: false,
+          error:
+            "Invalid email or password.",
+        });
+      }
+
+      const validPassword =
+        await bcrypt.compare(
+          password,
+          user.passwordHash
+        );
+
+      if (!validPassword) {
+        return res.status(401).json({
+          success: false,
+          error:
+            "Invalid email or password.",
+        });
+      }
+
+      if (
+        user.provider !==
+          "google" &&
+        user.verified === false
+      ) {
+        return res.status(403).json({
+          success: false,
+          error:
+            "Please verify your email before logging in.",
+          verificationRequired:
+            true,
+          email:
+            user.email,
+        });
+      }
+
+      if (
+        user.provider ===
+          "local" &&
+        user.verified ===
+          undefined
+      ) {
+        user.verified = true;
+
+        writeJson(
+          USERS_FILE,
+          users
+        );
+      }
+
+      const token =
+        createToken(user);
+
+      setAuthCookie(
+        res,
+        token
+      );
+
+      return res.json({
+        success: true,
+        message:
+          "Logged in successfully.",
+        user:
+          publicUser(user),
+      });
+    } catch (error) {
+      console.error(
+        "Login error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        error:
+          "Could not log in.",
+      });
+    }
+  }
+);
+
+app.post(
+  "/api/auth/verify-email",
+  async (req, res) => {
+    try {
+      const {
+        email,
+        code,
+      } = req.body;
+
+      if (!email || !code) {
+        return res.status(400).json({
+          success: false,
+          error:
+            "Email and verification code are required.",
+        });
+      }
+
+      const normalizedEmail =
+        email.trim().toLowerCase();
+
+      const cleanCode =
+        String(code).trim();
+
+      if (
+        !/^\d{6}$/.test(
+          cleanCode
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          error:
+            "Enter the six-digit verification code.",
+        });
+      }
+
+      const users =
+        readJson(
+          USERS_FILE,
+          []
+        );
+
+      const user =
+        users.find(
+          (item) =>
+            item.email?.toLowerCase() ===
+            normalizedEmail
+        );
 
       if (!user) {
         return res.status(404).json({
@@ -1286,7 +1397,192 @@ app.post(
       }
 
       if (
-        user.provider === "google" ||
+        user.provider ===
+          "google" ||
+        user.verified === true
+      ) {
+        const token =
+          createToken(user);
+
+        setAuthCookie(
+          res,
+          token
+        );
+
+        return res.json({
+          success: true,
+          message:
+            "Email is already verified.",
+          user:
+            publicUser(user),
+        });
+      }
+
+      if (
+        !user.verificationCodeHash ||
+        !user.verificationExpiresAt
+      ) {
+        return res.status(400).json({
+          success: false,
+          error:
+            "There is no active verification code. Request a new one.",
+          verificationRequired:
+            true,
+          email:
+            user.email,
+        });
+      }
+
+      const expiry =
+        Date.parse(
+          user.verificationExpiresAt
+        );
+
+      if (
+        Number.isNaN(expiry) ||
+        Date.now() > expiry
+      ) {
+        return res.status(400).json({
+          success: false,
+          error:
+            "That verification code has expired. Request a new one.",
+          verificationRequired:
+            true,
+          email:
+            user.email,
+        });
+      }
+
+      const suppliedHash =
+        hashVerificationCode(
+          cleanCode
+        );
+
+      const suppliedBuffer =
+        Buffer.from(
+          suppliedHash
+        );
+
+      const storedBuffer =
+        Buffer.from(
+          user.verificationCodeHash
+        );
+
+      if (
+        suppliedBuffer.length !==
+          storedBuffer.length ||
+        !crypto.timingSafeEqual(
+          suppliedBuffer,
+          storedBuffer
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          error:
+            "That verification code is incorrect.",
+          verificationRequired:
+            true,
+          email:
+            user.email,
+        });
+      }
+
+      user.verified = true;
+      user.verificationCodeHash =
+        null;
+      user.verificationExpiresAt =
+        null;
+      user.verificationLastSentAt =
+        null;
+
+      writeJson(
+        USERS_FILE,
+        users
+      );
+
+      const token =
+        createToken(user);
+
+      setAuthCookie(
+        res,
+        token
+      );
+
+      return res.json({
+        success: true,
+        message:
+          "Email verified successfully.",
+        user:
+          publicUser(user),
+      });
+    } catch (error) {
+      console.error(
+        "Verify email error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        error:
+          "Could not verify email.",
+      });
+    }
+  }
+);
+
+app.post(
+  "/api/auth/resend-verification",
+  async (req, res) => {
+    try {
+      const { email } =
+        req.body;
+
+      if (!email) {
+        return res.status(400).json({
+          success: false,
+          error:
+            "Email is required.",
+        });
+      }
+
+      if (
+        !RESEND_API_KEY ||
+        !RESEND_FROM_EMAIL
+      ) {
+        return res.status(503).json({
+          success: false,
+          error:
+            "Email verification is not configured on the server.",
+        });
+      }
+
+      const normalizedEmail =
+        email.trim().toLowerCase();
+
+      const users =
+        readJson(
+          USERS_FILE,
+          []
+        );
+
+      const user =
+        users.find(
+          (item) =>
+            item.email?.toLowerCase() ===
+            normalizedEmail
+        );
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          error:
+            "No account was found for that email.",
+        });
+      }
+
+      if (
+        user.provider ===
+          "google" ||
         user.verified === true
       ) {
         return res.status(400).json({
@@ -1297,46 +1593,68 @@ app.post(
       }
 
       const lastSent =
-        getVerificationLastSent(user);
+        getVerificationLastSent(
+          user
+        );
 
       if (
         lastSent &&
-        Date.now() - lastSent <
+        Date.now() -
+          lastSent <
           VERIFICATION_RESEND_COOLDOWN_MS
       ) {
-        const remaining = Math.ceil(
-          (VERIFICATION_RESEND_COOLDOWN_MS -
-            (Date.now() - lastSent)) /
-            1000
-        );
+        const remaining =
+          Math.ceil(
+            (
+              VERIFICATION_RESEND_COOLDOWN_MS -
+              (
+                Date.now() -
+                lastSent
+              )
+            ) / 1000
+          );
 
         return res.status(429).json({
           success: false,
           error:
             `Please wait ${remaining} seconds before requesting another code.`,
-          retryAfter: remaining,
+          retryAfter:
+            remaining,
         });
       }
 
-      const code = createVerificationCode();
+      const code =
+        createVerificationCode();
 
       user.verificationCodeHash =
-        hashVerificationCode(code);
+        hashVerificationCode(
+          code
+        );
+
       user.verificationExpiresAt =
         getVerificationExpiry();
+
       user.verificationLastSentAt =
         new Date().toISOString();
 
-      await sendVerificationEmail(user, code);
+      await sendVerificationEmail(
+        user,
+        code
+      );
 
-      writeJson(USERS_FILE, users);
+      writeJson(
+        USERS_FILE,
+        users
+      );
 
       return res.json({
         success: true,
         message:
           "A new verification code has been sent.",
-        verificationRequired: true,
-        email: user.email,
+        verificationRequired:
+          true,
+        email:
+          user.email,
       });
     } catch (error) {
       console.error(
@@ -1354,58 +1672,84 @@ app.post(
   }
 );
 
-app.get("/api/auth/me", authenticate, (req, res) => {
-  res.json({
-    success: true,
-    user: publicUser(req.user),
-  });
-});
-
-app.post("/api/auth/logout", (req, res) => {
-  clearAuthCookie(res);
-
-  res.json({
-    success: true,
-    message: "Logged out successfully.",
-  });
-});
-
-app.get("/api/auth/google", (req, res) => {
-  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
-    return res.status(500).json({
-      success: false,
-      error:
-        "Google authentication is not configured.",
+app.get(
+  "/api/auth/me",
+  authenticate,
+  (req, res) => {
+    res.json({
+      success: true,
+      user:
+        publicUser(
+          req.user
+        ),
     });
   }
+);
 
-  try {
-    const authUrl =
-      googleClient.generateAuthUrl({
-        access_type: "offline",
-        prompt: "select_account",
-        scope: [
-          "openid",
-          "email",
-          "profile",
-        ],
+app.post(
+  "/api/auth/logout",
+  (req, res) => {
+    clearAuthCookie(
+      res
+    );
+
+    res.json({
+      success: true,
+      message:
+        "Logged out successfully.",
+    });
+  }
+);
+
+app.get(
+  "/api/auth/google",
+  (req, res) => {
+    if (
+      !GOOGLE_CLIENT_ID ||
+      !GOOGLE_CLIENT_SECRET
+    ) {
+      return res.status(500).json({
+        success: false,
+        error:
+          "Google authentication is not configured.",
       });
+    }
 
-    res.redirect(authUrl);
-  } catch {
-    res.status(500).json({
-      success: false,
-      error:
-        "Could not start Google authentication.",
-    });
+    try {
+      const authUrl =
+        googleClient.generateAuthUrl(
+          {
+            access_type:
+              "offline",
+            prompt:
+              "select_account",
+            scope: [
+              "openid",
+              "email",
+              "profile",
+            ],
+          }
+        );
+
+      res.redirect(
+        authUrl
+      );
+    } catch {
+      res.status(500).json({
+        success: false,
+        error:
+          "Could not start Google authentication.",
+      });
+    }
   }
-});
+);
 
 app.get(
   "/api/auth/google/callback",
   async (req, res) => {
     try {
-      const { code } = req.query;
+      const { code } =
+        req.query;
 
       if (!code) {
         return res.redirect(
@@ -1414,7 +1758,9 @@ app.get(
       }
 
       const { tokens } =
-        await googleClient.getToken(code);
+        await googleClient.getToken(
+          code
+        );
 
       if (!tokens.id_token) {
         return res.redirect(
@@ -1423,55 +1769,92 @@ app.get(
       }
 
       const ticket =
-        await googleClient.verifyIdToken({
-          idToken: tokens.id_token,
-          audience: GOOGLE_CLIENT_ID,
-        });
+        await googleClient.verifyIdToken(
+          {
+            idToken:
+              tokens.id_token,
+            audience:
+              GOOGLE_CLIENT_ID,
+          }
+        );
 
-      const payload = ticket.getPayload();
+      const payload =
+        ticket.getPayload();
 
-      if (!payload?.email || !payload?.sub) {
+      if (
+        !payload?.email ||
+        !payload?.sub
+      ) {
         return res.redirect(
           `${CLIENT_URL}/?auth_error=invalid_google_account`
         );
       }
 
-      const googleId = payload.sub;
-      const email = payload.email.toLowerCase();
+      const googleId =
+        payload.sub;
+
+      const email =
+        payload.email.toLowerCase();
+
       const name =
         payload.name ||
-        email.split("@")[0] ||
+        email.split(
+          "@"
+        )[0] ||
         "Verlo User";
-      const picture = payload.picture || null;
 
-      const users = readJson(
-        USERS_FILE,
-        []
-      );
+      const picture =
+        payload.picture ||
+        null;
 
-      let user = users.find(
-        (item) =>
-          item.googleId === googleId
-      );
+      const users =
+        readJson(
+          USERS_FILE,
+          []
+        );
+
+      let user =
+        users.find(
+          (item) =>
+            item.googleId ===
+            googleId
+        );
 
       if (!user) {
-        user = users.find(
-          (item) =>
-            item.email?.toLowerCase() ===
-            email
-        );
+        user =
+          users.find(
+            (item) =>
+              item.email?.toLowerCase() ===
+              email
+          );
       }
 
       if (user) {
-        user.googleId = googleId;
+        user.googleId =
+          googleId;
+
         user.picture =
-          picture || user.picture;
-        user.provider = "google";
-        user.verified = true;
-        user.verificationCodeHash = null;
-        user.verificationExpiresAt = null;
-        user.verificationLastSentAt = null;
-        user.name = user.name || name;
+          picture ||
+          user.picture;
+
+        user.provider =
+          "google";
+
+        user.verified =
+          true;
+
+        user.verificationCodeHash =
+          null;
+
+        user.verificationExpiresAt =
+          null;
+
+        user.verificationLastSentAt =
+          null;
+
+        user.name =
+          user.name ||
+          name;
       } else {
         user = {
           id: createUserId(),
@@ -1480,24 +1863,40 @@ app.get(
           email,
           passwordHash: null,
           picture,
-          provider: "google",
+          provider:
+            "google",
           verified: true,
-          verificationCodeHash: null,
-          verificationExpiresAt: null,
-          verificationLastSentAt: null,
+          verificationCodeHash:
+            null,
+          verificationExpiresAt:
+            null,
+          verificationLastSentAt:
+            null,
           createdAt:
             new Date().toISOString(),
         };
 
-        users.push(user);
+        users.push(
+          user
+        );
       }
 
-      writeJson(USERS_FILE, users);
+      writeJson(
+        USERS_FILE,
+        users
+      );
 
-      const token = createToken(user);
-      setAuthCookie(res, token);
+      const token =
+        createToken(user);
 
-      res.redirect(CLIENT_URL);
+      setAuthCookie(
+        res,
+        token
+      );
+
+      res.redirect(
+        CLIENT_URL
+      );
     } catch (error) {
       console.error(
         "Google authentication error:",
@@ -1516,15 +1915,19 @@ app.get(
   authenticate,
   (req, res) => {
     const history =
-      readJson(HISTORY_FILE, []);
+      readJson(
+        HISTORY_FILE,
+        []
+      );
 
     res.json({
       success: true,
-      history: history.filter(
-        (item) =>
-          item.userId ===
-          req.user.id
-      ),
+      history:
+        history.filter(
+          (item) =>
+            item.userId ===
+            req.user.id
+        ),
     });
   }
 );
@@ -1546,11 +1949,15 @@ app.post(
       }
 
       const history =
-        readJson(HISTORY_FILE, []);
+        readJson(
+          HISTORY_FILE,
+          []
+        );
 
       history.push({
         id: createUserId(),
-        userId: req.user.id,
+        userId:
+          req.user.id,
         title:
           report.title ||
           "Untitled Report",
@@ -1592,7 +1999,8 @@ app.post(
   "/api/adaptive-question",
   async (req, res) => {
     try {
-      const body = req.body || {};
+      const body =
+        req.body || {};
 
       const title =
         body.title ||
@@ -1631,10 +2039,24 @@ app.post(
           ? body.previousQuestions
           : [];
 
-      let questionNumber =
+      const skippedQuestions =
+        Array.isArray(
+          body.skippedQuestions
+        )
+          ? body.skippedQuestions
+          : Array.isArray(
+              previousAnswers._skippedQuestions
+            )
+            ? previousAnswers._skippedQuestions
+            : [];
+
+      const questionNumberRaw =
         Number(
           body.questionNumber
         );
+
+      let questionNumber =
+        questionNumberRaw;
 
       if (
         !Number.isFinite(
@@ -1723,6 +2145,11 @@ app.post(
           context,
           attachmentText
             ? `Imported files:\n${attachmentText}`
+            : "",
+          skippedQuestions.length
+            ? `Questions deliberately skipped by the user: ${skippedQuestions.join(
+                ", "
+              )}`
             : "",
         ]
           .filter(Boolean)
@@ -1869,6 +2296,7 @@ app.post(
         questions = [],
         attachment = null,
         attachments = [],
+        skippedQuestions = [],
       } = req.body;
 
       const finalPrompt =
@@ -1922,37 +2350,89 @@ app.post(
         }
       }
 
+      const explicitSkipped =
+        Array.isArray(
+          skippedQuestions
+        )
+          ? skippedQuestions
+          : [];
+
+      const embeddedSkipped =
+        Array.isArray(
+          parsedAnswers?._skippedQuestions
+        )
+          ? parsedAnswers._skippedQuestions
+          : [];
+
+      const allSkippedQuestions =
+        [
+          ...new Set([
+            ...explicitSkipped,
+            ...embeddedSkipped,
+          ]),
+        ];
+
       const questionAnswerPairs =
         Array.isArray(
           parsedQuestions
         )
           ? parsedQuestions
               .map(
-                (question) => ({
-                  question:
-                    question.question ||
-                    question.stem ||
-                    question.text ||
-                    "",
-                  answer:
-                    parsedAnswers?.[
-                      question.id
-                    ] ?? "",
-                })
+                (question) => {
+                  const key =
+                    question.id;
+
+                  const wasSkipped =
+                    allSkippedQuestions.includes(
+                      key
+                    );
+
+                  return {
+                    question:
+                      question.question ||
+                      question.stem ||
+                      question.text ||
+                      "",
+                    answer:
+                      wasSkipped
+                        ? null
+                        : parsedAnswers?.[
+                            key
+                          ] ?? "",
+                    skipped:
+                      wasSkipped,
+                  };
+                }
               )
               .filter(
                 (item) =>
                   item.question ||
-                  item.answer
+                  item.answer ||
+                  item.skipped
               )
           : Object.entries(
               parsedAnswers || {}
-            ).map(
-              ([key, value]) => ({
-                question: key,
-                answer: value,
-              })
-            );
+            )
+              .filter(
+                ([key]) =>
+                  key !==
+                  "_skippedQuestions"
+              )
+              .map(
+                ([key, value]) => ({
+                  question: key,
+                  answer:
+                    allSkippedQuestions.includes(
+                      key
+                    )
+                      ? null
+                      : value,
+                  skipped:
+                    allSkippedQuestions.includes(
+                      key
+                    ),
+                })
+              );
 
       const raw =
         await askGroq(
@@ -2025,6 +2505,9 @@ Rules:
 - Keep all generated text complete.
 - Do not truncate sections.
 - If Markdown is useful inside a text field, return the complete Markdown.
+- A skipped question is not an answer.
+- Never infer information from a skipped question.
+- Use skipped questions only to understand which information is unavailable.
 `,
           `
 Title:
@@ -2042,6 +2525,13 @@ ${context || "None provided"}
 Adaptive questions and answers:
 ${JSON.stringify(
   questionAnswerPairs,
+  null,
+  2
+)}
+
+Skipped questions:
+${JSON.stringify(
+  allSkippedQuestions,
   null,
   2
 )}
@@ -2152,9 +2642,12 @@ ${JSON.stringify(
             })
           );
 
-      if (!result.riskAssessment) {
+      if (
+        !result.riskAssessment
+      ) {
         result.riskAssessment = {
-          severityScore: "N/A",
+          severityScore:
+            "N/A",
           financialExposure:
             "Not established",
           timeSensitivity:
@@ -2206,7 +2699,11 @@ app.post(
         message ||
         "";
 
-      if (!String(userMessage).trim()) {
+      if (
+        !String(
+          userMessage
+        ).trim()
+      ) {
         return res.status(400).json({
           success: false,
           error:
@@ -2307,8 +2804,6 @@ app.use(
     });
   }
 );
-
-// LUCKY NUMBER 888
 
 app.listen(
   PORT,
