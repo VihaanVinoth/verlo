@@ -1420,8 +1420,8 @@ export default function App() {
               </h1>
 
               <p className="verlo-subtitle">
-                Verlo is an adaptive supercharged decision-intelligence engine
-                that transforms messy, stressful situations into a fully
+                Verlo is your adaptive assistant
+                that transforms messy and stressful situations into a fully
                 tailored, risk-scored action pathway through dynamic profiling.
               </p>
 
@@ -1429,11 +1429,11 @@ export default function App() {
                 className="btn-primary launch-button"
                 onClick={() => setStep("input")}
               >
-                Launch Decision Engine →
+                Launch Verlo →
               </button>
 
               <div className="example-section">
-                <p className="example-label">Test common VERLO scenarios:</p>
+                <p className="example-label">Try some examples:</p>
 
                 <div className="example-grid">
                   <div
