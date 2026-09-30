@@ -1,3509 +1,2983 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import "./style.css";
+import React, { useEffect, useState } from "react";
 
 const API_URL =
   import.meta.env.VITE_API_URL || "https://verlo-30xs.onrender.com";
 
-const STORAGE_KEY = "verlo_app_state_v4";
-const MAX_ADAPTIVE_QUESTIONS = 7;
+const MAX_ADAPTIVE_QUESTIONS = 6;
+const MIN_WORDS = 5;
 
-const initialState = {
-  screen: "home",
-  situation: "",
-  title: "",
-  category: "",
-  context: "",
-  questions: [],
-  answers: [],
-  questionIndex: 0,
-  result: null,
-  attachments: [],
-  verificationEmail: "",
-  verificationRequired: false
-};
+const processingSteps = [
+  "Deciphering core strategic goals...",
+  "Screening through moderation & safety filters...",
+  "Evaluating risk severity & exposure metrics...",
+  "Synthesising customised action pathway...",
+  "Finalising recommendations...",
+];
 
-function loadState() {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
+const tabs = [
+  ["overview", "Overview"],
+  ["panels", "Panels"],
+  ["steps", "Action Steps"],
+  ["letter", "Letter"],
+  ["resources", "Resources"],
+];
 
-    if (!saved) {
-      return initialState;
-    }
+export default function App() {
+  const [step, setStep] = useState("landing");
 
-    const parsed = JSON.parse(saved);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [userContext, setUserContext] = useState("");
 
-    return {
-      ...initialState,
-      ...parsed
-    };
-  } catch {
-    return initialState;
-  }
-}
-
-async function api(path, options = {}) {
-  const response = await fetch(`${API_URL}${path}`, {
-    credentials: "include",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {})
-    }
+  const [assessmentData, setAssessmentData] = useState({
+    adaptiveQuestions: [],
   });
 
-  let data = null;
+  const [selectedMcqAnswers, setSelectedMcqAnswers] = useState({});
+  const [adaptiveTextAnswers, setAdaptiveTextAnswers] = useState({});
+  const [activeAssessmentIndex, setActiveAssessmentIndex] = useState(0);
 
-  try {
-    data = await response.json();
-  } catch {
-    data = null;
-  }
+  const [isAdaptiveLoading, setIsAdaptiveLoading] = useState(false);
+  const [adaptiveQuestionCount, setAdaptiveQuestionCount] = useState(0);
 
-  if (!response.ok) {
-    throw new Error(
-      data?.error ||
-        data?.message ||
-        `Request failed with status ${response.status}`
-    );
-  }
+  const [assessmentAttachment, setAssessmentAttachment] = useState(null);
+  const [chatAttachment, setChatAttachment] = useState(null);
 
-  return data;
-}
+  const [analysisData, setAnalysisData] = useState(null);
+  const [activeTab, setActiveTab] = useState("overview");
 
-function Icon({ name, size = 20 }) {
-  const common = {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 1.8,
-    strokeLinecap: "round",
-    strokeLinejoin: "round",
-    "aria-hidden": true,
-    focusable: "false"
-  };
+  const [processingStage, setProcessingStage] = useState(0);
+  const [error, setError] = useState(null);
 
-  const paths = {
-    arrow: (
-      <>
-        <path d="M5 12h14" />
-        <path d="m13 6 6 6-6 6" />
-      </>
-    ),
-    back: (
-      <>
-        <path d="M19 12H5" />
-        <path d="m11 18-6-6 6-6" />
-      </>
-    ),
-    check: <path d="m5 12 4 4L19 6" />,
-    close: (
-      <>
-        <path d="M6 6l12 12" />
-        <path d="M18 6 6 18" />
-      </>
-    ),
-    history: (
-      <>
-        <path d="M3 12a9 9 0 1 0 3-6.7" />
-        <path d="M3 4v5h5" />
-        <path d="M12 7v5l3 2" />
-      </>
-    ),
-    user: (
-      <>
-        <circle cx="12" cy="8" r="3.5" />
-        <path d="M5 20c.8-3.3 3.1-5 7-5s6.2 1.7 7 5" />
-      </>
-    ),
-    plus: (
-      <>
-        <path d="M12 5v14" />
-        <path d="M5 12h14" />
-      </>
-    ),
-    upload: (
-      <>
-        <path d="M12 16V4" />
-        <path d="m7 9 5-5 5 5" />
-        <path d="M5 20h14" />
-      </>
-    ),
-    send: (
-      <>
-        <path d="m4 4 16 8-16 8 3-8-3-8Z" />
-        <path d="M7 12h13" />
-      </>
-    ),
-    lock: (
-      <>
-        <rect x="5" y="10" width="14" height="10" rx="2" />
-        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-      </>
-    ),
-    mail: (
-      <>
-        <rect x="3" y="5" width="18" height="14" rx="2" />
-        <path d="m4 7 8 6 8-6" />
-      </>
-    ),
-    google: (
-      <>
-        <path d="M21 12.2c0-.7-.1-1.4-.2-2H12v3.8h5a4.3 4.3 0 0 1-1.9 2.8v2.3h3.1c1.8-1.7 2.8-4.1 2.8-6.9Z" />
-        <path d="M12 21c2.6 0 4.8-.9 6.4-2.4l-3.1-2.3c-.9.6-2 1-3.3 1-2.5 0-4.7-1.7-5.4-4H3.4v2.4A9.7 9.7 0 0 0 12 21Z" />
-        <path d="M6.6 13.3a5.8 5.8 0 0 1 0-2.6V8.3H3.4a9 9 0 0 0 0 8.1l3.2-3.1Z" />
-        <path d="M12 6.7c1.5 0 2.8.5 3.8 1.5l2.8-2.8C16.8 3.9 14.6 3 12 3a9.7 9.7 0 0 0-8.6 5.3l3.2 2.4c.7-2.3 2.9-4 5.4-4Z" />
-      </>
-    ),
-    spark: (
-      <>
-        <path d="m12 2 1.7 6.3L20 10l-6.3 1.7L12 18l-1.7-6.3L4 10l6.3-1.7L12 2Z" />
-        <path d="m19 15 .7 2.3L22 18l-2.3.7L19 21l-.7-2.3L16 18l2.3-.7L19 15Z" />
-      </>
-    ),
-    paperclip: (
-      <path d="m20 11.5-8.3 8.3a5 5 0 0 1-7.1-7.1l8.5-8.5a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-2.8-2.8l7.9-7.9" />
-    ),
-    skip: (
-      <>
-        <path d="M6 5v14l10-7L6 5Z" />
-        <path d="M19 5v14" />
-      </>
-    ),
-    warning: (
-      <>
-        <path d="M12 3 2.8 20h18.4L12 3Z" />
-        <path d="M12 9v4" />
-        <path d="M12 17h.01" />
-      </>
-    ),
-    external: (
-      <>
-        <path d="M14 5h5v5" />
-        <path d="m19 5-8 8" />
-        <path d="M19 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" />
-      </>
-    )
-  };
+  const [copied, setCopied] = useState(false);
+  const [copyCount, setCopyCount] = useState(0);
 
-  return <svg {...common}>{paths[name] || paths.spark}</svg>;
-}
+  const [customAlert, setCustomAlert] = useState(null);
+  const [alertExiting, setAlertExiting] = useState(false);
 
-function Logo({ onClick }) {
-  return (
-    <button className="brand-button" onClick={onClick} type="button">
-      <span className="brand-mark">
-        <Icon name="spark" size={18} />
-      </span>
-      <span className="brand-name">VERLO</span>
-    </button>
-  );
-}
+  const [chatQuestion, setChatQuestion] = useState("");
+  const [chatHistory, setChatHistory] = useState([]);
+  const [isChatLoading, setIsChatLoading] = useState(false);
 
-function LoadingDots() {
-  return (
-    <span className="loading-dots" aria-label="Loading">
-      <span />
-      <span />
-      <span />
-    </span>
-  );
-}
+  const [currentUser, setCurrentUser] = useState(null);
 
-function AuthModal({
-  mode,
-  setMode,
-  onClose,
-  onAuthenticated,
-  onVerificationRequired
-}) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState("login");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authError, setAuthError] = useState(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
 
-  const submit = async event => {
-    event.preventDefault();
-    setError("");
-    setLoading(true);
+  const [userHistory, setUserHistory] = useState([]);
+  const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
 
-    try {
-      const endpoint =
-        mode === "login" ? "/api/auth/login" : "/api/auth/signup";
+  const wordCount = description.trim()
+    ? description.trim().split(/\s+/).length
+    : 0;
 
-      const body =
-        mode === "login"
-          ? {
-              email,
-              password
-            }
-          : {
-              name,
-              email,
-              password
-            };
+  /*
+   * --------------------------------------------------
+   * CUSTOM ALERT
+   * --------------------------------------------------
+   */
 
-      const data = await api(endpoint, {
-        method: "POST",
-        body: JSON.stringify(body)
-      });
+  const triggerCustomAlert = (message, type = "success") => {
+    setCustomAlert({
+      message,
+      type,
+    });
 
-      if (data?.verificationRequired || data?.requiresVerification) {
-        onVerificationRequired(email);
-        return;
-      }
+    setAlertExiting(false);
 
-      onAuthenticated(data?.user || data);
-    } catch (err) {
-      setError(err.message || "Something went wrong.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGoogle = () => {
-    window.location.href = `${API_URL}/api/auth/google`;
-  };
-
-  return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
-      <div
-        className="auth-modal"
-        onMouseDown={event => event.stopPropagation()}
-      >
-        <button
-          className="modal-close"
-          type="button"
-          onClick={onClose}
-          aria-label="Close"
-        >
-          <Icon name="close" size={19} />
-        </button>
-
-        <div className="auth-heading">
-          <span className="auth-icon">
-            <Icon name="lock" size={19} />
-          </span>
-
-          <div>
-            <h2>{mode === "login" ? "Welcome back" : "Create your account"}</h2>
-            <p>
-              {mode === "login"
-                ? "Continue where you left off."
-                : "Save your decisions and access them anywhere."}
-            </p>
-          </div>
-        </div>
-
-        <form onSubmit={submit} className="auth-form">
-          {mode === "signup" && (
-            <label className="auth-field">
-              <span>Name</span>
-              <div className="input-wrap">
-                <Icon name="user" size={18} />
-                <input
-                  value={name}
-                  onChange={event => setName(event.target.value)}
-                  placeholder="Your name"
-                  autoComplete="name"
-                  required
-                />
-              </div>
-            </label>
-          )}
-
-          <label className="auth-field">
-            <span>Email</span>
-            <div className="input-wrap">
-              <Icon name="mail" size={18} />
-              <input
-                value={email}
-                onChange={event => setEmail(event.target.value)}
-                placeholder="you@example.com"
-                type="email"
-                autoComplete="email"
-                required
-              />
-            </div>
-          </label>
-
-          <label className="auth-field">
-            <span>Password</span>
-            <div className="input-wrap">
-              <Icon name="lock" size={18} />
-              <input
-                value={password}
-                onChange={event => setPassword(event.target.value)}
-                placeholder="Your password"
-                type="password"
-                autoComplete={
-                  mode === "login" ? "current-password" : "new-password"
-                }
-                required
-              />
-            </div>
-          </label>
-
-          {error && <div className="form-error">{error}</div>}
-
-          <button className="auth-submit" type="submit" disabled={loading}>
-            {loading ? (
-              <LoadingDots />
-            ) : mode === "login" ? (
-              "Sign in"
-            ) : (
-              "Create account"
-            )}
-          </button>
-        </form>
-
-        <div className="auth-divider">
-          <span>or</span>
-        </div>
-
-        <button
-          className="google-button"
-          type="button"
-          onClick={handleGoogle}
-        >
-          <Icon name="google" size={18} />
-          Continue with Google
-        </button>
-
-        <div className="auth-switch">
-          <span>
-            {mode === "login"
-              ? "Don't have an account?"
-              : "Already have an account?"}
-          </span>
-
-          <button
-            type="button"
-            onClick={() => {
-              setError("");
-              setMode(mode === "login" ? "signup" : "login");
-            }}
-          >
-            {mode === "login" ? "Create one" : "Sign in"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function VerificationModal({ email, onClose, onVerified }) {
-  const [code, setCode] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [resending, setResending] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-
-  const verify = async event => {
-    event.preventDefault();
-    setError("");
-    setSuccess("");
-    setLoading(true);
-
-    try {
-      const data = await api("/api/auth/verify-email", {
-        method: "POST",
-        body: JSON.stringify({
-          email,
-          code
-        })
-      });
-
-      setSuccess(data?.message || "Your email has been verified.");
+    setTimeout(() => {
+      setAlertExiting(true);
 
       setTimeout(() => {
-        onVerified(data?.user || data);
-      }, 600);
-    } catch (err) {
-      setError(err.message || "Verification failed.");
-    } finally {
-      setLoading(false);
-    }
+        setCustomAlert(null);
+        setAlertExiting(false);
+      }, 300);
+    }, 3300);
   };
 
-  const resend = async () => {
-    setError("");
-    setSuccess("");
-    setResending(true);
+  /*
+   * --------------------------------------------------
+   * RESTORE COOKIE SESSION
+   *
+   * The new server uses an HttpOnly cookie:
+   *
+   * Google
+   *   ↓
+   * backend callback
+   *   ↓
+   * HttpOnly verlo_token cookie
+   *   ↓
+   * redirect to frontend
+   *   ↓
+   * /api/auth/me
+   * --------------------------------------------------
+   */
 
-    try {
-      const data = await api("/api/auth/resend-verification", {
-        method: "POST",
-        body: JSON.stringify({ email })
-      });
+  useEffect(() => {
+    const restoreSession = async () => {
+      setIsAuthLoading(true);
 
-      setSuccess(data?.message || "A new verification code has been sent.");
-    } catch (err) {
-      setError(err.message || "Unable to resend the code.");
-    } finally {
-      setResending(false);
-    }
-  };
-
-  return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
-      <div
-        className="auth-modal verification-modal"
-        onMouseDown={event => event.stopPropagation()}
-      >
-        <button
-          className="modal-close"
-          type="button"
-          onClick={onClose}
-          aria-label="Close"
-        >
-          <Icon name="close" size={19} />
-        </button>
-
-        <div className="verification-icon">
-          <Icon name="mail" size={24} />
-        </div>
-
-        <div className="auth-heading">
-          <div>
-            <h2>Check your email</h2>
-            <p>
-              We sent a verification code to <strong>{email}</strong>.
-            </p>
-          </div>
-        </div>
-
-        <form onSubmit={verify} className="auth-form">
-          <label className="auth-field">
-            <span>Verification code</span>
-            <div className="input-wrap">
-              <input
-                value={code}
-                onChange={event => setCode(event.target.value)}
-                placeholder="Enter your code"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                required
-              />
-            </div>
-          </label>
-
-          {error && <div className="form-error">{error}</div>}
-          {success && <div className="form-success">{success}</div>}
-
-          <button className="auth-submit" type="submit" disabled={loading}>
-            {loading ? <LoadingDots /> : "Verify email"}
-          </button>
-        </form>
-
-        <button
-          className="resend-button"
-          type="button"
-          disabled={resending}
-          onClick={resend}
-        >
-          {resending ? "Sending..." : "Resend code"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function Home({ onStart, onHistory, user, onAuth }) {
-  return (
-    <div className="home-page">
-      <header className="site-header">
-        <Logo
-          onClick={() =>
-            window.scrollTo({
-              top: 0,
-              behavior: "smooth"
-            })
+      try {
+        const res = await fetch(
+          `${API_URL}/api/auth/me`,
+          {
+            method: "GET",
+            credentials: "include",
+            headers: {
+              Accept: "application/json",
+            },
           }
-        />
+        );
 
-        <nav className="site-nav">
-          {user && (
-            <button
-              className="history-nav-button"
-              type="button"
-              onClick={onHistory}
-            >
-              <Icon name="history" size={17} />
-              History
-            </button>
-          )}
+        if (!res.ok) {
+          setCurrentUser(null);
+          return;
+        }
 
-          {user ? (
-            <button className="account-button" type="button">
-              <span>
-                {user.name || user.email?.charAt(0)?.toUpperCase()}
-              </span>
-            </button>
-          ) : (
-            <button
-              className="account-button"
-              type="button"
-              onClick={() => onAuth("login")}
-            >
-              Sign in
-            </button>
-          )}
+        const data = await res.json();
 
-          <button className="header-cta" type="button" onClick={onStart}>
-            Start
-            <Icon name="arrow" size={16} />
-          </button>
-        </nav>
-      </header>
+        if (data?.success && data?.user) {
+          setCurrentUser(data.user);
+        } else {
+          setCurrentUser(null);
+        }
+      } catch (err) {
+        console.error(
+          "[VERLO] Session restore failed:",
+          err
+        );
 
-      <main>
-        <section className="hero-section">
-          <div className="hero-content">
-            <div className="eyebrow">
-              <Icon name="spark" size={14} />
-              Decision intelligence
-            </div>
-
-            <h1>
-              Think clearly.
-              <br />
-              <span>Decide confidently.</span>
-            </h1>
-
-            <p className="hero-description">
-              VERLO turns complicated situations into structured thinking,
-              useful questions and practical next steps.
-            </p>
-
-            <div className="hero-actions">
-              <button className="hero-button" type="button" onClick={onStart}>
-                Start thinking
-                <Icon name="arrow" size={18} />
-              </button>
-
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={() =>
-                  document
-                    .getElementById("features")
-                    ?.scrollIntoView({ behavior: "smooth" })
-                }
-              >
-                See how it works
-              </button>
-            </div>
-
-            <div className="hero-note">
-              <Icon name="check" size={15} />
-              No right answer. Just clearer thinking.
-            </div>
-          </div>
-
-          <div className="hero-visual" aria-hidden="true">
-            <div className="hero-orbit hero-orbit-one" />
-            <div className="hero-orbit hero-orbit-two" />
-
-            <div className="hero-core">
-              <Icon name="spark" size={32} />
-            </div>
-
-            <div className="floating-card floating-card-one">
-              <span>Situation</span>
-              <strong>What actually matters?</strong>
-            </div>
-
-            <div className="floating-card floating-card-two">
-              <span>Perspective</span>
-              <strong>What are you missing?</strong>
-            </div>
-
-            <div className="floating-card floating-card-three">
-              <span>Next step</span>
-              <strong>What can you do now?</strong>
-            </div>
-          </div>
-        </section>
-
-        <section className="feature-section" id="features">
-          <div className="section-heading">
-            <div className="eyebrow">A better way to think</div>
-
-            <h2>From uncertainty to a clear path.</h2>
-
-            <p>
-              VERLO does more than generate an answer. It adapts its questions
-              to understand what actually matters in your situation.
-            </p>
-          </div>
-
-          <div className="feature-grid">
-            <article className="feature-card">
-              <span className="feature-number">01</span>
-
-              <div className="feature-icon">
-                <Icon name="spark" size={20} />
-              </div>
-
-              <h3>Understand</h3>
-
-              <p>
-                Start with what is happening. VERLO identifies the important
-                context before jumping to conclusions.
-              </p>
-            </article>
-
-            <article className="feature-card">
-              <span className="feature-number">02</span>
-
-              <div className="feature-icon">
-                <Icon name="arrow" size={20} />
-              </div>
-
-              <h3>Explore</h3>
-
-              <p>
-                Answer adaptive questions that change depending on what you
-                have already told VERLO.
-              </p>
-            </article>
-
-            <article className="feature-card">
-              <span className="feature-number">03</span>
-
-              <div className="feature-icon">
-                <Icon name="check" size={20} />
-              </div>
-
-              <h3>Act</h3>
-
-              <p>
-                Receive a structured report with options, considerations and
-                practical next steps.
-              </p>
-            </article>
-          </div>
-        </section>
-      </main>
-    </div>
-  );
-}
-
-function InputPage({
-  situation,
-  setSituation,
-  category,
-  setCategory,
-  attachments,
-  setAttachments,
-  onBack,
-  onStart,
-  loading
-}) {
-  const fileInputRef = useRef(null);
-
-  const categories = [
-    "School",
-    "Work",
-    "Relationships",
-    "Personal",
-    "Money",
-    "Health",
-    "Other"
-  ];
-
-  const addFiles = event => {
-    const files = Array.from(event.target.files || []);
-
-    if (!files.length) {
-      return;
-    }
-
-    setAttachments(previous => [
-      ...previous,
-      ...files.map(file => ({
-        name: file.name,
-        type: file.type,
-        size: file.size
-      }))
-    ]);
-
-    event.target.value = "";
-  };
-
-  const removeAttachment = index => {
-    setAttachments(previous =>
-      previous.filter((_, attachmentIndex) => attachmentIndex !== index)
-    );
-  };
-
-  return (
-    <div className="assessment-page">
-      <header className="site-header">
-        <Logo onClick={onBack} />
-
-        <button className="back-button" type="button" onClick={onBack}>
-          <Icon name="back" size={17} />
-          Back
-        </button>
-      </header>
-
-      <main className="assessment-main">
-        <div className="assessment-intro">
-          <div className="eyebrow">01 · Your situation</div>
-
-          <h1>What are you trying to figure out?</h1>
-
-          <p>
-            Give VERLO enough context to understand the situation. You do not
-            need to have everything figured out yet.
-          </p>
-        </div>
-
-        <div className="input-container">
-          <label className="large-label" htmlFor="situation">
-            Tell us what is happening
-          </label>
-
-          <div className="textarea-shell">
-            <textarea
-              id="situation"
-              value={situation}
-              onChange={event => setSituation(event.target.value)}
-              placeholder="Tell me what is happening, what you are deciding, or what you are unsure about..."
-              rows={9}
-              maxLength={6000}
-            />
-
-            <div className="textarea-count">{situation.length}/6000</div>
-          </div>
-
-          <div className="category-row">
-            <span className="category-label">Category</span>
-
-            <div className="category-options">
-              {categories.map(item => (
-                <button
-                  key={item}
-                  type="button"
-                  className={category === item ? "selected" : ""}
-                  onClick={() => setCategory(item)}
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="attachment-area">
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              hidden
-              onChange={addFiles}
-            />
-
-            <button
-              type="button"
-              className="attachment-button"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Icon name="paperclip" size={17} />
-              Attach files
-            </button>
-
-            {attachments.length > 0 && (
-              <div className="attachment-list">
-                {attachments.map((attachment, index) => (
-                  <div
-                    className="attachment-item"
-                    key={`${attachment.name}-${index}`}
-                  >
-                    <span>{attachment.name}</span>
-
-                    <button
-                      type="button"
-                      onClick={() => removeAttachment(index)}
-                      aria-label={`Remove ${attachment.name}`}
-                    >
-                      <Icon name="close" size={15} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="input-footer">
-            <span>Your answers help VERLO ask better questions.</span>
-
-            <button
-              className="continue-button"
-              type="button"
-              disabled={!situation.trim() || loading}
-              onClick={onStart}
-            >
-              {loading ? (
-                <LoadingDots />
-              ) : (
-                <>
-                  Continue
-                  <Icon name="arrow" size={17} />
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </main>
-    </div>
-  );
-}
-
-function normalizeQuestion(question, index = 0) {
-  if (!question) {
-    return null;
-  }
-
-  if (typeof question === "string") {
-    return {
-      id: `question-${index + 1}`,
-      question,
-      type: "text",
-      placeholder: "Type your answer here...",
-      multiline: false,
-      required: true,
-      options: []
+        setCurrentUser(null);
+      } finally {
+        setIsAuthLoading(false);
+      }
     };
-  }
 
-  const answerType = String(
-    question.answerType ||
-      question.inputType ||
-      question.responseType ||
-      ""
-  ).toLowerCase();
+    restoreSession();
+  }, []);
 
-  return {
-    id:
-      question.id ||
-      question.questionId ||
-      question.key ||
-      `question-${index + 1}`,
-    question:
-      question.question ||
-      question.text ||
-      question.questionText ||
-      question.prompt ||
-      "",
-    type: question.type || "text",
-    placeholder:
-      question.placeholder ||
-      "Type your answer here...",
-    options: Array.isArray(question.options)
-      ? question.options
-      : Array.isArray(question.choices)
-        ? question.choices
-        : [],
-    image:
-      question.image ||
-      question.imageUrl ||
-      null,
-    imageAlt:
-      question.imageAlt ||
-      "",
-    imageCaption:
-      question.imageCaption ||
-      "",
-    required: question.required !== false,
-    multiline:
-      question.multiline === true ||
-      question.multiLine === true ||
-      ["long_text", "textarea", "paragraph", "multi_line", "multiline"].includes(
-        answerType
-      ),
-    answerType
-  };
-}
-
-function isMultilineQuestion(question) {
-  if (!question) {
-    return false;
-  }
-
-  if (question.multiline === true || question.multiLine === true) {
-    return true;
-  }
-
-  if (question.multiline === false || question.multiLine === false) {
-    return false;
-  }
-
-  const answerType = String(
-    question.answerType ||
-      question.inputType ||
-      question.responseType ||
-      question.type ||
-      ""
-  ).toLowerCase();
-
-  if (
-    ["long_text", "textarea", "paragraph", "multi_line", "multiline"].includes(
-      answerType
-    )
-  ) {
-    return true;
-  }
-
-  if (
-    ["short_text", "single_line", "text", "string", "short", "input"].includes(
-      answerType
-    )
-  ) {
-    return false;
-  }
-
-  const text = String(question.question || "").trim();
-
-  if (
-    /^(do you|are you|is |can you|have you|would you|will you|did you|does |could you|has |was |were )/i.test(
-      text
-    )
-  ) {
-    return false;
-  }
-
-  if (
-    /\b(
-      explain|
-      describe|
-      in your own words|
-      provide details|
-      tell me about|
-      what happened|
-      what has happened|
-      what records|
-      what evidence|
-      what documents|
-      what problem .* and what|
-      why
-    )\b/ix.test(text)
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
-function AdaptiveAssessment({
-  situation,
-  title,
-  category,
-  context,
-  questions,
-  setQuestions,
-  answers,
-  setAnswers,
-  questionIndex,
-  setQuestionIndex,
-  attachments,
-  onComplete
-}) {
-  // LUCKY NUMBER 888
-  const question = questions[questionIndex];
-
-  const [loading, setLoading] = useState(false);
-  const [value, setValue] = useState("");
-  const [error, setError] = useState("");
-
-  const multiline = useMemo(
-    () => isMultilineQuestion(question),
-    [question]
-  );
+  /*
+   * --------------------------------------------------
+   * CLEAN GOOGLE OAUTH URL
+   * --------------------------------------------------
+   */
 
   useEffect(() => {
-    if (!question) {
-      setValue("");
+    const params = new URLSearchParams(
+      window.location.search
+    );
+
+    const authErrorFromUrl =
+      params.get("auth_error");
+
+    if (authErrorFromUrl) {
+      console.error(
+        "[VERLO] Google OAuth error:",
+        authErrorFromUrl
+      );
+
+      setAuthError(
+        "Google sign-in failed. Please try again."
+      );
+
+      setAuthMode("login");
+      setShowAuthModal(true);
+
+      window.history.replaceState(
+        {},
+        document.title,
+        window.location.pathname
+      );
+
       return;
     }
 
-    const currentAnswer =
-      answers.find(answer => answer.questionId === question.id)?.answer || "";
-
-    setValue(currentAnswer);
-    setError("");
-  }, [question?.id, answers]);
-
-  const progress = Math.min(
-    100,
-    Math.round(
-      ((questionIndex + 1) / MAX_ADAPTIVE_QUESTIONS) * 100
-    )
-  );
-
-  const runAnalysis = async finalAnswers => {
-    setLoading(true);
-    setError("");
-
-    try {
-      const data = await api("/api/analyze", {
-        method: "POST",
-        body: JSON.stringify({
-          title,
-          prompt: situation,
-          category,
-          context,
-          answers: finalAnswers,
-          questions,
-          attachment: attachments?.[0] || null,
-          attachments
-        })
-      });
-
-      onComplete(data?.result || data);
-    } catch (err) {
-      setError(
-        err.message ||
-          "Unable to analyse your situation."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const requestNextQuestion = async finalAnswers => {
-    setLoading(true);
-    setError("");
-
-    try {
-      const data = await api("/api/adaptive-question", {
-        method: "POST",
-        body: JSON.stringify({
-          title,
-          description: situation,
-          context,
-          previousAnswers: finalAnswers,
-          previousQuestions: questions.map(item => ({
-            id: item.id,
-            question: item.question,
-            type: item.type
-          })),
-          questionNumber: questionIndex + 2,
-          maxQuestions: MAX_ADAPTIVE_QUESTIONS,
-          attachments
-        })
-      });
-
-      if (
-        data?.complete ||
-        data?.done ||
-        data?.finished
-      ) {
-        await runAnalysis(finalAnswers);
-        return;
-      }
-
-      const rawQuestion =
-        data?.question ||
-        data?.questions?.[0] ||
-        data?.questionText;
-
-      const nextQuestion = normalizeQuestion(
-        rawQuestion,
-        questionIndex + 1
-      );
-
-      if (!nextQuestion || !nextQuestion.question) {
-        await runAnalysis(finalAnswers);
-        return;
-      }
-
-      setQuestions(previous => [
-        ...previous,
-        nextQuestion
-      ]);
-
-      setQuestionIndex(previous => previous + 1);
-    } catch (err) {
-      setError(
-        err.message ||
-          "Unable to create the next question."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const saveAnswerAndContinue = async answerValue => {
-    const finalAnswers = [
-      ...answers.filter(
-        answer => answer.questionId !== question.id
-      ),
-      {
-        questionId: question.id,
-        question: question.question,
-        answer: answerValue
-      }
-    ];
-
-    setAnswers(finalAnswers);
-
-    if (
-      questionIndex + 1 >=
-      MAX_ADAPTIVE_QUESTIONS
-    ) {
-      await runAnalysis(finalAnswers);
-      return;
-    }
-
-    await requestNextQuestion(finalAnswers);
-  };
-
-  const handleContinue = async () => {
-    if (!question || loading) {
-      return;
-    }
-
-    setError("");
-
-    if (
-      question.required &&
-      !value.trim()
-    ) {
-      setError(
-        "Please answer the question or choose Skip."
-      );
-      return;
-    }
-
-    await saveAnswerAndContinue(
-      value.trim()
-    );
-  };
-
-  const skipQuestion = async () => {
-    if (!question || loading) {
-      return;
-    }
-
-    await saveAnswerAndContinue("");
-  };
-
-  const handleTextKeyDown = event => {
-    if (!multiline && event.key === "Enter") {
-      event.preventDefault();
-      handleContinue();
-      return;
-    }
-
-    if (
-      multiline &&
-      event.key === "Enter" &&
-      (event.metaKey || event.ctrlKey)
-    ) {
-      event.preventDefault();
-      handleContinue();
-    }
-  };
-
-  if (!question) {
-    return (
-      <div className="assessment-page">
-        <header className="site-header">
-          <Logo
-            onClick={() =>
-              window.location.reload()
-            }
-          />
-        </header>
-
-        <main className="adaptive-main">
-          <div className="question-card">
-            <div className="processing-inner">
-              <LoadingDots />
-              <p>
-                Preparing your first question...
-              </p>
-            </div>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  const isChoice =
-    question.type === "choice" ||
-    question.type === "mcq" ||
-    question.type === "select" ||
-    question.options.length > 0;
-
-  return (
-    <div className="assessment-page">
-      <header className="site-header">
-        <Logo
-          onClick={() =>
-            window.location.reload()
-          }
-        />
-
-        <div className="assessment-progress-label">
-          Question {questionIndex + 1} of{" "}
-          {MAX_ADAPTIVE_QUESTIONS}
-        </div>
-      </header>
-
-      <main className="adaptive-main">
-        <div className="assessment-progress">
-          <div className="assessment-progress-track">
-            <div
-              className="assessment-progress-fill"
-              style={{
-                width: `${progress}%`
-              }}
-            />
-          </div>
-        </div>
-
-        <div className="question-card">
-          <div className="question-meta">
-            <span>
-              QUESTION{" "}
-              {String(
-                questionIndex + 1
-              ).padStart(2, "0")}
-            </span>
-
-            {question.required && (
-              <span>REQUIRED</span>
-            )}
-          </div>
-
-          <div className="question-content">
-            <h1>{question.question}</h1>
-
-            {question.image && (
-              <div className="question-image-wrap">
-                <img
-                  className="question-image"
-                  src={question.image}
-                  alt={question.imageAlt}
-                />
-
-                {question.imageCaption && (
-                  <span className="question-image-caption">
-                    {question.imageCaption}
-                  </span>
-                )}
-              </div>
-            )}
-
-            {isChoice ? (
-              <div className="choice-list">
-                {question.options.map(
-                  (option, optionIndex) => {
-                    const optionValue =
-                      typeof option === "string"
-                        ? option
-                        : option?.value ||
-                          option?.label ||
-                          "";
-
-                    const optionLabel =
-                      typeof option === "string"
-                        ? option
-                        : option?.label ||
-                          option?.value ||
-                          "";
-
-                    return (
-                      <button
-                        type="button"
-                        className={`choice-option ${
-                          value === optionValue
-                            ? "selected"
-                            : ""
-                        }`}
-                        key={`${optionValue}-${optionIndex}`}
-                        onClick={() =>
-                          setValue(
-                            optionValue
-                          )
-                        }
-                        disabled={loading}
-                      >
-                        <span className="choice-radio">
-                          {value ===
-                            optionValue && (
-                            <span />
-                          )}
-                        </span>
-
-                        <span>
-                          {optionLabel}
-                        </span>
-                      </button>
-                    );
-                  }
-                )}
-              </div>
-            ) : multiline ? (
-              <div className="adaptive-textarea-shell multiline-answer">
-                <textarea
-                  value={value}
-                  onChange={event =>
-                    setValue(
-                      event.target.value
-                    )
-                  }
-                  onKeyDown={
-                    handleTextKeyDown
-                  }
-                  placeholder={
-                    question.placeholder ||
-                    "Type your answer here..."
-                  }
-                  rows={7}
-                  maxLength={4000}
-                  disabled={loading}
-                  aria-label={
-                    question.question
-                  }
-                />
-
-                <div className="adaptive-textarea-count">
-                  {value.length}/4000
-                </div>
-              </div>
-            ) : (
-              <div className="adaptive-input-shell single-line-answer">
-                <input
-                  type="text"
-                  value={value}
-                  onChange={event =>
-                    setValue(
-                      event.target.value
-                    )
-                  }
-                  onKeyDown={
-                    handleTextKeyDown
-                  }
-                  placeholder={
-                    question.placeholder ||
-                    "Type your answer here..."
-                  }
-                  maxLength={1000}
-                  disabled={loading}
-                  aria-label={
-                    question.question
-                  }
-                  autoComplete="off"
-                />
-              </div>
-            )}
-          </div>
-
-          {error && (
-            <div
-              className="form-error"
-              role="alert"
-            >
-              {error}
-            </div>
-          )}
-
-          <div className="question-footer">
-            <button
-              className="skip-button"
-              type="button"
-              onClick={skipQuestion}
-              disabled={loading}
-            >
-              <Icon
-                name="skip"
-                size={16}
-              />
-              Skip
-            </button>
-
-            <button
-              className="continue-button"
-              type="button"
-              onClick={handleContinue}
-              disabled={loading}
-            >
-              {loading ? (
-                <LoadingDots />
-              ) : (
-                <>
-                  Continue
-                  <Icon
-                    name="arrow"
-                    size={17}
-                  />
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </main>
-    </div>
-  );
-}
-
-function Processing({ progress = 0 }) {
-  return (
-    <div className="assessment-page processing-page">
-      <header className="site-header">
-        <Logo
-          onClick={() =>
-            window.location.reload()
-          }
-        />
-      </header>
-
-      <main className="processing-container">
-        <div className="processing-inner">
-          <div className="processing-orb">
-            <div className="processing-orb-core">
-              <Icon
-                name="spark"
-                size={28}
-              />
-            </div>
-          </div>
-
-          <div className="eyebrow">
-            VERLO is thinking
-          </div>
-
-          <h1>
-            Building your decision map.
-          </h1>
-
-          <p>
-            We are bringing your situation
-            and answers together into a
-            structured report.
-          </p>
-
-          <div className="processing-progress">
-            <div className="processing-progress-track">
-              <div
-                className="processing-progress-fill"
-                style={{
-                  width: `${progress}%`
-                }}
-              />
-            </div>
-
-            <span className="processing-percent">
-              {progress}%
-            </span>
-          </div>
-        </div>
-      </main>
-    </div>
-  );
-}
-
-function getResultValue(
-  result,
-  keys,
-  fallback = ""
-) {
-  if (!result) {
-    return fallback;
-  }
-
-  for (const key of keys) {
-    if (
-      result[key] !== undefined &&
-      result[key] !== null
-    ) {
-      return result[key];
-    }
-  }
-
-  return fallback;
-}
-
-function ResultSection({
-  icon,
-  title,
-  children
-}) {
-  return (
-    <section className="report-section">
-      <div className="report-section-heading">
-        <span className="report-heading-icon">
-          <Icon
-            name={icon}
-            size={17}
-          />
-        </span>
-
-        <h2>{title}</h2>
-      </div>
-
-      <div className="report-section-content">
-        {children}
-      </div>
-    </section>
-  );
-}
-
-function MarkdownInline({ children }) {
-  const text = String(children ?? "");
-
-  const tokenPattern =
-    /(\[[^\]]+\]\(https?:\/\/[^)\s]+\)|`[^`]+`|\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*|_[^_]+_)/g;
-
-  const parts = text.split(tokenPattern);
-
-  return (
-    <>
-      {parts.map((part, index) => {
-        if (!part) {
-          return null;
-        }
-
-        if (
-          part.startsWith("**") &&
-          part.endsWith("**")
-        ) {
-          return (
-            <strong key={index}>
-              {part.slice(2, -2)}
-            </strong>
-          );
-        }
-
-        if (
-          part.startsWith("__") &&
-          part.endsWith("__")
-        ) {
-          return (
-            <strong key={index}>
-              {part.slice(2, -2)}
-            </strong>
-          );
-        }
-
-        if (
-          part.startsWith("`") &&
-          part.endsWith("`")
-        ) {
-          return (
-            <code key={index}>
-              {part.slice(1, -1)}
-            </code>
-          );
-        }
-
-        if (
-          part.startsWith("*") &&
-          part.endsWith("*") &&
-          !part.startsWith("**")
-        ) {
-          return (
-            <em key={index}>
-              {part.slice(1, -1)}
-            </em>
-          );
-        }
-
-        if (
-          part.startsWith("_") &&
-          part.endsWith("_") &&
-          !part.startsWith("__")
-        ) {
-          return (
-            <em key={index}>
-              {part.slice(1, -1)}
-            </em>
-          );
-        }
-
-        const linkMatch = part.match(
-          /^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/
-        );
-
-        if (linkMatch) {
-          return (
-            <a
-              key={index}
-              href={linkMatch[2]}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {linkMatch[1]}
-            </a>
-          );
-        }
-
-        return (
-          <span key={index}>
-            {part}
-          </span>
-        );
-      })}
-    </>
-  );
-}
-
-function splitMarkdownTableRow(line) {
-  let value = String(line).trim();
-
-  if (value.startsWith("|")) {
-    value = value.slice(1);
-  }
-
-  if (value.endsWith("|")) {
-    value = value.slice(0, -1);
-  }
-
-  return value
-    .split("|")
-    .map(cell => cell.trim());
-}
-
-function isMarkdownTableSeparator(line) {
-  const cells = splitMarkdownTableRow(
-    line
-  );
-
-  return (
-    cells.length > 0 &&
-    cells.every(cell =>
-      /^:?-{3,}:?$/.test(cell)
-    )
-  );
-}
-
-function MarkdownContent({
-  content,
-  className = ""
-}) {
-  const source =
-    content === undefined ||
-    content === null
-      ? ""
-      : String(content);
-
-  const lines = source.replace(
-    /\r\n/g,
-    "\n"
-  ).split("\n");
-
-  const blocks = [];
-  let index = 0;
-
-  while (index < lines.length) {
-    const line = lines[index];
-
-    if (!line.trim()) {
-      index += 1;
-      continue;
-    }
-
-    if (
-      line.trim().startsWith("```")
-    ) {
-      const language =
-        line.trim().slice(3).trim();
-
-      const codeLines = [];
-      index += 1;
-
-      while (
-        index < lines.length &&
-        !lines[index]
-          .trim()
-          .startsWith("```")
-      ) {
-        codeLines.push(lines[index]);
-        index += 1;
-      }
-
-      if (
-        index < lines.length &&
-        lines[index]
-          .trim()
-          .startsWith("```")
-      ) {
-        index += 1;
-      }
-
-      blocks.push({
-        type: "code",
-        language,
-        value: codeLines.join("\n")
-      });
-
-      continue;
-    }
-
-    const headingMatch =
-      line.match(/^(#{1,6})\s+(.+)$/);
-
-    if (headingMatch) {
-      blocks.push({
-        type: "heading",
-        level:
-          headingMatch[1].length,
-        value: headingMatch[2]
-      });
-
-      index += 1;
-      continue;
-    }
-
-    if (
-      line.trim().startsWith("> ")
-    ) {
-      const quoteLines = [];
-
-      while (
-        index < lines.length &&
-        lines[index]
-          .trim()
-          .startsWith(">")
-      ) {
-        quoteLines.push(
-          lines[index]
-            .trim()
-            .replace(/^>\s?/, "")
-        );
-
-        index += 1;
-      }
-
-      blocks.push({
-        type: "quote",
-        value: quoteLines.join("\n")
-      });
-
-      continue;
-    }
-
-    const unordered =
-      line.match(/^\s*[-*+]\s+(.+)$/);
-
-    if (unordered) {
-      const items = [];
-
-      while (index < lines.length) {
-        const match =
-          lines[index].match(
-            /^\s*[-*+]\s+(.+)$/
-          );
-
-        if (!match) {
-          break;
-        }
-
-        items.push(match[1]);
-        index += 1;
-      }
-
-      blocks.push({
-        type: "unordered",
-        items
-      });
-
-      continue;
-    }
-
-    const ordered =
-      line.match(/^\s*\d+[.)]\s+(.+)$/);
-
-    if (ordered) {
-      const items = [];
-
-      while (index < lines.length) {
-        const match =
-          lines[index].match(
-            /^\s*\d+[.)]\s+(.+)$/
-          );
-
-        if (!match) {
-          break;
-        }
-
-        items.push(match[1]);
-        index += 1;
-      }
-
-      blocks.push({
-        type: "ordered",
-        items
-      });
-
-      continue;
-    }
-
-    if (
-      line.includes("|") &&
-      index + 1 < lines.length &&
-      isMarkdownTableSeparator(
-        lines[index + 1]
-      )
-    ) {
-      const headers =
-        splitMarkdownTableRow(line);
-
-      index += 2;
-
-      const rows = [];
-
-      while (
-        index < lines.length &&
-        lines[index].includes("|") &&
-        lines[index].trim()
-      ) {
-        rows.push(
-          splitMarkdownTableRow(
-            lines[index]
-          )
-        );
-
-        index += 1;
-      }
-
-      blocks.push({
-        type: "table",
-        headers,
-        rows
-      });
-
-      continue;
-    }
-
-    const paragraphLines = [
-      line
-    ];
-
-    index += 1;
-
-    while (
-      index < lines.length &&
-      lines[index].trim() &&
-      !/^#{1,6}\s+/.test(
-        lines[index]
-      ) &&
-      !/^\s*[-*+]\s+/.test(
-        lines[index]
-      ) &&
-      !/^\s*\d+[.)]\s+/.test(
-        lines[index]
-      ) &&
-      !lines[index]
-        .trim()
-        .startsWith(">") &&
-      !lines[index]
-        .trim()
-        .startsWith("```")
-    ) {
-      if (
-        lines[index].includes("|") &&
-        index + 1 < lines.length &&
-        isMarkdownTableSeparator(
-          lines[index + 1]
-        )
-      ) {
-        break;
-      }
-
-      paragraphLines.push(
-        lines[index]
-      );
-
-      index += 1;
-    }
-
-    blocks.push({
-      type: "paragraph",
-      value: paragraphLines.join(
-        "\n"
-      )
-    });
-  }
-
-  return (
-    <div
-      className={`markdown-content ${className}`}
-    >
-      {blocks.map((block, blockIndex) => {
-        if (block.type === "heading") {
-          const Heading =
-            `h${Math.min(
-              block.level,
-              6
-            )}`;
-
-          return (
-            <Heading key={blockIndex}>
-              <MarkdownInline>
-                {block.value}
-              </MarkdownInline>
-            </Heading>
-          );
-        }
-
-        if (block.type === "paragraph") {
-          const lines =
-            block.value.split("\n");
-
-          return (
-            <p key={blockIndex}>
-              {lines.map(
-                (paragraphLine, lineIndex) => (
-                  <span
-                    key={lineIndex}
-                  >
-                    {lineIndex > 0 && (
-                      <br />
-                    )}
-                    <MarkdownInline>
-                      {paragraphLine}
-                    </MarkdownInline>
-                  </span>
-                )
-              )}
-            </p>
-          );
-        }
-
-        if (
-          block.type === "unordered"
-        ) {
-          return (
-            <ul key={blockIndex}>
-              {block.items.map(
-                (item, itemIndex) => (
-                  <li
-                    key={itemIndex}
-                  >
-                    <MarkdownInline>
-                      {item}
-                    </MarkdownInline>
-                  </li>
-                )
-              )}
-            </ul>
-          );
-        }
-
-        if (
-          block.type === "ordered"
-        ) {
-          return (
-            <ol key={blockIndex}>
-              {block.items.map(
-                (item, itemIndex) => (
-                  <li
-                    key={itemIndex}
-                  >
-                    <MarkdownInline>
-                      {item}
-                    </MarkdownInline>
-                  </li>
-                )
-              )}
-            </ol>
-          );
-        }
-
-        if (block.type === "quote") {
-          return (
-            <blockquote
-              key={blockIndex}
-            >
-              <MarkdownContent
-                content={
-                  block.value
-                }
-              />
-            </blockquote>
-          );
-        }
-
-        if (block.type === "code") {
-          return (
-            <pre
-              key={blockIndex}
-            >
-              <code>
-                {block.value}
-              </code>
-            </pre>
-          );
-        }
-
-        if (block.type === "table") {
-          return (
-            <div
-              className="markdown-table-wrap"
-              key={blockIndex}
-            >
-              <table>
-                <thead>
-                  <tr>
-                    {block.headers.map(
-                      (
-                        header,
-                        headerIndex
-                      ) => (
-                        <th
-                          key={
-                            headerIndex
-                          }
-                        >
-                          <MarkdownInline>
-                            {header}
-                          </MarkdownInline>
-                        </th>
-                      )
-                    )}
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {block.rows.map(
-                    (
-                      row,
-                      rowIndex
-                    ) => (
-                      <tr
-                        key={
-                          rowIndex
-                        }
-                      >
-                        {block.headers.map(
-                          (
-                            _,
-                            columnIndex
-                          ) => (
-                            <td
-                              key={
-                                columnIndex
-                              }
-                            >
-                              <MarkdownInline>
-                                {row[
-                                  columnIndex
-                                ] ||
-                                  ""}
-                              </MarkdownInline>
-                            </td>
-                          )
-                        )}
-                      </tr>
-                    )
-                  )}
-                </tbody>
-              </table>
-            </div>
-          );
-        }
-
-        return null;
-      })}
-    </div>
-  );
-}
-
-function valueToText(value) {
-  if (
-    value === undefined ||
-    value === null
-  ) {
-    return "";
-  }
-
-  if (typeof value === "string") {
-    return value;
-  }
-
-  if (
-    typeof value === "number" ||
-    typeof value === "boolean"
-  ) {
-    return String(value);
-  }
-
-  if (Array.isArray(value)) {
-    return value
-      .map(item => valueToText(item))
-      .filter(Boolean)
-      .join("\n\n");
-  }
-
-  if (typeof value === "object") {
-    if (value.text) {
-      return valueToText(
-        value.text
+    /*
+     * The new OAuth flow does NOT use auth_code.
+     *
+     * If Google successfully authenticates,
+     * the backend sets the HttpOnly cookie and
+     * redirects here.
+     *
+     * Remove any unexpected query parameters.
+     */
+
+    if (window.location.search) {
+      window.history.replaceState(
+        {},
+        document.title,
+        window.location.pathname
       );
     }
+  }, []);
 
-    if (value.description) {
-      return valueToText(
-        value.description
-      );
-    }
-
-    if (value.content) {
-      return valueToText(
-        value.content
-      );
-    }
-
-    if (value.answer) {
-      return valueToText(
-        value.answer
-      );
-    }
-
-    return Object.entries(value)
-      .map(
-        ([key, item]) =>
-          `${key}: ${valueToText(item)}`
-      )
-      .join("\n");
-  }
-
-  return "";
-}
-
-function safeUrl(url) {
-  try {
-    const parsed =
-      new URL(url);
-
-    if (
-      parsed.protocol ===
-        "https:" ||
-      parsed.protocol ===
-        "http:"
-    ) {
-      return parsed.href;
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function Results({
-  result,
-  situation,
-  answers,
-  onHome,
-  onHistory
-}) {
-  const [message, setMessage] =
-    useState("");
-
-  const [chatMessages, setChatMessages] =
-    useState([]);
-
-  const [chatLoading, setChatLoading] =
-    useState(false);
-
-  const chatEndRef = useRef(null);
-
-  const title = getResultValue(
-    result,
-    [
-      "title",
-      "headline",
-      "summaryTitle"
-    ],
-    "Your decision report"
-  );
-
-  const summary = getResultValue(
-    result,
-    [
-      "summary",
-      "overview",
-      "analysis"
-    ],
-    "VERLO has analysed your situation."
-  );
-
-  const riskAssessment =
-    getResultValue(
-      result,
-      [
-        "riskAssessment",
-        "risk",
-        "risks"
-      ],
-      ""
-    );
-
-  const options =
-    getResultValue(
-      result,
-      [
-        "options",
-        "possibleOptions",
-        "choices"
-      ],
-      []
-    );
-
-  const nextSteps =
-    getResultValue(
-      result,
-      [
-        "nextSteps",
-        "steps",
-        "actions"
-      ],
-      []
-    );
-
-  const considerations =
-    getResultValue(
-      result,
-      [
-        "considerations",
-        "thingsToConsider"
-      ],
-      []
-    );
-
-  const personalizedPanels =
-    getResultValue(
-      result,
-      [
-        "personalizedPanels",
-        "panels"
-      ],
-      []
-    );
-
-  const draft =
-    getResultValue(
-      result,
-      [
-        "draft",
-        "draftTemplate",
-        "suggestedResponse",
-        "messageDraft"
-      ],
-      ""
-    );
-
-  const resources =
-    getResultValue(
-      result,
-      [
-        "resources",
-        "helpfulResources"
-      ],
-      []
-    );
-
-  const references =
-    getResultValue(
-      result,
-      [
-        "referenceLinks",
-        "references",
-        "sources"
-      ],
-      []
-    );
+  /*
+   * --------------------------------------------------
+   * LOAD HISTORY
+   * --------------------------------------------------
+   */
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "nearest"
-    });
-  }, [
-    chatMessages,
-    chatLoading
-  ]);
-
-  const sendMessage = async event => {
-    event.preventDefault();
-
-    if (
-      !message.trim() ||
-      chatLoading
-    ) {
+    if (!currentUser) {
+      setUserHistory([]);
       return;
     }
 
-    const userMessage =
-      message.trim();
+    const loadHistory = async () => {
+      try {
+        const res = await fetch(
+          `${API_URL}/api/history`,
+          {
+            method: "GET",
+            credentials: "include",
+            headers: {
+              Accept: "application/json",
+            },
+          }
+        );
 
-    const historyForRequest = [
-      ...chatMessages,
-      {
-        role: "user",
-        content: userMessage
-      }
-    ];
+        const data = await res.json();
 
-    setMessage("");
-
-    setChatMessages(
-      previous => [
-        ...previous,
-        {
-          role: "user",
-          content: userMessage
+        if (!res.ok) {
+          throw new Error(
+            data.error ||
+              "Could not load history."
+          );
         }
-      ]
+
+        setUserHistory(
+          data.history || []
+        );
+      } catch (err) {
+        console.error(
+          "[VERLO] Failed to load history:",
+          err
+        );
+      }
+    };
+
+    loadHistory();
+  }, [currentUser]);
+
+  /*
+   * --------------------------------------------------
+   * CUSTOM AUTH FETCH HELPER
+   * --------------------------------------------------
+   */
+
+  const authenticatedFetch = async (
+    url,
+    options = {}
+  ) => {
+    return fetch(url, {
+      ...options,
+      credentials: "include",
+      headers: {
+        ...(options.headers || {}),
+      },
+    });
+  };
+
+  /*
+   * --------------------------------------------------
+   * MARKDOWN
+   * --------------------------------------------------
+   */
+
+  const renderMarkdownToHTML = (content) => {
+    if (!content) {
+      return "";
+    }
+
+    let html = String(content)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+    html = html.replace(
+      /```([\s\S]*?)```/g,
+      '<pre class="markdown-code"><code>$1</code></pre>'
     );
 
-    setChatLoading(true);
+    html = html.replace(
+      /\*\*(.*?)\*\*/g,
+      "<strong>$1</strong>"
+    );
+
+    html = html.replace(
+      /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener noreferrer" class="markdown-link">$1</a>'
+    );
+
+    const lines = html.split("\n");
+    let inList = false;
+
+    const output = lines.map((line) => {
+      if (
+        line.trim().startsWith("- ") ||
+        line.trim().startsWith("* ")
+      ) {
+        const item = line.trim().substring(2);
+
+        if (!inList) {
+          inList = true;
+
+          return `<ul class="markdown-list"><li>${item}</li>`;
+        }
+
+        return `<li>${item}</li>`;
+      }
+
+      if (inList) {
+        inList = false;
+
+        return `</ul><p>${line}</p>`;
+      }
+
+      return line.trim()
+        ? `<p>${line}</p>`
+        : "";
+    });
+
+    if (inList) {
+      output.push("</ul>");
+    }
+
+    return output.join("");
+  };
+
+  /*
+   * --------------------------------------------------
+   * EXAMPLE SITUATIONS
+   * --------------------------------------------------
+   */
+
+  const handleExampleSelect = (
+    exampleTitle,
+    desc,
+    context
+  ) => {
+    setTitle(exampleTitle);
+    setDescription(desc);
+    setUserContext(context);
+
+    setStep("input");
+    setError(null);
+  };
+
+  /*
+   * --------------------------------------------------
+   * GOOGLE LOGIN
+   * --------------------------------------------------
+   */
+
+  const handleGoogleLogin = () => {
+    setAuthError(null);
+    setIsAuthLoading(true);
+
+    console.log(
+      "[VERLO] Starting Google login..."
+    );
+
+    window.location.href =
+      `${API_URL}/api/auth/google`;
+  };
+
+  /*
+   * --------------------------------------------------
+   * EMAIL AUTH
+   * --------------------------------------------------
+   */
+
+  const handleAuthSubmit = async (e) => {
+    e.preventDefault();
+
+    setAuthError(null);
+    setIsAuthLoading(true);
+
+    const endpoint =
+      authMode === "login"
+        ? "/api/auth/login"
+        : "/api/auth/signup";
 
     try {
-      const data = await api(
-        "/api/chat",
+      const res = await fetch(
+        `${API_URL}${endpoint}`,
         {
           method: "POST",
+
+          credentials: "include",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+
           body: JSON.stringify({
-            question: userMessage,
-            message: userMessage,
-            currentSituation:
-              situation,
-            context: valueToText(
-              result
-            ),
-            attachment: null,
-            history:
-              historyForRequest
-          })
+            email: authEmail.trim(),
+            password: authPassword,
+          }),
         }
       );
 
-      const reply =
-        data?.reply ||
-        data?.response ||
-        data?.message ||
-        data?.content ||
-        data?.answer ||
-        data?.choices?.[0]
-          ?.message?.content ||
-        "I could not generate a response.";
+      const data = await res.json();
 
-      setChatMessages(
-        previous => [
-          ...previous,
-          {
-            role: "assistant",
-            content: String(
-              reply
-            )
-          }
-        ]
+      if (!res.ok) {
+        const message =
+          String(
+            data.error || ""
+          ).toLowerCase();
+
+        if (
+          authMode === "signup" &&
+          (
+            res.status === 409 ||
+            message.includes("already") ||
+            message.includes("exist") ||
+            message.includes("registered")
+          )
+        ) {
+          throw new Error(
+            "This email address is already registered. Please log in instead."
+          );
+        }
+
+        throw new Error(
+          data.error ||
+            "Authentication failed."
+        );
+      }
+
+      if (!data.user) {
+        throw new Error(
+          "The server did not return your account information."
+        );
+      }
+
+      setCurrentUser(data.user);
+
+      setShowAuthModal(false);
+
+      setAuthEmail("");
+      setAuthPassword("");
+      setAuthError(null);
+
+      triggerCustomAlert(
+        authMode === "signup"
+          ? "Account created successfully!"
+          : "Logged in successfully!"
       );
     } catch (err) {
-      setChatMessages(
-        previous => [
-          ...previous,
-          {
-            role: "assistant",
-            content:
-              err.message ||
-              "I couldn't connect to the decision assistant right now."
-          }
-        ]
+      setAuthError(
+        err.message ||
+          "Authentication failed."
       );
     } finally {
-      setChatLoading(false);
+      setIsAuthLoading(false);
     }
   };
 
-  const renderList = items => {
-    const normalized =
-      Array.isArray(items)
-        ? items
-        : [items];
+  /*
+   * --------------------------------------------------
+   * LOGOUT
+   * --------------------------------------------------
+   */
 
-    return (
-      <div className="next-step-list">
-        {normalized.map(
-          (item, index) => {
-            const text =
-              typeof item === "string"
-                ? item
-                : item?.text ||
-                  item?.description ||
-                  item?.title ||
-                  valueToText(
-                    item
-                  );
+  const handleLogout = async () => {
+    try {
+      await fetch(
+        `${API_URL}/api/auth/logout`,
+        {
+          method: "POST",
+          credentials: "include",
+        }
+      );
+    } catch (err) {
+      console.error(
+        "[VERLO] Logout request failed:",
+        err
+      );
+    }
 
-            return (
-              <div
-                className="next-step"
-                key={`${text}-${index}`}
-              >
-                <span>
-                  {String(
-                    index + 1
-                  ).padStart(2, "0")}
-                </span>
+    setCurrentUser(null);
+    setUserHistory([]);
+    setShowHistoryDrawer(false);
+    setStep("landing");
 
-                <div>
-                  <MarkdownContent
-                    content={text}
-                  />
-                </div>
-              </div>
-            );
-          }
-        )}
-      </div>
+    triggerCustomAlert(
+      "Logged out successfully."
     );
   };
 
+  /*
+   * --------------------------------------------------
+   * SAVE HISTORY
+   * --------------------------------------------------
+   */
+
+  const handleSaveToAccount = async (
+    resultData
+  ) => {
+    if (!currentUser) {
+      setAuthMode("login");
+      setAuthError(null);
+      setShowAuthModal(true);
+      return;
+    }
+
+    try {
+      const res =
+        await authenticatedFetch(
+          `${API_URL}/api/history/save`,
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body: JSON.stringify({
+              report: {
+                title:
+                  title ||
+                  "Untitled Report",
+
+                description,
+
+                result: resultData,
+              },
+            }),
+          }
+        );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          setCurrentUser(null);
+          setAuthMode("login");
+          setAuthError(
+            "Your login session has expired. Please log in again."
+          );
+          setShowAuthModal(true);
+          return;
+        }
+
+        throw new Error(
+          data.error ||
+            "Could not save pathway."
+        );
+      }
+
+      setUserHistory(
+        data.history || []
+      );
+
+      triggerCustomAlert(
+        "Pathway saved successfully to your account history!"
+      );
+    } catch (err) {
+      console.error(
+        "[VERLO] Failed to save history:",
+        err
+      );
+
+      triggerCustomAlert(
+        "Error saving pathway to account history.",
+        "error"
+      );
+    }
+  };
+
+  /*
+   * --------------------------------------------------
+   * FILE ATTACHMENTS
+   * --------------------------------------------------
+   */
+
+  const handleSecureFileUpload = async (
+    file,
+    target
+  ) => {
+    if (!file) {
+      return;
+    }
+
+    if (
+      file.size >
+      15 * 1024 * 1024
+    ) {
+      triggerCustomAlert(
+        "File exceeds maximum size limit (15MB).",
+        "error"
+      );
+
+      return;
+    }
+
+    try {
+      triggerCustomAlert(
+        "Attaching file..."
+      );
+
+      await new Promise(
+        (resolve) =>
+          setTimeout(
+            resolve,
+            500
+          )
+      );
+
+      const fileMeta = {
+        name: file.name,
+
+        size: `${(
+          file.size / 1024
+        ).toFixed(1)} KB`,
+
+        type:
+          file.type ||
+          "application/octet-stream",
+
+        uploadedAt:
+          new Date().toISOString(),
+      };
+
+      if (target === "assessment") {
+        setAssessmentAttachment(
+          fileMeta
+        );
+
+        triggerCustomAlert(
+          `File "${file.name}" attached to assessment context.`
+        );
+      }
+
+      if (target === "chat") {
+        setChatAttachment(
+          fileMeta
+        );
+
+        triggerCustomAlert(
+          `File "${file.name}" attached to chat prompt.`
+        );
+      }
+    } catch {
+      triggerCustomAlert(
+        "Failed to attach file.",
+        "error"
+      );
+    }
+  };
+
+  const removeAttachment = (
+    target
+  ) => {
+    if (target === "assessment") {
+      setAssessmentAttachment(null);
+
+      triggerCustomAlert(
+        "Assessment attachment removed."
+      );
+    }
+
+    if (target === "chat") {
+      setChatAttachment(null);
+
+      triggerCustomAlert(
+        "Chat attachment removed."
+      );
+    }
+  };
+
+  /*
+   * --------------------------------------------------
+   * NORMALISE ADAPTIVE QUESTIONS
+   * --------------------------------------------------
+   */
+
+  const getAllAssessmentItems = () => {
+    const source =
+      assessmentData?.adaptiveQuestions ||
+      assessmentData?.adaptive_questions ||
+      assessmentData?.questions ||
+      [];
+
+    if (!Array.isArray(source)) {
+      return [];
+    }
+
+    return source.map(
+      (item, index) => ({
+        type:
+          item.type === "mcq"
+            ? "mcq"
+            : "text",
+
+        ...item,
+
+        id:
+          item.id ||
+          item.questionId ||
+          `adaptive-${index}`,
+
+        question:
+          item.question ||
+          item.text ||
+          item.prompt ||
+          item.stem ||
+          "Please provide more information.",
+
+        stem:
+          item.stem ||
+          item.question ||
+          item.text ||
+          item.prompt ||
+          "Please choose an option.",
+
+        choices:
+          Array.isArray(
+            item.choices
+          )
+            ? item.choices
+            : [],
+      })
+    );
+  };
+
+  const assessmentItems =
+    getAllAssessmentItems();
+
+  /*
+   * --------------------------------------------------
+   * BUILD ANSWERS
+   * --------------------------------------------------
+   */
+
+  const buildAllAnswers = (
+    key,
+    value
+  ) => ({
+    ...adaptiveTextAnswers,
+
+    ...selectedMcqAnswers,
+
+    ...(key !== undefined
+      ? {
+          [key]: value,
+        }
+      : {}),
+  });
+
+  /*
+   * --------------------------------------------------
+   * REQUEST NEXT ADAPTIVE QUESTION
+   * --------------------------------------------------
+   */
+
+  const requestAdaptiveQuestion =
+    async (
+      previousAnswers = {}
+    ) => {
+      if (
+        isAdaptiveLoading ||
+        adaptiveQuestionCount >=
+          MAX_ADAPTIVE_QUESTIONS
+      ) {
+        return null;
+      }
+
+      setIsAdaptiveLoading(true);
+      setError(null);
+
+      try {
+        const questionNumber =
+          adaptiveQuestionCount + 1;
+
+        const res = await fetch(
+          `${API_URL}/api/adaptive-question`,
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body: JSON.stringify({
+              title,
+              description,
+              context: userContext,
+              previousAnswers,
+              questionNumber,
+              maxQuestions:
+                MAX_ADAPTIVE_QUESTIONS,
+            }),
+          }
+        );
+
+        const result =
+          await res.json();
+
+        if (!res.ok) {
+          throw new Error(
+            result.error ||
+              "Could not generate the adaptive question."
+          );
+        }
+
+        if (!result.question) {
+          throw new Error(
+            "The adaptive engine returned no question."
+          );
+        }
+
+        const questions = [
+          ...getAllAssessmentItems(),
+          result.question,
+        ];
+
+        setAssessmentData({
+          adaptiveQuestions:
+            questions,
+        });
+
+        setAdaptiveQuestionCount(
+          questions.length
+        );
+
+        setActiveAssessmentIndex(
+          questions.length - 1
+        );
+
+        setStep("assessment");
+
+        return result.question;
+      } catch (err) {
+        setError(
+          err.message ||
+            "Could not generate the next adaptive question."
+        );
+
+        return null;
+      } finally {
+        setIsAdaptiveLoading(false);
+      }
+    };
+
+  /*
+   * --------------------------------------------------
+   * FIRST SUBMISSION
+   * --------------------------------------------------
+   */
+
+  const handleInitialSubmit =
+    async (e) => {
+      e.preventDefault();
+
+      if (wordCount < MIN_WORDS) {
+        setError(
+          `Please provide a bit more detail (at least ${MIN_WORDS} words) so VERLO can build a reliable pathway.`
+        );
+
+        return;
+      }
+
+      setError(null);
+      setStep("processing");
+      setProcessingStage(0);
+
+      setAssessmentData({
+        adaptiveQuestions: [],
+      });
+
+      setSelectedMcqAnswers({});
+      setAdaptiveTextAnswers({});
+      setActiveAssessmentIndex(0);
+      setAdaptiveQuestionCount(0);
+
+      let currentStage = 0;
+
+      const interval =
+        setInterval(() => {
+          currentStage += 1;
+
+          if (
+            currentStage <
+            processingSteps.length
+          ) {
+            setProcessingStage(
+              currentStage
+            );
+          }
+        }, 550);
+
+      try {
+        await new Promise(
+          (resolve) =>
+            setTimeout(
+              resolve,
+              1800
+            )
+        );
+
+        const res = await fetch(
+          `${API_URL}/api/adaptive-question`,
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body: JSON.stringify({
+              title,
+              description,
+              context: userContext,
+              previousAnswers: {},
+              questionNumber: 1,
+              maxQuestions:
+                MAX_ADAPTIVE_QUESTIONS,
+            }),
+          }
+        );
+
+        const result =
+          await res.json();
+
+        if (!res.ok) {
+          throw new Error(
+            result.error ||
+              "Adaptive engine failed to create the first question."
+          );
+        }
+
+        if (!result.question) {
+          throw new Error(
+            "The adaptive engine returned no first question."
+          );
+        }
+
+        setAssessmentData({
+          adaptiveQuestions: [
+            result.question,
+          ],
+        });
+
+        setAdaptiveQuestionCount(1);
+        setActiveAssessmentIndex(0);
+        setStep("assessment");
+      } catch (err) {
+        setError(
+          err.message ||
+            "Could not connect to the adaptive engine."
+        );
+
+        setStep("input");
+      } finally {
+        clearInterval(interval);
+      }
+    };
+
+  /*
+   * --------------------------------------------------
+   * CURRENT ANSWER
+   * --------------------------------------------------
+   */
+
+  const getCurrentAnswer = () => {
+    const item =
+      assessmentItems[
+        activeAssessmentIndex
+      ];
+
+    if (!item) {
+      return "";
+    }
+
+    const key =
+      item.id ||
+      activeAssessmentIndex;
+
+    if (item.type === "mcq") {
+      return (
+        selectedMcqAnswers[key] ||
+        ""
+      );
+    }
+
+    return (
+      adaptiveTextAnswers[key] ||
+      ""
+    );
+  };
+
+  /*
+   * --------------------------------------------------
+   * NEXT ASSESSMENT QUESTION
+   * --------------------------------------------------
+   */
+
+  const handleAssessmentNext =
+    async () => {
+      const item =
+        assessmentItems[
+          activeAssessmentIndex
+        ];
+
+      if (
+        !item ||
+        isAdaptiveLoading
+      ) {
+        return;
+      }
+
+      const answer =
+        getCurrentAnswer();
+
+      if (
+        !String(answer).trim()
+      ) {
+        triggerCustomAlert(
+          "Please answer this question before continuing.",
+          "error"
+        );
+
+        return;
+      }
+
+      const key =
+        item.id ||
+        activeAssessmentIndex;
+
+      if (item.type === "mcq") {
+        setSelectedMcqAnswers(
+          (prev) => ({
+            ...prev,
+            [key]: answer,
+          })
+        );
+      } else {
+        setAdaptiveTextAnswers(
+          (prev) => ({
+            ...prev,
+            [key]: answer,
+          })
+        );
+      }
+
+      const allAnswers =
+        buildAllAnswers(
+          key,
+          answer
+        );
+
+      if (
+        adaptiveQuestionCount >=
+        MAX_ADAPTIVE_QUESTIONS
+      ) {
+        await handleFinalAssessmentSubmit(
+          allAnswers
+        );
+
+        return;
+      }
+
+      await requestAdaptiveQuestion(
+        allAnswers
+      );
+    };
+
+  /*
+   * --------------------------------------------------
+   * PREVIOUS ASSESSMENT QUESTION
+   * --------------------------------------------------
+   */
+
+  const handleAssessmentPrev =
+    () => {
+      if (isAdaptiveLoading) {
+        return;
+      }
+
+      if (
+        activeAssessmentIndex >
+        0
+      ) {
+        setActiveAssessmentIndex(
+          (prev) => prev - 1
+        );
+      } else {
+        setStep("input");
+      }
+    };
+
+  /*
+   * --------------------------------------------------
+   * FINAL ANALYSIS
+   * --------------------------------------------------
+   */
+
+  const handleFinalAssessmentSubmit =
+    async (
+      answersOverride = null
+    ) => {
+      setStep("processing");
+      setProcessingStage(0);
+
+      const finalAnswers =
+        answersOverride ||
+        buildAllAnswers();
+
+      let currentStage = 0;
+
+      const interval =
+        setInterval(() => {
+          currentStage += 1;
+
+          if (
+            currentStage <
+            processingSteps.length
+          ) {
+            setProcessingStage(
+              currentStage
+            );
+          }
+        }, 700);
+
+      try {
+        const [res] =
+          await Promise.all([
+            fetch(
+              `${API_URL}/api/analyze`,
+              {
+                method: "POST",
+
+                headers: {
+                  "Content-Type":
+                    "application/json",
+                },
+
+                body: JSON.stringify({
+                  title,
+
+                  prompt:
+                    description,
+
+                  category:
+                    title ||
+                    "General",
+
+                  context:
+                    userContext,
+
+                  answers:
+                    JSON.stringify(
+                      finalAnswers
+                    ),
+
+                  attachment:
+                    assessmentAttachment,
+                }),
+              }
+            ),
+
+            new Promise(
+              (resolve) =>
+                setTimeout(
+                  resolve,
+                  processingSteps.length *
+                    700
+                )
+            ),
+          ]);
+
+        const result =
+          await res.json();
+
+        if (!res.ok) {
+          throw new Error(
+            result.error ||
+              "Failed to compute final diagnostic pathway."
+          );
+        }
+
+        let finalData =
+          result.result ||
+          result.data;
+
+        if (
+          !finalData &&
+          result.analysis
+        ) {
+          try {
+            finalData =
+              JSON.parse(
+                result.analysis
+              );
+          } catch {
+            finalData = {
+              situation:
+                result.analysis,
+
+              confidence:
+                "Moderate",
+
+              riskAssessment: {
+                severityScore:
+                  "N/A",
+
+                financialExposure:
+                  "Not established",
+
+                timeSensitivity:
+                  "Review required",
+              },
+
+              nextSteps: [],
+
+              personalizedPanels:
+                [],
+
+              draftTemplate:
+                null,
+
+              resources: [],
+
+              referenceLinks: [],
+            };
+          }
+        }
+
+        if (!finalData) {
+          throw new Error(
+            "The server returned no analysis."
+          );
+        }
+
+        if (
+          !finalData.referenceLinks &&
+          Array.isArray(
+            finalData.resources
+          )
+        ) {
+          finalData.referenceLinks =
+            finalData.resources;
+        }
+
+        setAnalysisData(finalData);
+        setChatHistory([]);
+        setActiveTab("overview");
+        setStep("results");
+      } catch (err) {
+        setError(
+          err.message ||
+            "Could not connect to the server."
+        );
+
+        setStep("assessment");
+      } finally {
+        clearInterval(interval);
+      }
+    };
+
+  /*
+   * --------------------------------------------------
+   * COPY LETTER
+   * --------------------------------------------------
+   */
+
+  const handleCopyDraft = () => {
+    if (
+      !analysisData?.draftTemplate
+    ) {
+      return;
+    }
+
+    const draft =
+      analysisData.draftTemplate;
+
+    navigator.clipboard.writeText(
+      `To: ${draft.recipient}\nSubject: ${draft.subject}\n\n${draft.body}`
+    );
+
+    setCopied(true);
+
+    const nextCount =
+      copyCount + 1;
+
+    setCopyCount(nextCount);
+
+    triggerCustomAlert(
+      nextCount === 1
+        ? "Letter template copied to clipboard!"
+        : `Letter copied (${nextCount}x multi-strike!)! 🎯`
+    );
+
+    setTimeout(
+      () => setCopied(false),
+      3000
+    );
+  };
+
+  /*
+   * --------------------------------------------------
+   * CHAT
+   * --------------------------------------------------
+   */
+
+  const handleChatSubmit =
+    async (e) => {
+      e.preventDefault();
+
+      if (
+        (
+          !chatQuestion.trim() &&
+          !chatAttachment
+        ) ||
+        isChatLoading
+      ) {
+        return;
+      }
+
+      const questionText =
+        chatQuestion.trim() ||
+        `[Uploaded file: ${chatAttachment.name}]`;
+
+      const currentAttachment =
+        chatAttachment;
+
+      setChatQuestion("");
+      setChatAttachment(null);
+      setIsChatLoading(true);
+
+      const newHistory = [
+        ...chatHistory,
+
+        {
+          role: "user",
+          content: questionText,
+          attachment:
+            currentAttachment,
+        },
+      ];
+
+      setChatHistory(newHistory);
+
+      try {
+        const res = await fetch(
+          `${API_URL}/api/chat`,
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body: JSON.stringify({
+              question:
+                questionText,
+
+              currentSituation:
+                description ||
+                title,
+
+              attachment:
+                currentAttachment,
+            }),
+          }
+        );
+
+        const data =
+          await res.json();
+
+        if (!res.ok) {
+          throw new Error(
+            data.error ||
+              "Failed to get chat response."
+          );
+        }
+
+        setChatHistory([
+          ...newHistory,
+
+          {
+            role: "assistant",
+            content: data.reply,
+          },
+        ]);
+      } catch (err) {
+        setChatHistory([
+          ...newHistory,
+
+          {
+            role: "assistant",
+
+            content:
+              `⚠️ Error: ${err.message}`,
+          },
+        ]);
+      } finally {
+        setIsChatLoading(false);
+      }
+    };
+
+  const currentAssessmentItem =
+    assessmentItems[
+      activeAssessmentIndex
+    ];
+
+  /*
+   * --------------------------------------------------
+   * RENDER
+   * --------------------------------------------------
+   */
+
   return (
-    <div className="assessment-page results-page">
-      <header className="site-header">
-        <Logo onClick={onHome} />
+    <div className="verlo-app">
+      {customAlert && (
+        <div
+          className={`custom-alert ${customAlert.type} ${
+            alertExiting
+              ? "exiting"
+              : ""
+          }`}
+        >
+          <span>
+            {customAlert.type ===
+            "error"
+              ? "⚠️"
+              : "✓"}
+          </span>
 
-        <nav className="site-nav">
-          <button
-            className="history-nav-button"
-            type="button"
-            onClick={onHistory}
-          >
-            <Icon
-              name="history"
-              size={17}
-            />
-            History
-          </button>
+          <span>
+            {customAlert.message}
+          </span>
+        </div>
+      )}
 
-          <button
-            className="header-cta"
-            type="button"
-            onClick={onHome}
-          >
-            New decision
-            <Icon
-              name="plus"
-              size={16}
-            />
-          </button>
-        </nav>
-      </header>
+      <header className="verlo-nav">
+        <div
+          className="verlo-logo"
+          onClick={() =>
+            setStep("landing")
+          }
+        >
+          <img
+            src="/VVNormal.png"
+            alt="VERLO Logo"
+          />
 
-      <main className="report-container">
-        <section className="report-hero">
-          <div className="report-hero-copy">
-            <div className="eyebrow">
-              <Icon
-                name="check"
-                size={14}
+          <span>VERLO</span>
+        </div>
+
+        {currentUser ? (
+          <div className="user-nav">
+            <button
+              type="button"
+              onClick={() =>
+                setShowHistoryDrawer(
+                  !showHistoryDrawer
+                )
+              }
+            >
+              <span>▣</span>{" "}
+              History (
+              {userHistory.length})
+            </button>
+
+            {currentUser.picture && (
+              <img
+                src={
+                  currentUser.picture
+                }
+                alt=""
+                className="user-avatar"
               />
-              Decision report
-            </div>
+            )}
 
-            <h1>{title}</h1>
-
-            <MarkdownContent
-              content={summary}
-            />
-          </div>
-
-          <div className="report-context">
             <span>
-              Your original situation
+              {currentUser.name ||
+                currentUser.email ||
+                currentUser.id}
             </span>
 
-            <MarkdownContent
-              content={situation}
-            />
-          </div>
-        </section>
-
-        <div className="report-grid">
-          <div>
-            <ResultSection
-              icon="spark"
-              title="What this means"
+            <button
+              type="button"
+              className="logout-button"
+              onClick={
+                handleLogout
+              }
             >
-              <MarkdownContent
-                content={summary}
-              />
-            </ResultSection>
-
-            {riskAssessment && (
-              <ResultSection
-                icon="warning"
-                title="Risk and uncertainty"
-              >
-                <MarkdownContent
-                  content={valueToText(
-                    riskAssessment
-                  )}
-                />
-              </ResultSection>
-            )}
-
-            {options.length > 0 && (
-              <ResultSection
-                icon="arrow"
-                title="Your options"
-              >
-                {renderList(
-                  options
-                )}
-              </ResultSection>
-            )}
-
-            {nextSteps.length >
-              0 && (
-              <ResultSection
-                icon="check"
-                title="Suggested next steps"
-              >
-                {renderList(
-                  nextSteps
-                )}
-              </ResultSection>
-            )}
-
-            {considerations.length >
-              0 && (
-              <ResultSection
-                icon="spark"
-                title="Things to consider"
-              >
-                <div className="consideration-list">
-                  {(Array.isArray(
-                    considerations
-                  )
-                    ? considerations
-                    : [
-                        considerations
-                      ]
-                  ).map(
-                    (
-                      item,
-                      index
-                    ) => (
-                      <div
-                        className="consideration"
-                        key={index}
-                      >
-                        <MarkdownContent
-                          content={valueToText(
-                            item
-                          )}
-                        />
-                      </div>
-                    )
-                  )}
-                </div>
-              </ResultSection>
-            )}
-
-            {personalizedPanels.length >
-              0 && (
-              <ResultSection
-                icon="spark"
-                title="Personalised guidance"
-              >
-                <div className="personalized-panels">
-                  {(Array.isArray(
-                    personalizedPanels
-                  )
-                    ? personalizedPanels
-                    : [
-                        personalizedPanels
-                      ]
-                  ).map(
-                    (
-                      panel,
-                      index
-                    ) => (
-                      <div
-                        className="personalized-panel"
-                        key={index}
-                      >
-                        <MarkdownContent
-                          content={valueToText(
-                            panel
-                          )}
-                        />
-                      </div>
-                    )
-                  )}
-                </div>
-              </ResultSection>
-            )}
-
-            {draft && (
-              <ResultSection
-                icon="mail"
-                title="Possible wording"
-              >
-                <div className="draft-box">
-                  <MarkdownContent
-                    content={valueToText(
-                      draft
-                    )}
-                  />
-                </div>
-              </ResultSection>
-            )}
-
-            {resources.length >
-              0 && (
-              <ResultSection
-                icon="arrow"
-                title="Useful resources"
-              >
-                <div className="resource-grid">
-                  {(Array.isArray(
-                    resources
-                  )
-                    ? resources
-                    : [resources]
-                  ).map(
-                    (
-                      resource,
-                      index
-                    ) => {
-                      const label =
-                        typeof resource ===
-                        "string"
-                          ? resource
-                          : resource?.title ||
-                            resource?.name ||
-                            "Resource";
-
-                      const description =
-                        typeof resource ===
-                        "string"
-                          ? ""
-                          : resource?.description ||
-                            "";
-
-                      const url =
-                        typeof resource ===
-                        "object"
-                          ? safeUrl(
-                              resource?.url
-                            )
-                          : null;
-
-                      return (
-                        <div
-                          className="resource-card"
-                          key={index}
-                        >
-                          <h3>
-                            {label}
-                          </h3>
-
-                          {description && (
-                            <MarkdownContent
-                              content={
-                                description
-                              }
-                            />
-                          )}
-
-                          {url && (
-                            <a
-                              href={url}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              Open resource
-                              <Icon
-                                name="external"
-                                size={15}
-                              />
-                            </a>
-                          )}
-                        </div>
-                      );
-                    }
-                  )}
-                </div>
-              </ResultSection>
-            )}
-
-            {references.length >
-              0 && (
-              <ResultSection
-                icon="check"
-                title="References"
-              >
-                <div className="reference-list">
-                  {(Array.isArray(
-                    references
-                  )
-                    ? references
-                    : [references]
-                  ).map(
-                    (
-                      reference,
-                      index
-                    ) => {
-                      const label =
-                        typeof reference ===
-                        "string"
-                          ? reference
-                          : reference?.title ||
-                            reference?.name ||
-                            reference?.url ||
-                            "Reference";
-
-                      const url =
-                        typeof reference ===
-                        "object"
-                          ? safeUrl(
-                              reference?.url
-                            )
-                          : safeUrl(
-                              reference
-                            );
-
-                      return (
-                        <div
-                          className="reference-row"
-                          key={index}
-                        >
-                          {url ? (
-                            <a
-                              href={url}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              {label}
-                            </a>
-                          ) : (
-                            <span>
-                              {label}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    }
-                  )}
-                </div>
-              </ResultSection>
-            )}
+              Logout
+            </button>
           </div>
+        ) : (
+          <button
+            type="button"
+            className="login-button"
+            onClick={() => {
+              setAuthMode("login");
+              setAuthError(null);
+              setShowAuthModal(true);
+            }}
+          >
+            Login / Signup
+          </button>
+        )}
+      </header>
 
-          <aside className="report-chat">
-            <div className="report-chat-heading">
-              <div>
-                <span className="eyebrow">
-                  Continue thinking
+      <main className="verlo-main">
+        {step === "landing" && (
+          <section className="page-transition landing-page">
+            <div className="verlo-header">
+              <div className="landing-logo">
+                <img
+                  src="/VVNormal.png"
+                  alt="VERLO Logo"
+                />
+
+                <span className="verlo-brand">
+                  VERLO
                 </span>
-
-                <h2>
-                  Ask VERLO
-                </h2>
               </div>
 
-              <span className="chat-status">
-                <span />
-                Ready
-              </span>
-            </div>
+              <h1 className="verlo-title">
+                Stop guessing. Know
+                your exact next step.
+              </h1>
 
-            <div
-              className="chat-messages"
-              aria-live="polite"
-            >
-              {chatMessages.length ===
-              0 ? (
-                <div className="chat-empty">
-                  <Icon
-                    name="spark"
-                    size={22}
+              <p className="verlo-subtitle">
+                Verlo is an adaptive
+                supercharged
+                decision-intelligence
+                engine that transforms
+                messy, stressful
+                situations into a fully
+                tailored, risk-scored
+                action pathway through
+                dynamic profiling.
+              </p>
+
+              <button
+                className="btn-primary launch-button"
+                onClick={() =>
+                  setStep("input")
+                }
+              >
+                Launch Decision
+                Engine →
+              </button>
+
+              <div className="example-section">
+                <p className="example-label">
+                  Test common VERLO
+                  scenarios:
+                </p>
+
+                <div className="example-grid">
+                  <div
+                    className="verlo-card example-card"
+                    onClick={() =>
+                      handleExampleSelect(
+                        "Flight cancelled at gate",
+
+                        "My international flight was abruptly cancelled at the boarding gate due to mechanical failure. The airline desk agent says the earliest they can rebook me is in 48 hours, and they are refusing to cover hotel accommodations for the night despite my connecting ticket.",
+
+                        "Travelling on a strict budget for an important family event"
+                      )
+                    }
+                  >
+                    <span className="example-icon">
+                      ✈
+                    </span>
+
+                    <div>
+                      <strong>
+                        Flight cancelled
+                        at gate
+                      </strong>{" "}
+                      — Airline refusing
+                      overnight hotel
+                      voucher.
+                    </div>
+                  </div>
+
+                  <div
+                    className="verlo-card example-card"
+                    onClick={() =>
+                      handleExampleSelect(
+                        "Unresolved billing charge",
+
+                        "I noticed an unexpected $450 charge on my credit card from a software enterprise subscription that I explicitly cancelled three months ago in writing. Support is ignoring my emails and chat tickets.",
+
+                        "Freelancer relying on tight monthly cash flow"
+                      )
+                    }
+                  >
+                    <span className="example-icon">
+                      ▣
+                    </span>
+
+                    <div>
+                      <strong>
+                        Unresolved
+                        billing dispute
+                      </strong>{" "}
+                      — Subscription charged
+                      post-cancellation.
+                    </div>
+                  </div>
+
+                  <div
+                    className="verlo-card example-card"
+                    onClick={() =>
+                      handleExampleSelect(
+                        "Landlord withholding bond",
+
+                        "My tenancy agreement ended 3 weeks ago and my landlord is refusing to release my full $2,000 security deposit, claiming minor carpet scuffs that were already present when I moved in as documented on my condition report.",
+
+                        "First-time renter moving into a new apartment"
+                      )
+                    }
+                  >
+                    <span className="example-icon">
+                      ⌂
+                    </span>
+
+                    <div>
+                      <strong>
+                        Landlord
+                        withholding bond
+                      </strong>{" "}
+                      — Disputing false
+                      wear-and-tear
+                      deductions.
+                    </div>
+                  </div>
+
+                  <div
+                    className="verlo-card example-card"
+                    onClick={() =>
+                      handleExampleSelect(
+                        "Defective laptop warranty dispute",
+
+                        "I purchased a high-end laptop 5 months ago that has suffered multiple motherboard failures. The manufacturer service center is claiming accidental liquid damage violation even though the machine has never been exposed to liquids.",
+
+                        "Student relying on laptop for coursework"
+                      )
+                    }
+                  >
+                    <span className="example-icon">
+                      ▣
+                    </span>
+
+                    <div>
+                      <strong>
+                        Defective laptop
+                        warranty
+                      </strong>{" "}
+                      — Manufacturer
+                      denying warranty
+                      repair unfairly.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {step === "input" && (
+          <section className="page-transition input-page">
+            <div className="content-narrow">
+              <button
+                className="secondary-button"
+                onClick={() =>
+                  setStep("landing")
+                }
+              >
+                ← Back to Overview
+              </button>
+
+              <div className="verlo-header">
+                <div className="landing-logo">
+                  <img
+                    src="/VVNormal.png"
+                    alt="VERLO Logo"
                   />
 
-                  <p>
-                    Ask a follow-up
-                    question about
-                    your report,
-                    options or next
-                    steps.
+                  <span className="verlo-brand">
+                    VERLO
+                  </span>
+                </div>
+
+                <h2 className="verlo-title">
+                  Define Your
+                  Situation
+                </h2>
+
+                <p className="verlo-subtitle">
+                  Provide the details
+                  below. Our adaptive
+                  engine will formulate
+                  custom probing
+                  questions before
+                  constructing your
+                  report.
+                </p>
+              </div>
+
+              {error && (
+                <div className="error-message">
+                  {error}
+                </div>
+              )}
+
+              <form
+                onSubmit={
+                  handleInitialSubmit
+                }
+                className="verlo-card situation-form"
+              >
+                <div className="form-group">
+                  <label className="form-label">
+                    Situation Title
+                    (Optional)
+                  </label>
+
+                  <input
+                    className="form-input"
+                    placeholder="e.g., Landlord deposit dispute"
+                    value={title}
+                    onChange={(e) =>
+                      setTitle(
+                        e.target.value
+                      )
+                    }
+                  />
+                </div>
+
+                <div className="form-group">
+                  <div className="field-header">
+                    <label className="form-label">
+                      Describe what
+                      happened *
+                    </label>
+
+                    <span
+                      className={
+                        wordCount <
+                        MIN_WORDS
+                          ? "word-count warning"
+                          : "word-count"
+                      }
+                    >
+                      {wordCount} words{" "}
+                      {wordCount <
+                      MIN_WORDS
+                        ? `(Minimum ${MIN_WORDS} required)`
+                        : "✓"}
+                    </span>
+                  </div>
+
+                  <textarea
+                    className="form-textarea"
+                    placeholder="Include key details: dates, amounts, communications, and what outcome you are looking for..."
+                    value={description}
+                    onChange={(e) =>
+                      setDescription(
+                        e.target.value
+                      )
+                    }
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">
+                    Any specific
+                    personal context or
+                    constraints?
+                    (Optional)
+                  </label>
+
+                  <input
+                    className="form-input"
+                    placeholder="e.g., I'm a student living on a tight budget"
+                    value={userContext}
+                    onChange={(e) =>
+                      setUserContext(
+                        e.target.value
+                      )
+                    }
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">
+                    Attach Evidence /
+                    Files / Media
+                    (Optional)
+                  </label>
+
+                  <label className="file-button">
+                    Browse File / Media
+
+                    <input
+                      type="file"
+                      hidden
+                      onChange={(e) =>
+                        handleSecureFileUpload(
+                          e.target.files?.[0],
+                          "assessment"
+                        )
+                      }
+                    />
+                  </label>
+
+                  <span className="file-note">
+                    Attached locally for
+                    this assessment.
+                    Maximum 15MB.
+                  </span>
+
+                  {assessmentAttachment && (
+                    <div className="attachment">
+                      <span>
+                        📎{" "}
+                        {
+                          assessmentAttachment.name
+                        }{" "}
+                        (
+                        {
+                          assessmentAttachment.size
+                        }
+                        )
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          removeAttachment(
+                            "assessment"
+                          )
+                        }
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn-primary full-width"
+                >
+                  Generate Adaptive
+                  Assessment →
+                </button>
+              </form>
+            </div>
+          </section>
+        )}
+
+        {step === "assessment" &&
+          currentAssessmentItem && (
+            <section className="page-transition animate-fade-slide-up assessment-page">
+              <div className="content-narrow">
+                <div className="assessment-top">
+                  <button
+                    className="secondary-button"
+                    onClick={
+                      handleAssessmentPrev
+                    }
+                  >
+                    ← Back
+                  </button>
+
+                  <span>
+                    Question{" "}
+                    {activeAssessmentIndex +
+                      1}{" "}
+                    of{" "}
+                    {MAX_ADAPTIVE_QUESTIONS}
+                    <b>
+                      {" "}
+                      • adaptive
+                    </b>
+                  </span>
+                </div>
+
+                <div className="progress-bar">
+                  <div
+                    className="progress-fill"
+                    style={{
+                      width: `${Math.min(
+                        ((activeAssessmentIndex +
+                          1) /
+                          MAX_ADAPTIVE_QUESTIONS) *
+                          100,
+                        100
+                      )}%`,
+                    }}
+                  />
+                </div>
+
+                <div className="verlo-header assessment-header">
+                  <h2 className="verlo-title">
+                    Refine Your
+                    Parameters
+                  </h2>
+
+                  <p className="verlo-subtitle">
+                    Answering these custom
+                    inquiries ensures your
+                    final action pathway is
+                    laser-focused.
                   </p>
                 </div>
-              ) : (
-                chatMessages.map(
-                  (
-                    item,
-                    index
-                  ) => (
-                    <div
-                      className={
-                        item.role ===
-                        "user"
-                          ? "user-message"
-                          : "assistant-message"
-                      }
-                      key={index}
-                    >
-                      <MarkdownContent
-                        content={
-                          item.content
+
+                <div className="verlo-card assessment-card">
+                  {isAdaptiveLoading ? (
+                    <div className="adaptive-loading">
+                      <div className="processing-pulse-ring" />
+
+                      <strong>
+                        Adapting the next
+                        question...
+                      </strong>
+
+                      <span>
+                        VERLO is using your
+                        previous answer to
+                        decide what matters
+                        next.
+                      </span>
+                    </div>
+                  ) : currentAssessmentItem.type ===
+                    "mcq" ? (
+                    <div>
+                      <label className="form-label question-label">
+                        {
+                          currentAssessmentItem.stem
                         }
+                      </label>
+
+                      <div className="choice-grid">
+                        {currentAssessmentItem.choices.map(
+                          (
+                            choice,
+                            index
+                          ) => {
+                            const key =
+                              currentAssessmentItem.id ||
+                              activeAssessmentIndex;
+
+                            const selected =
+                              selectedMcqAnswers[
+                                key
+                              ] ===
+                              choice;
+
+                            return (
+                              <button
+                                key={
+                                  index
+                                }
+                                type="button"
+                                className={`choice-button ${
+                                  selected
+                                    ? "selected"
+                                    : ""
+                                }`}
+                                onClick={() =>
+                                  setSelectedMcqAnswers(
+                                    (
+                                      prev
+                                    ) => ({
+                                      ...prev,
+                                      [key]:
+                                        choice,
+                                    })
+                                  )
+                                }
+                              >
+                                <span className="choice-radio">
+                                  {selected && (
+                                    <span />
+                                  )}
+                                </span>
+
+                                {choice}
+                              </button>
+                            );
+                          }
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="form-label question-label">
+                        {
+                          currentAssessmentItem.question
+                        }
+                      </label>
+
+                      <input
+                        className="form-input question-input"
+                        placeholder="Type your precise specification here and press Enter..."
+                        value={
+                          adaptiveTextAnswers[
+                            currentAssessmentItem.id ||
+                              activeAssessmentIndex
+                          ] || ""
+                        }
+                        onChange={(e) =>
+                          setAdaptiveTextAnswers(
+                            (prev) => ({
+                              ...prev,
+
+                              [
+                                currentAssessmentItem.id ||
+                                  activeAssessmentIndex
+                              ]: e.target
+                                .value,
+                            })
+                          )
+                        }
+                        onKeyDown={(e) => {
+                          if (
+                            e.key ===
+                              "Enter" &&
+                            !isAdaptiveLoading
+                          ) {
+                            e.preventDefault();
+
+                            handleAssessmentNext();
+                          }
+                        }}
+                        autoFocus
                       />
                     </div>
-                  )
+                  )}
+                </div>
+
+                <div className="assessment-actions">
+                  <button
+                    className="btn-primary"
+                    onClick={
+                      handleAssessmentNext
+                    }
+                    disabled={
+                      isAdaptiveLoading
+                    }
+                  >
+                    {isAdaptiveLoading
+                      ? "Adapting..."
+                      : adaptiveQuestionCount >=
+                          MAX_ADAPTIVE_QUESTIONS
+                        ? "Synthesise Final Report →"
+                        : "Next Question →"}
+                  </button>
+                </div>
+              </div>
+            </section>
+          )}
+
+        {step === "processing" && (
+          <section className="page-transition processing-container processing-page">
+            <div className="processing-pulse-ring" />
+
+            <h2>
+              Synthesising
+              supercharged logic &
+              links...
+            </h2>
+
+            <div className="processing-steps">
+              {processingSteps.map(
+                (text, index) => {
+                  const done =
+                    index <
+                    processingStage;
+
+                  const active =
+                    index ===
+                    processingStage;
+
+                  return (
+                    <div
+                      key={text}
+                      className={`step-item ${
+                        active
+                          ? "active"
+                          : ""
+                      } ${
+                        done
+                          ? "done"
+                          : ""
+                      }`}
+                    >
+                      <div className="step-content">
+                        <span className="step-dot" />
+
+                        <span>
+                          {text}
+                        </span>
+                      </div>
+
+                      <span className="step-status">
+                        {done
+                          ? "✓"
+                          : active
+                            ? "●"
+                            : "○"}
+                      </span>
+                    </div>
+                  );
+                }
+              )}
+            </div>
+          </section>
+        )}
+
+        {step === "results" &&
+          analysisData && (
+            <section className="page-transition animate-fade-slide-up results-page">
+              <div className="results-container">
+                <div className="results-toolbar">
+                  <div>
+                    <button
+                      className="secondary-button"
+                      onClick={() =>
+                        setStep("input")
+                      }
+                    >
+                      ← New Situation
+                    </button>
+
+                    <button
+                      className="save-button"
+                      onClick={() =>
+                        handleSaveToAccount(
+                          analysisData
+                        )
+                      }
+                    >
+                      💾 Save Pathway
+                    </button>
+                  </div>
+
+                  <button
+                    className="secondary-button"
+                    onClick={() =>
+                      setStep("landing")
+                    }
+                  >
+                    Start Over
+                  </button>
+                </div>
+
+                <div className="result-section result-summary">
+                  <div>
+                    <span
+                      className={`badge ${
+                        analysisData.confidence?.toLowerCase() ||
+                        ""
+                      }`}
+                    >
+                      Confidence:{" "}
+                      {
+                        analysisData.confidence
+                      }
+                    </span>
+
+                    {userContext && (
+                      <div className="result-context">
+                        Tailored for:{" "}
+                        <em>
+                          "{userContext}"
+                        </em>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="risk-metrics">
+                    <div>
+                      <span>
+                        Severity:
+                      </span>
+
+                      <strong>
+                        {
+                          analysisData
+                            .riskAssessment
+                            ?.severityScore
+                        }
+                        /10
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span>
+                        Exposure:
+                      </span>
+
+                      <strong>
+                        {
+                          analysisData
+                            .riskAssessment
+                            ?.financialExposure
+                        }
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span>
+                        Urgency:
+                      </span>
+
+                      <strong>
+                        {
+                          analysisData
+                            .riskAssessment
+                            ?.timeSensitivity
+                        }
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+                <nav className="result-tabs">
+                  {tabs.map(
+                    ([id, label]) => (
+                      <button
+                        key={id}
+                        className={
+                          activeTab ===
+                          id
+                            ? "active"
+                            : ""
+                        }
+                        onClick={() =>
+                          setActiveTab(
+                            id
+                          )
+                        }
+                      >
+                        {label}
+                      </button>
+                    )
+                  )}
+                </nav>
+
+                {activeTab ===
+                  "overview" && (
+                  <div className="result-content">
+                    <div className="dominant-action">
+                      <h3>
+                        Immediate
+                        Priority Action
+                      </h3>
+
+                      <h2>
+                        {
+                          analysisData
+                            .nextSteps?.[0]
+                            ?.step
+                        }
+                      </h2>
+
+                      <p>
+                        <strong>
+                          Why this first:
+                        </strong>{" "}
+                        {
+                          analysisData
+                            .nextSteps?.[0]
+                            ?.why
+                        }
+                      </p>
+                    </div>
+
+                    {analysisData.situation && (
+                      <div className="result-section">
+                        <h3>
+                          Situation
+                          Summary
+                        </h3>
+
+                        <p>
+                          {
+                            analysisData.situation
+                          }
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="result-section assistant-section">
+                      <h3>
+                        Ask VERLO AI
+                        Assistant
+                      </h3>
+
+                      <p>
+                        Need immediate
+                        clarification,
+                        follow-up response,
+                        or file attachment?
+                      </p>
+
+                      {chatHistory.length >
+                        0 && (
+                        <div className="chat-history">
+                          {chatHistory.map(
+                            (
+                              msg,
+                              index
+                            ) => (
+                              <div
+                                key={
+                                  index
+                                }
+                                className={`chat-message ${msg.role}`}
+                              >
+                                <strong>
+                                  {msg.role ===
+                                  "user"
+                                    ? "You"
+                                    : "VERLO AI"}
+                                </strong>
+
+                                {msg.attachment && (
+                                  <small>
+                                    📎 Attached
+                                    file:{" "}
+                                    {
+                                      msg
+                                        .attachment
+                                        .name
+                                    }
+                                  </small>
+                                )}
+
+                                {msg.role ===
+                                "user" ? (
+                                  <div>
+                                    {
+                                      msg.content
+                                    }
+                                  </div>
+                                ) : (
+                                  <div
+                                    dangerouslySetInnerHTML={{
+                                      __html:
+                                        renderMarkdownToHTML(
+                                          msg.content
+                                        ),
+                                    }}
+                                  />
+                                )}
+                              </div>
+                            )
+                          )}
+                        </div>
+                      )}
+
+                      {chatAttachment && (
+                        <div className="attachment">
+                          <span>
+                            📎{" "}
+                            {
+                              chatAttachment.name
+                            }
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              removeAttachment(
+                                "chat"
+                              )
+                            }
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      )}
+
+                      <form
+                        className="chat-form"
+                        onSubmit={
+                          handleChatSubmit
+                        }
+                      >
+                        <input
+                          className="form-input"
+                          placeholder="Ask a question or upload file..."
+                          value={
+                            chatQuestion
+                          }
+                          onChange={(e) =>
+                            setChatQuestion(
+                              e.target
+                                .value
+                            )
+                          }
+                          disabled={
+                            isChatLoading
+                          }
+                        />
+
+                        <label className="chat-file-button">
+                          📎
+
+                          <input
+                            type="file"
+                            hidden
+                            onChange={(e) =>
+                              handleSecureFileUpload(
+                                e.target.files?.[0],
+                                "chat"
+                              )
+                            }
+                          />
+                        </label>
+
+                        <button
+                          type="submit"
+                          className="btn-primary"
+                          disabled={
+                            isChatLoading
+                          }
+                        >
+                          {isChatLoading
+                            ? "..."
+                            : "Send"}
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab ===
+                  "panels" && (
+                  <div className="result-section">
+                    <h3>
+                      Personalised Issue
+                      Solution Panels
+                    </h3>
+
+                    {!analysisData
+                      .personalizedPanels
+                      ?.length ? (
+                      <p>
+                        No custom panels
+                        generated for
+                        this query.
+                      </p>
+                    ) : (
+                      <div className="panel-grid">
+                        {analysisData.personalizedPanels.map(
+                          (
+                            panel,
+                            index
+                          ) => (
+                            <div
+                              className="solution-panel"
+                              key={index}
+                            >
+                              <strong>
+                                {
+                                  panel.panelTitle
+                                }
+                              </strong>
+
+                              <div
+                                dangerouslySetInnerHTML={{
+                                  __html:
+                                    renderMarkdownToHTML(
+                                      panel.insight
+                                    ),
+                                }}
+                              />
+
+                              <div className="solution">
+                                <strong>
+                                  Recommended
+                                  Solution:
+                                </strong>{" "}
+                                {
+                                  panel.solution
+                                }
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab ===
+                  "steps" && (
+                  <div className="result-section">
+                    <h3>
+                      Full Step-by-Step
+                      Action Pathway
+                    </h3>
+
+                    <div className="action-list">
+                      {analysisData.nextSteps?.map(
+                        (
+                          item,
+                          index
+                        ) => (
+                          <div
+                            className="action-item"
+                            key={index}
+                          >
+                            <div className="action-title">
+                              <span>
+                                {index + 1}
+                              </span>
+
+                              <strong>
+                                {
+                                  item.step
+                                }
+                              </strong>
+                            </div>
+
+                            <p>
+                              <strong>
+                                Why:
+                              </strong>{" "}
+                              {item.why}
+                            </p>
+
+                            {item.pitfallWarning && (
+                              <p className="pitfall">
+                                <strong>
+                                  ⚠️ Pitfall to
+                                  Avoid:
+                                </strong>{" "}
+                                {
+                                  item.pitfallWarning
+                                }
+                              </p>
+                            )}
+                          </div>
+                        )
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {activeTab ===
+                  "letter" && (
+                  <div className="result-section letter-section">
+                    <div className="letter-header">
+                      <h3>
+                        Automated
+                        Resolution Letter
+                      </h3>
+
+                      <button
+                        onClick={
+                          handleCopyDraft
+                        }
+                      >
+                        {copied
+                          ? "Copied!"
+                          : "Copy Letter Template"}
+                      </button>
+                    </div>
+
+                    {analysisData.draftTemplate ? (
+                      <div className="letter-content">
+                        {`To: ${analysisData.draftTemplate.recipient}
+Subject: ${analysisData.draftTemplate.subject}
+
+${analysisData.draftTemplate.body}`}
+                      </div>
+                    ) : (
+                      <p>
+                        No template
+                        generated for
+                        this situation.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {activeTab ===
+                  "resources" && (
+                  <div className="result-section">
+                    <h3>
+                      Authoritative
+                      Resources & Links
+                    </h3>
+
+                    {!(
+                      analysisData.referenceLinks ||
+                      analysisData.resources
+                    )?.length ? (
+                      <p>
+                        No external links
+                        provided for
+                        this pathway.
+                      </p>
+                    ) : (
+                      <div className="resource-list">
+                        {(
+                          analysisData.referenceLinks ||
+                          analysisData.resources ||
+                          []
+                        ).map(
+                          (
+                            link,
+                            index
+                          ) => (
+                            <a
+                              key={index}
+                              href={
+                                link.url
+                              }
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <span>
+                                🔗{" "}
+                                <strong>
+                                  {
+                                    link.title
+                                  }
+                                </strong>
+                              </span>
+
+                              <span>
+                                Visit →
+                              </span>
+                            </a>
+                          )
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+      </main>
+
+      <footer className="verlo-footer">
+        <div className="footer-inner">
+          <div className="footer-brand">
+            <img
+              src="/VVNormal.png"
+              alt="VERLO Logo"
+            />
+
+            <span>VERLO</span>
+          </div>
+
+          <div>
+            &copy;{" "}
+            {new Date().getFullYear()}{" "}
+            VERLO Engine. All rights
+            reserved. Crafted with 🌶️.
+          </div>
+        </div>
+      </footer>
+
+      {showHistoryDrawer && (
+        <aside className="history-drawer animate-slide-in-right">
+          <div className="drawer-header">
+            <h3>
+              Your Saved Pathways
+            </h3>
+
+            <button
+              type="button"
+              onClick={() =>
+                setShowHistoryDrawer(
+                  false
+                )
+              }
+            >
+              ✕
+            </button>
+          </div>
+
+          {userHistory.length ===
+          0 ? (
+            <p>
+              No saved reports yet.
+              Click "Save Pathway"
+              on any result screen!
+            </p>
+          ) : (
+            <div className="history-list">
+              {userHistory.map(
+                (
+                  item,
+                  index
+                ) => (
+                  <button
+                    type="button"
+                    className="history-item"
+                    key={index}
+                    onClick={() => {
+                      setTitle(
+                        item.title
+                      );
+
+                      setDescription(
+                        item.description
+                      );
+
+                      setAnalysisData(
+                        item.result
+                      );
+
+                      setStep(
+                        "results"
+                      );
+
+                      setActiveTab(
+                        "overview"
+                      );
+
+                      setShowHistoryDrawer(
+                        false
+                      );
+                    }}
+                  >
+                    <strong>
+                      {item.title}
+                    </strong>
+
+                    <span>
+                      {new Date(
+                        item.timestamp
+                      ).toLocaleDateString()}
+                    </span>
+                  </button>
                 )
               )}
+            </div>
+          )}
+        </aside>
+      )}
 
-              {chatLoading && (
-                <div className="assistant-message">
-                  <LoadingDots />
-                </div>
-              )}
+      {showAuthModal && (
+        <div className="auth-overlay">
+          <div className="auth-modal">
+            <div className="modal-header">
+              <h3>
+                {authMode ===
+                "login"
+                  ? "Log in to VERLO"
+                  : "Create an Account"}
+              </h3>
 
-              <div
-                ref={chatEndRef}
+              <button
+                type="button"
+                disabled={
+                  isAuthLoading
+                }
+                onClick={() =>
+                  setShowAuthModal(
+                    false
+                  )
+                }
+              >
+                ✕
+              </button>
+            </div>
+
+            {authError && (
+              <div className="error-message">
+                {authError}
+              </div>
+            )}
+
+            <button
+              type="button"
+              className="google-login-button"
+              onClick={
+                handleGoogleLogin
+              }
+              disabled={
+                isAuthLoading
+              }
+            >
+              <svg
+                className="google-login-icon"
+                viewBox="0 0 24 24"
                 aria-hidden="true"
-              />
+              >
+                <path
+                  fill="#4285F4"
+                  d="M21.35 12.27c0-.71-.06-1.39-.18-2.05H12v3.88h5.24a4.48 4.48 0 0 1-1.94 2.94v2.44h3.14c1.84-1.69 2.91-4.18 2.91-7.21Z"
+                />
+
+                <path
+                  fill="#34A853"
+                  d="M12 21.75c2.63 0 4.84-.87 6.45-2.36l-3.14-2.44c-.87.58-1.98.92-3.31.92-2.54 0-4.69-1.72-5.46-4.03H3.29v2.52A9.75 9.75 0 0 0 12 21.75Z"
+                />
+
+                <path
+                  fill="#FBBC05"
+                  d="M6.54 13.84a5.86 5.86 0 0 1 0-3.68V7.64H3.29a9.75 9.75 0 0 0 0 8.72l3.25-2.52Z"
+                />
+
+                <path
+                  fill="#EA4335"
+                  d="M12 6.13c1.43 0 2.72.49 3.73 1.46l2.8-2.8C16.84 3.22 14.63 2.25 12 2.25a9.75 9.75 0 0 0-8.71 5.39l3.25 2.52C7.31 7.85 9.46 6.13 12 6.13Z"
+                />
+              </svg>
+
+              <span>
+                {isAuthLoading
+                  ? "Connecting to Google..."
+                  : "Continue with Google"}
+              </span>
+            </button>
+
+            <div className="auth-divider">
+              <span>
+                or continue with email
+              </span>
             </div>
 
             <form
-              className="chat-input"
-              onSubmit={sendMessage}
+              onSubmit={
+                handleAuthSubmit
+              }
             >
-              <textarea
-                value={message}
-                onChange={event =>
-                  setMessage(
-                    event.target.value
-                  )
-                }
-                onKeyDown={event => {
-                  if (
-                    event.key ===
-                      "Enter" &&
-                    !event.shiftKey
-                  ) {
-                    event.preventDefault();
-                    sendMessage(event);
+              <div className="form-group">
+                <label className="form-label">
+                  Email Address
+                </label>
+
+                <input
+                  type="email"
+                  className="form-input"
+                  value={authEmail}
+                  onChange={(e) =>
+                    setAuthEmail(
+                      e.target.value
+                    )
                   }
-                }}
-                placeholder="Ask a follow-up..."
-                rows={2}
-                disabled={chatLoading}
-                aria-label="Ask VERLO a follow-up question"
-              />
+                  required
+                  disabled={
+                    isAuthLoading
+                  }
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">
+                  Password
+                </label>
+
+                <input
+                  type="password"
+                  className="form-input"
+                  value={
+                    authPassword
+                  }
+                  onChange={(e) =>
+                    setAuthPassword(
+                      e.target.value
+                    )
+                  }
+                  required
+                  disabled={
+                    isAuthLoading
+                  }
+                />
+              </div>
 
               <button
                 type="submit"
+                className="btn-primary full-width"
                 disabled={
-                  !message.trim() ||
-                  chatLoading
+                  isAuthLoading
                 }
-                aria-label="Send message"
               >
-                <Icon
-                  name="send"
-                  size={18}
-                />
+                {isAuthLoading
+                  ? "Please wait..."
+                  : authMode ===
+                      "login"
+                    ? "Log In"
+                    : "Sign Up"}
               </button>
             </form>
-          </aside>
-        </div>
-      </main>
-    </div>
-  );
-}
 
-function HistoryPanel({
-  onClose,
-  onSelect
-}) {
-  const [history, setHistory] =
-    useState([]);
+            <div className="auth-switch">
+              {authMode ===
+              "login" ? (
+                <>
+                  Don't have an
+                  account?{" "}
 
-  const [loading, setLoading] =
-    useState(true);
-
-  const [error, setError] =
-    useState("");
-
-  useEffect(() => {
-    let mounted = true;
-
-    const loadHistory =
-      async () => {
-        try {
-          const data =
-            await api(
-              "/api/history"
-            );
-
-          if (!mounted) {
-            return;
-          }
-
-          setHistory(
-            Array.isArray(data)
-              ? data
-              : data?.history ||
-                  data?.items ||
-                  []
-          );
-        } catch (err) {
-          if (mounted) {
-            setError(
-              err.message ||
-                "Unable to load history."
-            );
-          }
-        } finally {
-          if (mounted) {
-            setLoading(false);
-          }
-        }
-      };
-
-    loadHistory();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  return (
-    <div
-      className="modal-backdrop"
-      onMouseDown={onClose}
-    >
-      <div
-        className="history-modal"
-        onMouseDown={event =>
-          event.stopPropagation()
-        }
-      >
-        <div className="history-heading">
-          <div>
-            <span className="eyebrow">
-              Saved decisions
-            </span>
-
-            <h2>History</h2>
-          </div>
-
-          <button
-            className="modal-close"
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-          >
-            <Icon
-              name="close"
-              size={19}
-            />
-          </button>
-        </div>
-
-        {loading ? (
-          <div className="history-loading">
-            <LoadingDots />
-          </div>
-        ) : error ? (
-          <div className="form-error">
-            {error}
-          </div>
-        ) : history.length === 0 ? (
-          <div className="history-empty">
-            <Icon
-              name="history"
-              size={25}
-            />
-
-            <h3>
-              No saved decisions yet
-            </h3>
-
-            <p>
-              Your completed VERLO
-              decisions will appear
-              here.
-            </p>
-          </div>
-        ) : (
-          <div className="history-list">
-            {history.map(
-              (item, index) => {
-                const id =
-                  item.id ||
-                  item._id ||
-                  index;
-
-                const title =
-                  item.title ||
-                  item.result?.title ||
-                  item.situation ||
-                  "Untitled decision";
-
-                const date =
-                  item.createdAt ||
-                  item.created_at ||
-                  item.date ||
-                  "";
-
-                return (
                   <button
-                    className="history-item"
                     type="button"
-                    key={id}
-                    onClick={() =>
-                      onSelect(
-                        item
-                      )
+                    disabled={
+                      isAuthLoading
                     }
+                    onClick={() => {
+                      setAuthMode(
+                        "signup"
+                      );
+
+                      setAuthError(
+                        null
+                      );
+                    }}
                   >
-                    <div>
-                      <strong>
-                        {title}
-                      </strong>
-
-                      {date && (
-                        <span>
-                          {new Date(
-                            date
-                          ).toLocaleDateString()}
-                        </span>
-                      )}
-                    </div>
-
-                    <Icon
-                      name="arrow"
-                      size={17}
-                    />
+                    Sign up
                   </button>
-                );
-              }
-            )}
+                </>
+              ) : (
+                <>
+                  Already have an
+                  account?{" "}
+
+                  <button
+                    type="button"
+                    disabled={
+                      isAuthLoading
+                    }
+                    onClick={() => {
+                      setAuthMode(
+                        "login"
+                      );
+
+                      setAuthError(
+                        null
+                      );
+                    }}
+                  >
+                    Log in
+                  </button>
+                </>
+              )}
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
-  );
-}
-
-export default function App() {
-  const [state, setState] =
-    useState(loadState);
-
-  const [user, setUser] =
-    useState(null);
-
-  const [authMode, setAuthMode] =
-    useState(null);
-
-  const [
-    verificationEmail,
-    setVerificationEmail
-  ] = useState("");
-
-  const [historyOpen, setHistoryOpen] =
-    useState(false);
-
-  const [starting, setStarting] =
-    useState(false);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify(state)
-      );
-    } catch {}
-  }, [state]);
-
-  useEffect(() => {
-    let mounted = true;
-
-    const checkAuth =
-      async () => {
-        try {
-          const data =
-            await api(
-              "/api/auth/me"
-            );
-
-          if (mounted) {
-            setUser(
-              data?.user ||
-                data ||
-                null
-            );
-          }
-        } catch {
-          if (mounted) {
-            setUser(null);
-          }
-        }
-      };
-
-    checkAuth();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const updateState = updates => {
-    setState(previous => ({
-      ...previous,
-      ...updates
-    }));
-  };
-
-  const resetAssessment =
-    () => {
-      updateState({
-        screen: "input",
-        situation: "",
-        title: "",
-        category: "",
-        context: "",
-        questions: [],
-        answers: [],
-        questionIndex: 0,
-        result: null,
-        attachments: []
-      });
-    };
-
-  const start = () => {
-    resetAssessment();
-  };
-
-  const startAssessment =
-    async () => {
-      if (
-        !state.situation.trim() ||
-        starting
-      ) {
-        return;
-      }
-
-      setStarting(true);
-
-      try {
-        const data =
-          await api(
-            "/api/adaptive-question",
-            {
-              method: "POST",
-              body: JSON.stringify({
-                title:
-                  state.title ||
-                  "Decision",
-                description:
-                  state.situation,
-                context:
-                  state.context ||
-                  state.category ||
-                  "",
-                previousAnswers: [],
-                previousQuestions: [],
-                questionNumber: 1,
-                maxQuestions:
-                  MAX_ADAPTIVE_QUESTIONS,
-                attachments:
-                  state.attachments
-              })
-            }
-          );
-
-        const rawQuestion =
-          data?.question ||
-          data?.questions?.[0] ||
-          data?.questionText;
-
-        const firstQuestion =
-          normalizeQuestion(
-            rawQuestion,
-            0
-          );
-
-        if (
-          !firstQuestion ||
-          !firstQuestion.question
-        ) {
-          throw new Error(
-            "Adaptive engine failed to create the first question."
-          );
-        }
-
-        updateState({
-          screen: "adaptive",
-          questions: [
-            firstQuestion
-          ],
-          answers: [],
-          questionIndex: 0,
-          result: null
-        });
-      } catch (err) {
-        window.alert(
-          err.message ||
-            "Unable to start the assessment."
-        );
-      } finally {
-        setStarting(false);
-      }
-    };
-
-  const completeAssessment =
-    result => {
-      updateState({
-        screen: "results",
-        result
-      });
-    };
-
-  const handleAuthenticated =
-    authenticatedUser => {
-      setUser(
-        authenticatedUser || null
-      );
-      setAuthMode(null);
-    };
-
-  const handleVerificationRequired =
-    email => {
-      setAuthMode(null);
-      setVerificationEmail(
-        email
-      );
-    };
-
-  const handleVerified =
-    verifiedUser => {
-      setUser(
-        verifiedUser || null
-      );
-      setVerificationEmail("");
-    };
-
-  const handleHome = () => {
-    updateState({
-      screen: "home"
-    });
-  };
-
-  const handleHistorySelect =
-    item => {
-      setHistoryOpen(false);
-
-      updateState({
-        screen: "results",
-        situation:
-          item.situation ||
-          item.prompt ||
-          "",
-        category:
-          item.category ||
-          "",
-        answers:
-          item.answers ||
-          [],
-        result:
-          item.result ||
-          item
-      });
-    };
-
-  const screen = useMemo(
-    () => state.screen,
-    [state.screen]
-  );
-
-  if (screen === "home") {
-    return (
-      <>
-        <Home
-          onStart={start}
-          onHistory={() =>
-            setHistoryOpen(true)
-          }
-          user={user}
-          onAuth={mode =>
-            setAuthMode(mode)
-          }
-        />
-
-        {authMode && (
-          <AuthModal
-            mode={authMode}
-            setMode={setAuthMode}
-            onClose={() =>
-              setAuthMode(null)
-            }
-            onAuthenticated={
-              handleAuthenticated
-            }
-            onVerificationRequired={
-              handleVerificationRequired
-            }
-          />
-        )}
-
-        {verificationEmail && (
-          <VerificationModal
-            email={
-              verificationEmail
-            }
-            onClose={() =>
-              setVerificationEmail(
-                ""
-              )
-            }
-            onVerified={
-              handleVerified
-            }
-          />
-        )}
-
-        {historyOpen && (
-          <HistoryPanel
-            onClose={() =>
-              setHistoryOpen(false)
-            }
-            onSelect={
-              handleHistorySelect
-            }
-          />
-        )}
-      </>
-    );
-  }
-
-  if (screen === "input") {
-    return (
-      <InputPage
-        situation={state.situation}
-        setSituation={situation =>
-          updateState({
-            situation
-          })
-        }
-        category={state.category}
-        setCategory={category =>
-          updateState({
-            category
-          })
-        }
-        attachments={
-          state.attachments
-        }
-        setAttachments={
-          attachments =>
-            updateState({
-              attachments
-            })
-        }
-        onBack={handleHome}
-        onStart={startAssessment}
-        loading={starting}
-      />
-    );
-  }
-
-  if (screen === "adaptive") {
-    return (
-      <AdaptiveAssessment
-        situation={state.situation}
-        title={state.title}
-        category={state.category}
-        context={state.context}
-        questions={
-          state.questions
-        }
-        setQuestions={
-          questions =>
-            updateState({
-              questions
-            })
-        }
-        answers={state.answers}
-        setAnswers={answers =>
-          updateState({
-            answers
-          })
-        }
-        questionIndex={
-          state.questionIndex
-        }
-        setQuestionIndex={
-          questionIndex =>
-            updateState({
-              questionIndex
-            })
-        }
-        attachments={
-          state.attachments
-        }
-        onComplete={
-          completeAssessment
-        }
-      />
-    );
-  }
-
-  if (screen === "processing") {
-    return (
-      <Processing
-        progress={75}
-      />
-    );
-  }
-
-  if (screen === "results") {
-    return (
-      <>
-        <Results
-          result={state.result}
-          situation={state.situation}
-          answers={state.answers}
-          onHome={handleHome}
-          onHistory={() =>
-            setHistoryOpen(true)
-          }
-        />
-
-        {historyOpen && (
-          <HistoryPanel
-            onClose={() =>
-              setHistoryOpen(false)
-            }
-            onSelect={
-              handleHistorySelect
-            }
-          />
-        )}
-      </>
-    );
-  }
-
-  return (
-    <Home
-      onStart={start}
-      user={user}
-      onAuth={setAuthMode}
-    />
   );
 }
