@@ -99,16 +99,13 @@ export default function App() {
       setIsAuthLoading(true);
 
       try {
-        const res = await fetch(
-          `${API_URL}/api/auth/me`,
-          {
-            method: "GET",
-            credentials: "include",
-            headers: {
-              Accept: "application/json",
-            },
-          }
-        );
+        const res = await fetch(`${API_URL}/api/auth/me`, {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            Accept: "application/json",
+          },
+        });
 
         if (!res.ok) {
           setCurrentUser(null);
@@ -218,6 +215,20 @@ export default function App() {
     loadHistory();
   }, [currentUser]);
 
+  /*
+   * When the final report opens, always start
+   * at the beginning of the report.
+   */
+  useEffect(() => {
+    if (step === "results") {
+      window.scrollTo({
+        top: 0,
+        left: 0,
+        behavior: "auto",
+      });
+    }
+  }, [step]);
+
   const authenticatedFetch = async (
     url,
     options = {}
@@ -231,63 +242,465 @@ export default function App() {
     });
   };
 
+  /*
+   * VERLO Markdown renderer.
+   *
+   * The AI can sometimes return escaped Markdown such
+   * as \## or \|. This cleans those characters first,
+   * then renders headings, tables, lists, links,
+   * code blocks, blockquotes and inline formatting.
+   */
   const renderMarkdownToHTML = (content) => {
     if (!content) {
       return "";
     }
 
-    let html = String(content)
+    let source = String(content)
+      .replace(/\\([#*_`|>~])/g, "$1")
+      .replace(/\\-/g, "-");
+
+    source = source
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
 
-    html = html.replace(
-      /```([\s\S]*?)```/g,
-      '<pre class="markdown-code"><code>$1</code></pre>'
-    );
+    const escapeAttribute = (value) =>
+      String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
 
-    html = html.replace(
-      /\*\*(.*?)\*\*/g,
-      "<strong>$1</strong>"
-    );
+    const formatInline = (text) => {
+      if (!text) {
+        return "";
+      }
 
-    html = html.replace(
-      /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
-      '<a href="$2" target="_blank" rel="noopener noreferrer" class="markdown-link">$1</a>'
-    );
+      let value = text;
 
-    const lines = html.split("\n");
-    let inList = false;
+      value = value.replace(
+        /`([^`]+)`/g,
+        '<code class="markdown-inline-code">$1</code>'
+      );
 
-    const output = lines.map((line) => {
-      if (
-        line.trim().startsWith("- ") ||
-        line.trim().startsWith("* ")
-      ) {
-        const item = line.trim().substring(2);
+      value = value.replace(
+        /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+        (_, label, url) =>
+          `<a href="${escapeAttribute(
+            url
+          )}" target="_blank" rel="noopener noreferrer" class="markdown-link">${label}</a>`
+      );
 
-        if (!inList) {
-          inList = true;
+      value = value.replace(
+        /\*\*\*(.+?)\*\*\*/g,
+        "<strong><em>$1</em></strong>"
+      );
 
-          return `<ul class="markdown-list"><li>${item}</li>`;
+      value = value.replace(
+        /___(.+?)___/g,
+        "<strong><em>$1</em></strong>"
+      );
+
+      value = value.replace(
+        /\*\*(.+?)\*\*/g,
+        "<strong>$1</strong>"
+      );
+
+      value = value.replace(
+        /__(.+?)__/g,
+        "<strong>$1</strong>"
+      );
+
+      value = value.replace(
+        /(^|[^\*])\*([^*\n]+)\*(?!\*)/g,
+        "$1<em>$2</em>"
+      );
+
+      value = value.replace(
+        /(^|[^_])_([^_\n]+)_(?!_)/g,
+        "$1<em>$2</em>"
+      );
+
+      value = value.replace(
+        /~~(.+?)~~/g,
+        "<del>$1</del>"
+      );
+
+      return value;
+    };
+
+    const lines = source.split(/\r?\n/);
+
+    const output = [];
+
+    let index = 0;
+    let inCodeBlock = false;
+    let codeBuffer = [];
+
+    while (index < lines.length) {
+      const line = lines[index];
+
+      /*
+       * Fenced code blocks
+       */
+      if (line.trim().startsWith("```")) {
+        if (!inCodeBlock) {
+          inCodeBlock = true;
+          codeBuffer = [];
+        } else {
+          inCodeBlock = false;
+
+          output.push(
+            `<pre class="markdown-code"><code>${codeBuffer.join(
+              "\n"
+            )}</code></pre>`
+          );
+
+          codeBuffer = [];
         }
 
-        return `<li>${item}</li>`;
+        index += 1;
+        continue;
       }
 
-      if (inList) {
-        inList = false;
-
-        return `</ul><p>${line}</p>`;
+      if (inCodeBlock) {
+        codeBuffer.push(line);
+        index += 1;
+        continue;
       }
 
-      return line.trim()
-        ? `<p>${line}</p>`
-        : "";
-    });
+      const trimmed = line.trim();
 
-    if (inList) {
-      output.push("</ul>");
+      /*
+       * Empty line
+       */
+      if (!trimmed) {
+        index += 1;
+        continue;
+      }
+
+      /*
+       * Horizontal rule
+       */
+      if (
+        /^(-{3,}|\*{3,}|_{3,})$/.test(
+          trimmed
+        )
+      ) {
+        output.push(
+          '<hr class="markdown-divider" />'
+        );
+
+        index += 1;
+        continue;
+      }
+
+      /*
+       * Headings
+       */
+      const headingMatch =
+        trimmed.match(
+          /^(#{1,6})\s+(.+)$/
+        );
+
+      if (headingMatch) {
+        const level =
+          headingMatch[1].length;
+
+        const headingText =
+          formatInline(
+            headingMatch[2]
+          );
+
+        output.push(
+          `<h${level} class="markdown-heading markdown-h${level}">${headingText}</h${level}>`
+        );
+
+        index += 1;
+        continue;
+      }
+
+      /*
+       * Tables
+       */
+      const nextLine =
+        lines[index + 1]?.trim() || "";
+
+      const isTableHeader =
+        trimmed.includes("|") &&
+        /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(
+          nextLine
+        );
+
+      if (isTableHeader) {
+        const parseTableRow = (row) => {
+          let cleaned = row.trim();
+
+          if (cleaned.startsWith("|")) {
+            cleaned =
+              cleaned.substring(1);
+          }
+
+          if (cleaned.endsWith("|")) {
+            cleaned =
+              cleaned.substring(
+                0,
+                cleaned.length - 1
+              );
+          }
+
+          return cleaned
+            .split("|")
+            .map((cell) =>
+              cell.trim()
+            );
+        };
+
+        const headers =
+          parseTableRow(trimmed);
+
+        index += 2;
+
+        const rows = [];
+
+        while (
+          index < lines.length &&
+          lines[index].trim() &&
+          lines[index].includes("|")
+        ) {
+          rows.push(
+            parseTableRow(
+              lines[index]
+            )
+          );
+
+          index += 1;
+        }
+
+        let tableHTML =
+          '<div class="markdown-table-wrapper"><table class="markdown-table"><thead><tr>';
+
+        headers.forEach(
+          (header) => {
+            tableHTML += `<th>${formatInline(
+              header
+            )}</th>`;
+          }
+        );
+
+        tableHTML +=
+          "</tr></thead><tbody>";
+
+        rows.forEach((row) => {
+          tableHTML += "<tr>";
+
+          headers.forEach(
+            (_, cellIndex) => {
+              tableHTML += `<td>${formatInline(
+                row[cellIndex] || ""
+              )}</td>`;
+            }
+          );
+
+          tableHTML += "</tr>";
+        });
+
+        tableHTML +=
+          "</tbody></table></div>";
+
+        output.push(tableHTML);
+
+        continue;
+      }
+
+      /*
+       * Blockquotes
+       */
+      if (trimmed.startsWith(">")) {
+        const quoteLines = [];
+
+        while (
+          index < lines.length &&
+          lines[index]
+            .trim()
+            .startsWith(">")
+        ) {
+          quoteLines.push(
+            lines[index]
+              .trim()
+              .replace(/^>\s?/, "")
+          );
+
+          index += 1;
+        }
+
+        output.push(
+          `<blockquote class="markdown-blockquote">${quoteLines
+            .map(
+              (quoteLine) =>
+                `<p>${formatInline(
+                  quoteLine
+                )}</p>`
+            )
+            .join("")}</blockquote>`
+        );
+
+        continue;
+      }
+
+      /*
+       * Unordered lists
+       */
+      if (
+        /^[-*+]\s+/.test(trimmed)
+      ) {
+        const items = [];
+
+        while (
+          index < lines.length &&
+          /^[-*+]\s+/.test(
+            lines[index].trim()
+          )
+        ) {
+          const item =
+            lines[index]
+              .trim()
+              .replace(
+                /^[-*+]\s+/,
+                ""
+              );
+
+          items.push(
+            `<li>${formatInline(
+              item
+            )}</li>`
+          );
+
+          index += 1;
+        }
+
+        output.push(
+          `<ul class="markdown-list">${items.join(
+            ""
+          )}</ul>`
+        );
+
+        continue;
+      }
+
+      /*
+       * Ordered lists
+       */
+      if (/^\d+\.\s+/.test(trimmed)) {
+        const items = [];
+
+        while (
+          index < lines.length &&
+          /^\d+\.\s+/.test(
+            lines[index].trim()
+          )
+        ) {
+          const item =
+            lines[index]
+              .trim()
+              .replace(
+                /^\d+\.\s+/,
+                ""
+              );
+
+          items.push(
+            `<li>${formatInline(
+              item
+            )}</li>`
+          );
+
+          index += 1;
+        }
+
+        output.push(
+          `<ol class="markdown-list markdown-ordered-list">${items.join(
+            ""
+          )}</ol>`
+        );
+
+        continue;
+      }
+
+      /*
+       * Normal paragraphs
+       */
+      const paragraphLines = [
+        trimmed,
+      ];
+
+      index += 1;
+
+      while (
+        index < lines.length
+      ) {
+        const following =
+          lines[index].trim();
+
+        if (!following) {
+          break;
+        }
+
+        if (
+          /^#{1,6}\s+/.test(
+            following
+          ) ||
+          /^[-*+]\s+/.test(
+            following
+          ) ||
+          /^\d+\.\s+/.test(
+            following
+          ) ||
+          following.startsWith(
+            ">"
+          ) ||
+          following.startsWith(
+            "```"
+          )
+        ) {
+          break;
+        }
+
+        const followingNext =
+          lines[index + 1]?.trim() ||
+          "";
+
+        if (
+          following.includes("|") &&
+          /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(
+            followingNext
+          )
+        ) {
+          break;
+        }
+
+        paragraphLines.push(
+          following
+        );
+
+        index += 1;
+      }
+
+      output.push(
+        `<p>${formatInline(
+          paragraphLines.join(" ")
+        )}</p>`
+      );
+    }
+
+    if (
+      inCodeBlock &&
+      codeBuffer.length
+    ) {
+      output.push(
+        `<pre class="markdown-code"><code>${codeBuffer.join(
+          "\n"
+        )}</code></pre>`
+      );
     }
 
     return output.join("");
@@ -334,14 +747,11 @@ export default function App() {
         `${API_URL}${endpoint}`,
         {
           method: "POST",
-
           credentials: "include",
-
           headers: {
             "Content-Type":
               "application/json",
           },
-
           body: JSON.stringify({
             email: authEmail.trim(),
             password: authPassword,
@@ -448,20 +858,16 @@ export default function App() {
           `${API_URL}/api/history/save`,
           {
             method: "POST",
-
             headers: {
               "Content-Type":
                 "application/json",
             },
-
             body: JSON.stringify({
               report: {
                 title:
                   title ||
                   "Untitled Report",
-
                 description,
-
                 result: resultData,
               },
             }),
@@ -542,15 +948,12 @@ export default function App() {
 
       const fileMeta = {
         name: file.name,
-
         size: `${(
           file.size / 1024
         ).toFixed(1)} KB`,
-
         type:
           file.type ||
           "application/octet-stream",
-
         uploadedAt:
           new Date().toISOString(),
       };
@@ -661,9 +1064,14 @@ export default function App() {
   ) => ({
     ...textAnswers,
     ...mcqAnswers,
-    ...(Object.keys(skippedQuestions).length > 0
+    ...(Object.keys(
+      skippedQuestions
+    ).length > 0
       ? {
-          _skippedQuestions: Object.keys(skippedQuestions),
+          _skippedQuestions:
+            Object.keys(
+              skippedQuestions
+            ),
         }
       : {}),
   });
@@ -1416,21 +1824,35 @@ export default function App() {
                   !showHistoryDrawer
                 )
               }
+              aria-label={`Open saved history (${userHistory.length} reports)`}
+              aria-expanded={
+                showHistoryDrawer
+              }
+              aria-controls="history-drawer"
             >
-            <svg
-              className="history-icon"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <circle cx="12" cy="12" r="9" />
-              <path d="M12 7v5l3 2" />
-            </svg>
-            History ({userHistory.length})
+              <svg
+                className="history-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="9"
+                />
+
+                <path d="M12 7v5l3 2" />
+              </svg>
+
+              <span>
+                History (
+                {userHistory.length})
+              </span>
             </button>
 
             {currentUser.picture && (
@@ -1536,7 +1958,16 @@ export default function App() {
                     }
                   >
                     <span className="example-icon">
-                      <svg className="example-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <svg
+                        className="example-svg-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
                         <path d="M21 16.5 13.5 13l-2.2-8.1c-.2-.7-.9-1.1-1.6-.9-.6.2-1 .8-.9 1.4l.8 7-5.9-2.7-1.9 1.2 6.5 4.1-.9 3.8-2.5 1.2v1.2l4.2-1 1.5-2.8 7.2 2.1c.8.2 1.6-.2 1.9-.9.3-.8-.1-1.7-.9-2Z" />
                       </svg>
                     </span>
@@ -1565,8 +1996,24 @@ export default function App() {
                     }
                   >
                     <span className="example-icon">
-                      <svg className="example-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <rect x="3" y="5" width="18" height="14" rx="2" />
+                      <svg
+                        className="example-svg-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <rect
+                          x="3"
+                          y="5"
+                          width="18"
+                          height="14"
+                          rx="2"
+                        />
+
                         <path d="M3 9h18" />
                         <path d="M7 14h3" />
                         <path d="M15 14h2" />
@@ -1596,7 +2043,16 @@ export default function App() {
                     }
                   >
                     <span className="example-icon">
-                      <svg className="example-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <svg
+                        className="example-svg-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
                         <path d="m3 10.5 9-7 9 7" />
                         <path d="M5.5 9v10.5h13V9" />
                         <path d="M9.5 19.5v-5h5v5" />
@@ -1627,9 +2083,26 @@ export default function App() {
                     }
                   >
                     <span className="example-icon">
-                      <svg className="example-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <rect x="4" y="4" width="16" height="13" rx="1.5" />
+                      <svg
+                        className="example-svg-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <rect
+                          x="4"
+                          y="4"
+                          width="16"
+                          height="13"
+                          rx="1.5"
+                        />
+
                         <path d="M2.5 20h19" />
+
                         <path d="M8.5 20c.3-1.4 1.2-2.5 2.5-2.5s2.2 1.1 2.5 2.5" />
                       </svg>
                     </span>
@@ -2158,73 +2631,147 @@ export default function App() {
                   </button>
                 </div>
 
-                <div className="result-section result-summary">
-                  <div>
-                    <span
-                      className={`badge ${
-                        analysisData.confidence?.toLowerCase() ||
-                        ""
-                      }`}
-                    >
-                      Confidence:{" "}
-                      {
-                        analysisData.confidence
-                      }
+                {/* =====================================================
+                    REPORT INTRODUCTION
+                   ===================================================== */}
+
+                <div className="report-intro">
+                  <div className="report-intro-copy">
+                    <span className="report-eyebrow">
+                      VERLO DECISION PATHWAY
                     </span>
 
+                    <h1>
+                      {title ||
+                        "Your Personalised Pathway"}
+                    </h1>
+
+                    <p>
+                      Your situation has
+                      been analysed and
+                      organised into a
+                      practical set of next
+                      steps.
+                    </p>
+
                     {userContext && (
-                      <div className="result-context">
-                        Tailored for:{" "}
-                        <em>
-                          "{userContext}"
-                        </em>
+                      <div className="report-context">
+                        <span>
+                          Personal context
+                        </span>
+
+                        <strong>
+                          {userContext}
+                        </strong>
                       </div>
                     )}
                   </div>
 
-                  <div className="risk-metrics">
-                    <div>
-                      <span>
-                        Severity:
-                      </span>
+                  <div className="report-confidence">
+                    <span>
+                      Analysis confidence
+                    </span>
 
+                    <strong>
+                      {analysisData.confidence ||
+                        "Moderate"}
+                    </strong>
+                  </div>
+                </div>
+
+                {/* =====================================================
+                    PRIMARY ACTION
+                   ===================================================== */}
+
+                <div className="report-priority-card">
+                  <div className="priority-label">
+                    START HERE
+                  </div>
+
+                  <h2>
+                    {analysisData.nextSteps?.[0]
+                      ?.step ||
+                      "Review your recommended action pathway."}
+                  </h2>
+
+                  {analysisData.nextSteps?.[0]
+                    ?.why && (
+                    <p>
                       <strong>
-                        {
-                          analysisData
-                            .riskAssessment
-                            ?.severityScore
-                        }
-                        /10
-                      </strong>
-                    </div>
+                        Why this matters:
+                      </strong>{" "}
+                      {
+                        analysisData
+                          .nextSteps[0]
+                          .why
+                      }
+                    </p>
+                  )}
 
-                    <div>
-                      <span>
-                        Exposure:
-                      </span>
+                  <button
+                    type="button"
+                    className="priority-action-button"
+                    onClick={() =>
+                      setActiveTab("steps")
+                    }
+                  >
+                    View all action steps →
+                  </button>
+                </div>
 
-                      <strong>
-                        {
-                          analysisData
-                            .riskAssessment
-                            ?.financialExposure
-                        }
-                      </strong>
-                    </div>
+                {/* =====================================================
+                    REPORT METRICS
+                   ===================================================== */}
 
-                    <div>
-                      <span>
-                        Urgency:
-                      </span>
+                <div className="report-metrics">
+                  <div className="report-metric">
+                    <span>
+                      Severity
+                    </span>
 
-                      <strong>
-                        {
-                          analysisData
-                            .riskAssessment
-                            ?.timeSensitivity
-                        }
-                      </strong>
-                    </div>
+                    <strong>
+                      {analysisData
+                        .riskAssessment
+                        ?.severityScore ??
+                        "N/A"}
+
+                      {analysisData
+                        .riskAssessment
+                        ?.severityScore !==
+                        undefined &&
+                      analysisData
+                        .riskAssessment
+                        ?.severityScore !==
+                        "N/A"
+                        ? "/10"
+                        : ""}
+                    </strong>
+                  </div>
+
+                  <div className="report-metric">
+                    <span>
+                      Financial exposure
+                    </span>
+
+                    <strong>
+                      {analysisData
+                        .riskAssessment
+                        ?.financialExposure ||
+                        "Not established"}
+                    </strong>
+                  </div>
+
+                  <div className="report-metric">
+                    <span>
+                      Time sensitivity
+                    </span>
+
+                    <strong>
+                      {analysisData
+                        .riskAssessment
+                        ?.timeSensitivity ||
+                        "Review required"}
+                    </strong>
                   </div>
                 </div>
 
@@ -2251,40 +2798,22 @@ export default function App() {
                   )}
                 </nav>
 
+                {/* =====================================================
+                    OVERVIEW
+                   ===================================================== */}
+
                 {activeTab ===
                   "overview" && (
                   <div className="result-content">
-                    <div className="dominant-action">
-                      <h3>
-                        Immediate
-                        Priority Action
-                      </h3>
-
-                      <h2>
-                        {
-                          analysisData
-                            .nextSteps?.[0]
-                            ?.step
-                        }
-                      </h2>
-
-                      <p>
-                        <strong>
-                          Why this first:
-                        </strong>{" "}
-                        {
-                          analysisData
-                            .nextSteps?.[0]
-                            ?.why
-                        }
-                      </p>
-                    </div>
-
                     {analysisData.situation && (
-                      <div className="result-section">
+                      <div className="result-section situation-summary-card">
+                        <span className="section-eyebrow">
+                          SITUATION
+                        </span>
+
                         <h3>
-                          Situation
-                          Summary
+                          What VERLO
+                          understood
                         </h3>
 
                         <p>
@@ -2350,6 +2879,7 @@ export default function App() {
                                   </div>
                                 ) : (
                                   <div
+                                    className="markdown-content"
                                     dangerouslySetInnerHTML={{
                                       __html:
                                         renderMarkdownToHTML(
@@ -2440,6 +2970,10 @@ export default function App() {
                   </div>
                 )}
 
+                {/* =====================================================
+                    PANELS
+                   ===================================================== */}
+
                 {activeTab ===
                   "panels" && (
                   <div className="result-section">
@@ -2474,6 +3008,7 @@ export default function App() {
                               </strong>
 
                               <div
+                                className="markdown-content"
                                 dangerouslySetInnerHTML={{
                                   __html:
                                     renderMarkdownToHTML(
@@ -2498,6 +3033,10 @@ export default function App() {
                     )}
                   </div>
                 )}
+
+                {/* =====================================================
+                    ACTION STEPS
+                   ===================================================== */}
 
                 {activeTab ===
                   "steps" && (
@@ -2554,6 +3093,10 @@ export default function App() {
                   </div>
                 )}
 
+                {/* =====================================================
+                    LETTER
+                   ===================================================== */}
+
                 {activeTab ===
                   "letter" && (
                   <div className="result-section letter-section">
@@ -2590,6 +3133,10 @@ ${analysisData.draftTemplate.body}`}
                     )}
                   </div>
                 )}
+
+                {/* =====================================================
+                    RESOURCES
+                   ===================================================== */}
 
                 {activeTab ===
                   "resources" && (
@@ -2671,8 +3218,15 @@ ${analysisData.draftTemplate.body}`}
         </div>
       </footer>
 
+      {/* ===============================================================
+          HISTORY DRAWER
+         =============================================================== */}
+
       {showHistoryDrawer && (
-        <aside className="history-drawer animate-slide-in-right">
+        <aside
+          id="history-drawer"
+          className="history-drawer animate-slide-in-right"
+        >
           <div className="drawer-header">
             <h3>
               Your Saved Pathways
@@ -2750,6 +3304,10 @@ ${analysisData.draftTemplate.body}`}
           )}
         </aside>
       )}
+
+      {/* ===============================================================
+          AUTH MODAL
+         =============================================================== */}
 
       {showAuthModal && (
         <div className="auth-overlay">
