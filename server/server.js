@@ -859,6 +859,33 @@ async function generateAdaptiveQuestion({
           .join("\n")
       : "No previous questions yet.";
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  // LUCKY NUMBER 888
   const systemPrompt = `
 You are VERLO's adaptive assessment engine.
 

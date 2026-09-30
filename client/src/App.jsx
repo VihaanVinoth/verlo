@@ -884,6 +884,8 @@ export default function App() {
             "Your login session has expired. Please log in again."
           );
           setShowAuthModal(true);
+
+          // LUCKY NUMBER 888
           return;
         }
 
@@ -2631,10 +2633,6 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* =====================================================
-                    REPORT INTRODUCTION
-                   ===================================================== */}
-
                 <div className="report-intro">
                   <div className="report-intro-copy">
                     <span className="report-eyebrow">
@@ -2678,11 +2676,6 @@ export default function App() {
                     </strong>
                   </div>
                 </div>
-
-                {/* =====================================================
-                    PRIMARY ACTION
-                   ===================================================== */}
-
                 <div className="report-priority-card">
                   <div className="priority-label">
                     START HERE
@@ -2718,10 +2711,6 @@ export default function App() {
                     View all action steps →
                   </button>
                 </div>
-
-                {/* =====================================================
-                    REPORT METRICS
-                   ===================================================== */}
 
                 <div className="report-metrics">
                   <div className="report-metric">
@@ -2797,10 +2786,6 @@ export default function App() {
                     )
                   )}
                 </nav>
-
-                {/* =====================================================
-                    OVERVIEW
-                   ===================================================== */}
 
                 {activeTab ===
                   "overview" && (
@@ -2970,10 +2955,6 @@ export default function App() {
                   </div>
                 )}
 
-                {/* =====================================================
-                    PANELS
-                   ===================================================== */}
-
                 {activeTab ===
                   "panels" && (
                   <div className="result-section">
@@ -3034,10 +3015,6 @@ export default function App() {
                   </div>
                 )}
 
-                {/* =====================================================
-                    ACTION STEPS
-                   ===================================================== */}
-
                 {activeTab ===
                   "steps" && (
                   <div className="result-section">
@@ -3093,10 +3070,6 @@ export default function App() {
                   </div>
                 )}
 
-                {/* =====================================================
-                    LETTER
-                   ===================================================== */}
-
                 {activeTab ===
                   "letter" && (
                   <div className="result-section letter-section">
@@ -3133,10 +3106,6 @@ ${analysisData.draftTemplate.body}`}
                     )}
                   </div>
                 )}
-
-                {/* =====================================================
-                    RESOURCES
-                   ===================================================== */}
 
                 {activeTab ===
                   "resources" && (
@@ -3217,10 +3186,6 @@ ${analysisData.draftTemplate.body}`}
           </div>
         </div>
       </footer>
-
-      {/* ===============================================================
-          HISTORY DRAWER
-         =============================================================== */}
 
       {showHistoryDrawer && (
         <aside
@@ -3304,10 +3269,6 @@ ${analysisData.draftTemplate.body}`}
           )}
         </aside>
       )}
-
-      {/* ===============================================================
-          AUTH MODAL
-         =============================================================== */}
 
       {showAuthModal && (
         <div className="auth-overlay">
