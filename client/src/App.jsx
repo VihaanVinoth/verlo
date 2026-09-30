@@ -65,6 +65,20 @@ export default function App() {
   const [authError, setAuthError] = useState(null);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
 
+  const [pendingSaveData, setPendingSaveData] = useState(null);
+
+  useEffect(() => {
+    const savedPendingData = sessionStorage.getItem("verlo-pending-save");
+
+    if (savedPendingData) {
+      try {
+        setPendingSaveData(JSON.parse(savedPendingData));
+      } catch {
+        sessionStorage.removeItem("verlo-pending-save");
+      }
+    }
+  }, []);
+
   const [userHistory, setUserHistory] = useState([]);
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
 
@@ -605,10 +619,13 @@ export default function App() {
     triggerCustomAlert("Logged out successfully.");
   };
 
-  const handleSaveToAccount = async (resultData) => {
+  const handleSaveToAccount = async (reportData) => {
     if (!currentUser) {
+      setPendingSaveData(reportData);
+
+      sessionStorage.setItem("verlo-pending-save", JSON.stringify(reportData));
+
       setAuthMode("login");
-      setAuthError(null);
       setShowAuthModal(true);
       return;
     }
@@ -623,26 +640,36 @@ export default function App() {
           report: {
             title: title || "Untitled Report",
             description,
-            result: resultData,
+            result: reportData,
           },
         }),
       });
 
-      const data = await res.json();
+      const responseData = await res.json();
 
       if (!res.ok) {
         if (res.status === 401) {
           setCurrentUser(null);
+          setPendingSaveData(reportData);
+
+          sessionStorage.setItem(
+            "verlo-pending-save",
+            JSON.stringify(reportData),
+          );
+
           setAuthMode("login");
           setAuthError("Your login session has expired. Please log in again.");
           setShowAuthModal(true);
           return;
         }
 
-        throw new Error(data.error || "Could not save pathway.");
+        throw new Error(responseData.error || "Could not save pathway.");
       }
 
-      setUserHistory(data.history || []);
+      setUserHistory(responseData.history || []);
+
+      setPendingSaveData(null);
+      sessionStorage.removeItem("verlo-pending-save");
 
       triggerCustomAlert("Pathway saved successfully to your account history!");
     } catch (err) {
@@ -651,6 +678,18 @@ export default function App() {
       triggerCustomAlert("Error saving pathway to account history.", "error");
     }
   };
+
+  useEffect(() => {
+    if (!currentUser || !pendingSaveData) {
+      return;
+    }
+
+    const savePendingReport = async () => {
+      await handleSaveToAccount(pendingSaveData);
+    };
+
+    savePendingReport();
+  }, [currentUser, pendingSaveData]);
 
   const handleSecureFileUpload = async (file, target) => {
     if (!file) {
@@ -1420,9 +1459,9 @@ export default function App() {
               </h1>
 
               <p className="verlo-subtitle">
-                Verlo is your adaptive assistant
-                that transforms messy and stressful situations into a fully
-                tailored, risk-scored action pathway through dynamic profiling.
+                Verlo is your adaptive assistant that transforms messy and
+                stressful situations into a fully tailored, risk-scored action
+                pathway through dynamic profiling.
               </p>
 
               <button
