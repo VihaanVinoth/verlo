@@ -35,7 +35,9 @@ function loadState() {
       ...parsed,
       questions: Array.isArray(parsed.questions) ? parsed.questions : [],
       answers: Array.isArray(parsed.answers) ? parsed.answers : [],
-      attachments: Array.isArray(parsed.attachments) ? parsed.attachments : []
+      attachments: Array.isArray(parsed.attachments)
+        ? parsed.attachments
+        : []
     };
   } catch {
     return initialState;
@@ -92,14 +94,15 @@ function Icon({ name, size = 22, strokeWidth = 1.8 }) {
     strokeWidth,
     strokeLinecap: "round",
     strokeLinejoin: "round",
-    "aria-hidden": true
+    focusable: "false",
+    "aria-hidden": "true"
   };
 
   switch (name) {
     case "arrow":
       return (
         <svg {...common}>
-          <path d="M5 12h13" />
+          <path d="M5 12h14" />
           <path d="m13 6 6 6-6 6" />
         </svg>
       );
@@ -107,16 +110,17 @@ function Icon({ name, size = 22, strokeWidth = 1.8 }) {
     case "spark":
       return (
         <svg {...common}>
-          <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" />
-          <path d="m19 16 .8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16Z" />
+          <path d="M12 3.5 13.9 10l6.1 2-6.1 2L12 20.5 10.1 14 4 12l6.1-2L12 3.5Z" />
+          <path d="M19 3v3" />
+          <path d="M17.5 4.5h3" />
         </svg>
       );
 
     case "history":
       return (
         <svg {...common}>
-          <path d="M3 12a9 9 0 1 0 3-6.7" />
-          <path d="M3 4v5h5" />
+          <path d="M4 11a8 8 0 1 1 2.35 5.65" />
+          <path d="M4 5v6h6" />
           <path d="M12 7v5l3 2" />
         </svg>
       );
@@ -133,14 +137,14 @@ function Icon({ name, size = 22, strokeWidth = 1.8 }) {
       return (
         <svg {...common}>
           <circle cx="12" cy="12" r="8.5" />
-          <path d="M12 7v5l3 2" />
+          <path d="M12 7v5l3.25 2" />
         </svg>
       );
 
     case "check":
       return (
         <svg {...common}>
-          <path d="m5 12 4 4L19 6" />
+          <path d="m5 12.5 4.2 4.2L19 7" />
         </svg>
       );
 
@@ -155,24 +159,24 @@ function Icon({ name, size = 22, strokeWidth = 1.8 }) {
     case "chevron":
       return (
         <svg {...common}>
-          <path d="m8 10 4 4 4-4" />
+          <path d="m7.5 9.5 4.5 4.5 4.5-4.5" />
         </svg>
       );
 
     case "file":
       return (
         <svg {...common}>
-          <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z" />
+          <path d="M14 3H6.5A2.5 2.5 0 0 0 4 5.5v13A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5V9Z" />
           <path d="M14 3v6h6" />
           <path d="M8 13h8" />
-          <path d="M8 17h6" />
+          <path d="M8 17h5" />
         </svg>
       );
 
     case "logout":
       return (
         <svg {...common}>
-          <path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4" />
+          <path d="M10 4H6.5A2.5 2.5 0 0 0 4 6.5v11A2.5 2.5 0 0 0 6.5 20H10" />
           <path d="m14 8 4 4-4 4" />
           <path d="M9 12h9" />
         </svg>
@@ -181,8 +185,8 @@ function Icon({ name, size = 22, strokeWidth = 1.8 }) {
     case "user":
       return (
         <svg {...common}>
-          <circle cx="12" cy="8" r="3" />
-          <path d="M5 20c.8-3.2 3.2-5 7-5s6.2 1.8 7 5" />
+          <circle cx="12" cy="8" r="3.25" />
+          <path d="M5.5 20c.8-3.2 3-5 6.5-5s5.7 1.8 6.5 5" />
         </svg>
       );
 
@@ -191,6 +195,7 @@ function Icon({ name, size = 22, strokeWidth = 1.8 }) {
         <svg {...common}>
           <rect x="5" y="10" width="14" height="10" rx="2" />
           <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+          <path d="M12 14v2" />
         </svg>
       );
 
@@ -231,7 +236,10 @@ function Icon({ name, size = 22, strokeWidth = 1.8 }) {
     case "chat":
       return (
         <svg {...common}>
-          <path d="M20 11.5a7.5 7.5 0 0 1-8 7.5 8.8 8.8 0 0 1-3.5-.7L4 20l1.5-4A7.4 7.4 0 0 1 4.5 12 7.5 7.5 0 0 1 12 4.5a7.5 7.5 0 0 1 8 7Z" />
+          <path d="M20 11.5c0 4.15-3.58 7.5-8 7.5a9 9 0 0 1-3.6-.75L4 20l1.65-3.85A7.25 7.25 0 0 1 4 11.5C4 7.35 7.58 4 12 4s8 3.35 8 7.5Z" />
+          <path d="M8 11.5h.01" />
+          <path d="M12 11.5h.01" />
+          <path d="M16 11.5h.01" />
         </svg>
       );
 
@@ -885,7 +893,8 @@ function AdaptiveAssessment({
     questions[questionIndex],
     questionIndex
   );
-// LUCKY NUMBER 888 
+
+  // LUCKY NUMBER 888
   const currentAnswer =
     answers.find(answer => answer.questionId === question.id)?.answer || "";
 
@@ -1001,7 +1010,9 @@ function AdaptiveAssessment({
               <textarea
                 value={value}
                 onChange={event => setValue(event.target.value)}
-                placeholder={question.placeholder || "Type your answer here..."}
+                placeholder={
+                  question.placeholder || "Type your answer here..."
+                }
                 rows={8}
                 maxLength={4000}
                 disabled={loading}
