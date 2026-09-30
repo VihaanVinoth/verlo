@@ -882,10 +882,6 @@ function getQuestionTopics(
       "how recently",
     ],
 
-
-
-
-    // LUCKY NUMBER 888
     impact: [
       "what can you",
       "what cannot you",
@@ -1260,6 +1256,7 @@ function buildFallbackQuestion(
       topic,
     };
   };
+
   if (
     /laptop|computer|desktop|pc|macbook|mac|phone|tablet|device|warranty|repair|broken|fault/.test(
       combined
@@ -1449,6 +1446,7 @@ function buildFallbackQuestion(
       }
     }
   }
+
   if (
     /flight|airline|travel|hotel|booking|trip|airport/.test(
       combined
@@ -1763,7 +1761,7 @@ For example, these are considered the SAME information area:
 - "What is wrong with your computer?"
 - "What problem is your computer having?"
 - "What exactly is happening with the computer?"
-- "Can you describe the issue with your computer?"
+- "Can you describe the issue with the computer?"
 
 If one of those has already been asked, do NOT ask another version of it.
 
@@ -2054,6 +2052,7 @@ Do not include extra text.`,
           );
         }
       }
+
       const generatedQuestionText =
         normalised.question.toLowerCase();
 
@@ -2072,9 +2071,7 @@ Do not include extra text.`,
       }
 
       return normalised;
-    } catch {
-      //
-    }
+    } catch {}
   }
 
   return buildFallbackQuestion(
@@ -2085,6 +2082,280 @@ Do not include extra text.`,
     previousQuestions,
     questionNumber
   );
+}
+
+const VERIFIED_RESOURCES = [
+  {
+    id: "cav-resolve",
+    title:
+      "Consumer Affairs Victoria — Resolve your problem",
+    description:
+      "Guidance for resolving problems with businesses, products, services, housing, cars and other consumer issues in Victoria.",
+    url:
+      "https://www.consumer.vic.gov.au/contact-us/resolve-your-problem",
+    topics: [
+      "consumer",
+      "business",
+      "product",
+      "service",
+      "refund",
+      "repair",
+      "replacement",
+      "warranty",
+      "seller",
+      "retailer",
+      "purchase",
+      "housing",
+      "rental",
+      "landlord",
+      "tenant",
+      "car",
+      "vehicle",
+      "scam",
+    ],
+  },
+  {
+    id: "cav-complaint",
+    title:
+      "Consumer Affairs Victoria — General complaint",
+    description:
+      "Information about making a complaint after you have been unable to resolve a problem with a business.",
+    url:
+      "https://www.consumer.vic.gov.au/contact-us/resolve-your-problem/general-complaint",
+    topics: [
+      "complaint",
+      "business",
+      "consumer",
+      "dispute",
+      "seller",
+      "retailer",
+      "service",
+    ],
+  },
+  {
+    id: "accc-problem",
+    title:
+      "ACCC — Problem with a product or service",
+    description:
+      "Australian Consumer Law information about problems with products and services, including repairs, replacements and refunds.",
+    url:
+      "https://www.accc.gov.au/consumers/problem-with-a-product-or-service-you-bought",
+    topics: [
+      "consumer",
+      "product",
+      "service",
+      "refund",
+      "repair",
+      "replacement",
+      "warranty",
+      "seller",
+      "retailer",
+      "purchase",
+      "business",
+    ],
+  },
+  {
+    id: "accc-complaint-letter",
+    title:
+      "ACCC — Help writing a complaint",
+    description:
+      "A tool for preparing a complaint email or letter to a business about a product or service.",
+    url:
+      "https://www.accc.gov.au/consumers/problem-with-a-product-or-service-you-bought/contacting-a-business-to-fix-a-problem/help-writing-a-complaint-letter-to-business-tool",
+    topics: [
+      "complaint",
+      "letter",
+      "email",
+      "business",
+      "consumer",
+      "refund",
+      "repair",
+      "replacement",
+      "product",
+      "service",
+    ],
+  },
+  {
+    id: "accc-contact-business",
+    title:
+      "ACCC — Contacting a business to fix a problem",
+    description:
+      "Guidance on contacting a business, explaining the problem and asking for an appropriate outcome.",
+    url:
+      "https://www.accc.gov.au/consumers/problem-with-a-product-or-service-you-bought/contacting-a-business-to-fix-a-problem",
+    topics: [
+      "complaint",
+      "business",
+      "consumer",
+      "seller",
+      "retailer",
+      "refund",
+      "repair",
+      "replacement",
+      "service",
+      "product",
+    ],
+  },
+  {
+    id: "accc-problem-solver",
+    title:
+      "ACCC — Repair, replace, refund problem solver",
+    description:
+      "An interactive tool for understanding possible consumer remedies for a problem with a product or service.",
+    url:
+      "https://www.accc.gov.au/consumers/problem-with-a-product-or-service-you-bought/repair-replace-refund-cancel/repair-replace-refund-problem-solver",
+    topics: [
+      "refund",
+      "repair",
+      "replacement",
+      "product",
+      "service",
+      "consumer",
+      "remedy",
+      "faulty",
+    ],
+  },
+  {
+    id: "accc-business-wont-fix",
+    title:
+      "ACCC — If a business won't fix a problem",
+    description:
+      "Information about further options when a business has not resolved a product or service problem.",
+    url:
+      "https://www.accc.gov.au/consumers/problem-with-a-product-or-service-you-bought/if-a-business-wont-fix-a-problem",
+    topics: [
+      "complaint",
+      "dispute",
+      "business",
+      "consumer",
+      "seller",
+      "retailer",
+      "refund",
+      "repair",
+      "replacement",
+      "unresolved",
+      "escalate",
+      "escalation",
+    ],
+  },
+];
+
+function getVerifiedResources(
+  title,
+  prompt,
+  situation,
+  category,
+  context
+) {
+  const combinedText = [
+    title,
+    prompt,
+    situation,
+    category,
+    context,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  const consumerIndicators = [
+    "consumer",
+    "purchase",
+    "purchased",
+    "bought",
+    "seller",
+    "retailer",
+    "business",
+    "refund",
+    "repair",
+    "replacement",
+    "warranty",
+    "product",
+    "service",
+    "complaint",
+    "faulty",
+    "customer",
+  ];
+
+  const housingIndicators = [
+    "rent",
+    "rental",
+    "tenant",
+    "landlord",
+    "property",
+    "house",
+    "apartment",
+    "agent",
+    "residential",
+  ];
+
+  const consumerRelevant =
+    consumerIndicators.some(
+      (word) =>
+        combinedText.includes(
+          word
+        )
+    );
+
+  const housingRelevant =
+    housingIndicators.some(
+      (word) =>
+        combinedText.includes(
+          word
+        )
+    );
+
+  if (
+    !consumerRelevant &&
+    !housingRelevant
+  ) {
+    return [];
+  }
+
+  const matched =
+    VERIFIED_RESOURCES.filter(
+      (resource) =>
+        resource.topics.some(
+          (topic) =>
+            combinedText.includes(
+              topic
+            )
+        )
+    );
+
+  const fallback = [
+    VERIFIED_RESOURCES.find(
+      (resource) =>
+        resource.id ===
+        "cav-resolve"
+    ),
+    VERIFIED_RESOURCES.find(
+      (resource) =>
+        resource.id ===
+        "accc-problem"
+    ),
+  ].filter(Boolean);
+
+  const resources =
+    matched.length > 0
+      ? matched
+      : fallback;
+
+  return resources
+    .slice(0, 4)
+    .map(
+      ({
+        id,
+        title,
+        description,
+        url,
+      }) => ({
+        id,
+        title,
+        description,
+        url,
+      })
+    );
 }
 
 app.get(
@@ -3578,20 +3849,8 @@ Return JSON only.
     "subject": "",
     "body": ""
   },
-  "resources": [
-    {
-      "title": "",
-      "description": "",
-      "url": ""
-    }
-  ],
-  "referenceLinks": [
-    {
-      "title": "",
-      "description": "",
-      "url": ""
-    }
-  ]
+  "resources": [],
+  "referenceLinks": []
 }
 
 Rules:
@@ -3599,9 +3858,8 @@ Rules:
 - severityScore must be an integer from 1 to 10.
 - Do not invent facts.
 - Do not invent laws, organisations, phone numbers, or URLs.
-- Only provide a URL if it is known and genuinely relevant.
-- URLs must be complete URLs beginning with https:// or http://.
-- Prefer official government, regulator, ombudsman, tribunal, educational, or primary-source websites.
+- Do not generate resources or reference links.
+- Resources and reference links are supplied by the server.
 - Use adaptive answers heavily.
 - Make the pathway specific.
 - Explain technical or complicated information in plain language.
@@ -3675,77 +3933,20 @@ ${JSON.stringify(
           [];
       }
 
-      if (
-        !Array.isArray(
-          result.resources
-        )
-      ) {
-        result.resources =
-          [];
-      }
-
-      if (
-        !Array.isArray(
-          result.referenceLinks
-        )
-      ) {
-        result.referenceLinks =
-          result.resources;
-      }
+      const verifiedResources =
+        getVerifiedResources(
+          title,
+          finalPrompt,
+          situation,
+          category,
+          context
+        );
 
       result.resources =
-        result.resources
-          .filter(
-            (item) =>
-              item &&
-              typeof item ===
-                "object"
-          )
-          .map(
-            (item) => ({
-              title:
-                item.title ||
-                "Resource",
-              description:
-                item.description ||
-                "",
-              url:
-                typeof item.url ===
-                  "string" &&
-                /^https?:\/\//i.test(
-                  item.url
-                )
-                  ? item.url
-                  : "",
-            })
-          );
+        verifiedResources;
 
       result.referenceLinks =
-        result.referenceLinks
-          .filter(
-            (item) =>
-              item &&
-              typeof item ===
-                "object"
-          )
-          .map(
-            (item) => ({
-              title:
-                item.title ||
-                "Reference",
-              description:
-                item.description ||
-                "",
-              url:
-                typeof item.url ===
-                  "string" &&
-                /^https?:\/\//i.test(
-                  item.url
-                )
-                  ? item.url
-                  : "",
-            })
-          );
+        verifiedResources;
 
       if (
         !result.riskAssessment
