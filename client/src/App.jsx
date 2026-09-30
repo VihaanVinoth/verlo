@@ -95,7 +95,11 @@ export default function App() {
       return fallback;
     }
 
-    if (data.moderationBlocked || data.moderated || data.code === "CONTENT_BLOCKED") {
+    if (
+      data.moderationBlocked ||
+      data.moderated ||
+      data.code === "CONTENT_BLOCKED"
+    ) {
       return (
         data.error ||
         "VERLO cannot continue with that request. Please rephrase the situation and focus on the underlying problem or getting appropriate help."
@@ -1139,9 +1143,7 @@ export default function App() {
 
             attachment: assessmentAttachment,
 
-            attachments: assessmentAttachment
-              ? [assessmentAttachment]
-              : [],
+            attachments: assessmentAttachment ? [assessmentAttachment] : [],
           }),
         }),
 
@@ -1447,15 +1449,18 @@ export default function App() {
                     <span className="example-icon">
                       <svg
                         className="example-svg-icon"
-                        viewBox="0 0 24 24"
+                        viewBox="0 0 512 512"
                         fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.7"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
+                        xmlns="http://www.w3.org/2000/svg"
                         aria-hidden="true"
                       >
-                        <path d="M21 16.5 13.5 13l-2.2-8.1c-.2-.7-.9-1.1-1.6-.9-.6.2-1 .8-.9 1.4l.8 7-5.9-2.7-1.9 1.2 6.5 4.1-.9 3.8-2.5 1.2v1.2l4.2-1 1.5-2.8 7.2 2.1c.8.2 1.6-.2 1.9-.9.3-.8-.1-1.7-.9-2Z" />
+                        <path
+                          d="M407.72 224c-3.4 0-14.79.1-18 .3l-64.9 1.7a1.83 1.83 0 0 1-1.69-.9L193.55 67.56A9 9 0 0 0 186.89 64H160l73 161a2.35 2.35 0 0 1-2.26 3.35l-121.69 1.8a8.06 8.06 0 0 1-6.6-3.1l-37-45c-3-3.9-8.62-6-13.51-6H33.08c-1.29 0-1.1 1.21-.75 2.43l19.84 63.47a16.3 16.3 0 0 1 0 11.9L32.31 333c-.59 1.95-.52 3 1.77 3H52c8.14 0 9.25-1.06 13.41-6.3l37.7-45.7a8.19 8.19 0 0 1 6.6-3.1l120.68 2.7a2.7 2.7 0 0 1 2.43 3.74L160 448h26.64a9 9 0 0 0 6.65-3.55L323.14 287c.39-.6 2-.9 2.69-.9l63.9 1.7c3.3.2 14.59.3 18 .3C452 288.1 480 275.93 480 256s-27.88-32-72.28-32Z"
+                          stroke="currentColor"
+                          strokeWidth="32"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
                       </svg>
                     </span>
 
@@ -1730,8 +1735,7 @@ export default function App() {
                   className="progress-fill"
                   style={{
                     width: `${Math.min(
-                      ((activeAssessmentIndex + 1) /
-                        MAX_ADAPTIVE_QUESTIONS) *
+                      ((activeAssessmentIndex + 1) / MAX_ADAPTIVE_QUESTIONS) *
                         100,
                       100,
                     )}%`,
@@ -2191,9 +2195,8 @@ export default function App() {
                     </div>
                   </div>
 
-                  {(analysisData.referenceLinks ||
-                    analysisData.resources ||
-                    []).length === 0 ? (
+                  {(analysisData.referenceLinks || analysisData.resources || [])
+                    .length === 0 ? (
                     <div className="resource-empty">
                       <strong>No specific resources were identified.</strong>
 
@@ -2331,9 +2334,7 @@ export default function App() {
                 >
                   <strong>{item.title}</strong>
 
-                  <span>
-                    {new Date(item.timestamp).toLocaleDateString()}
-                  </span>
+                  <span>{new Date(item.timestamp).toLocaleDateString()}</span>
                 </button>
               ))}
             </div>
@@ -2346,9 +2347,7 @@ export default function App() {
           <div className="auth-modal">
             <div className="modal-header">
               <h3>
-                {authMode === "login"
-                  ? "Log in to VERLO"
-                  : "Create an Account"}
+                {authMode === "login" ? "Log in to VERLO" : "Create an Account"}
               </h3>
 
               <button
