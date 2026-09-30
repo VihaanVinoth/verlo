@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./style.css";
 
-const API_URL = import.meta.env.VITE_API_URL || "https://verlo-30xs.onrender.com";
+const API_URL =
+  import.meta.env.VITE_API_URL || "https://verlo-30xs.onrender.com";
+
 const STORAGE_KEY = "verlo_app_state_v4";
 const MAX_ADAPTIVE_QUESTIONS = 7;
 
@@ -23,21 +25,13 @@ const initialState = {
 function loadState() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-
-    if (!saved) {
-      return initialState;
-    }
+    if (!saved) return initialState;
 
     const parsed = JSON.parse(saved);
 
     return {
       ...initialState,
-      ...parsed,
-      questions: Array.isArray(parsed.questions) ? parsed.questions : [],
-      answers: Array.isArray(parsed.answers) ? parsed.answers : [],
-      attachments: Array.isArray(parsed.attachments)
-        ? parsed.attachments
-        : []
+      ...parsed
     };
   } catch {
     return initialState;
@@ -45,256 +39,150 @@ function loadState() {
 }
 
 async function api(path, options = {}) {
-  const headers = {
-    ...(options.body instanceof FormData
-      ? {}
-      : { "Content-Type": "application/json" }),
-    ...(options.headers || {})
-  };
-
   const response = await fetch(`${API_URL}${path}`, {
+    credentials: "include",
     ...options,
-    headers,
-    credentials: "include"
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    }
   });
 
-  const text = await response.text();
-
-  let data = {};
+  let data = null;
 
   try {
-    data = text ? JSON.parse(text) : {};
+    data = await response.json();
   } catch {
-    data = { message: text };
+    data = null;
   }
 
   if (!response.ok) {
-    const error = new Error(
-      data.message ||
-        data.error ||
+    throw new Error(
+      data?.error ||
+        data?.message ||
         `Request failed with status ${response.status}`
     );
-
-    error.status = response.status;
-    error.data = data;
-
-    throw error;
   }
 
   return data;
 }
 
-function Icon({ name, size = 22, strokeWidth = 1.8 }) {
+function Icon({ name, size = 20 }) {
   const common = {
     width: size,
     height: size,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
-    strokeWidth,
+    strokeWidth: 1.8,
     strokeLinecap: "round",
     strokeLinejoin: "round",
-    focusable: "false",
-    "aria-hidden": "true",
-    style: {
-      display: "block",
-      flex: "0 0 auto",
-      overflow: "visible"
-    }
+    "aria-hidden": true
   };
 
-  switch (name) {
-    case "arrow":
-      return (
-        <svg {...common}>
-          <path d="M5 12h14" />
-          <path d="m13 6 6 6-6 6" />
-        </svg>
-      );
+  const paths = {
+    arrow: (
+      <>
+        <path d="M5 12h14" />
+        <path d="m13 6 6 6-6 6" />
+      </>
+    ),
+    back: (
+      <>
+        <path d="M19 12H5" />
+        <path d="m11 18-6-6 6-6" />
+      </>
+    ),
+    check: <path d="m5 12 4 4L19 6" />,
+    close: (
+      <>
+        <path d="M6 6l12 12" />
+        <path d="M18 6 6 18" />
+      </>
+    ),
+    history: (
+      <>
+        <path d="M3 12a9 9 0 1 0 3-6.7" />
+        <path d="M3 4v5h5" />
+        <path d="M12 7v5l3 2" />
+      </>
+    ),
+    user: (
+      <>
+        <circle cx="12" cy="8" r="3.5" />
+        <path d="M5 20c.8-3.3 3.1-5 7-5s6.2 1.7 7 5" />
+      </>
+    ),
+    plus: (
+      <>
+        <path d="M12 5v14" />
+        <path d="M5 12h14" />
+      </>
+    ),
+    upload: (
+      <>
+        <path d="M12 16V4" />
+        <path d="m7 9 5-5 5 5" />
+        <path d="M5 20h14" />
+      </>
+    ),
+    send: (
+      <>
+        <path d="m4 4 16 8-16 8 3-8-3-8Z" />
+        <path d="M7 12h13" />
+      </>
+    ),
+    lock: (
+      <>
+        <rect x="5" y="10" width="14" height="10" rx="2" />
+        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+      </>
+    ),
+    mail: (
+      <>
+        <rect x="3" y="5" width="18" height="14" rx="2" />
+        <path d="m4 7 8 6 8-6" />
+      </>
+    ),
+    google: (
+      <>
+        <path d="M21 12.2c0-.7-.1-1.4-.2-2H12v3.8h5a4.3 4.3 0 0 1-1.9 2.8v2.3h3.1c1.8-1.7 2.8-4.1 2.8-6.9Z" />
+        <path d="M12 21c2.6 0 4.8-.9 6.4-2.4l-3.1-2.3c-.9.6-2 1-3.3 1-2.5 0-4.7-1.7-5.4-4H3.4v2.4A9.7 9.7 0 0 0 12 21Z" />
+        <path d="M6.6 13.3a5.8 5.8 0 0 1 0-2.6V8.3H3.4a9 9 0 0 0 0 8.1l3.2-3.1Z" />
+        <path d="M12 6.7c1.5 0 2.8.5 3.8 1.5l2.8-2.8C16.8 3.9 14.6 3 12 3a9.7 9.7 0 0 0-8.6 5.3l3.2 2.4c.7-2.3 2.9-4 5.4-4Z" />
+      </>
+    ),
+    spark: (
+      <>
+        <path d="m12 2 1.7 6.3L20 10l-6.3 1.7L12 18l-1.7-6.3L4 10l6.3-1.7L12 2Z" />
+        <path d="m19 15 .7 2.3L22 18l-2.3.7L19 21l-.7-2.3L16 18l2.3-.7L19 15Z" />
+      </>
+    ),
+    paperclip: (
+      <path d="m20 11.5-8.3 8.3a5 5 0 0 1-7.1-7.1l8.5-8.5a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-2.8-2.8l7.9-7.9" />
+    )
+  };
 
-    case "spark":
-      return (
-        <svg {...common}>
-          <path d="M12 3.5 13.9 10l6.1 2-6.1 2L12 20.5 10.1 14 4 12l6.1-2L12 3.5Z" />
-          <path d="M19 3v3" />
-          <path d="M17.5 4.5h3" />
-        </svg>
-      );
-
-    case "history":
-      return (
-        <svg {...common}>
-          <path d="M3.5 12a8.5 8.5 0 1 0 2.7-6.2" />
-          <path d="M3.5 4.5v4.5H8" />
-          <path d="M12 7v5l3.25 2" />
-        </svg>
-      );
-
-    case "plus":
-      return (
-        <svg {...common}>
-          <path d="M12 5v14" />
-          <path d="M5 12h14" />
-        </svg>
-      );
-
-    case "clock":
-      return (
-        <svg {...common}>
-          <circle cx="12" cy="12" r="8.5" />
-          <path d="M12 7v5l3.25 2" />
-        </svg>
-      );
-
-    case "check":
-      return (
-        <svg {...common}>
-          <path d="m5 12.5 4.2 4.2L19 7" />
-        </svg>
-      );
-
-    case "close":
-      return (
-        <svg {...common}>
-          <path d="M6 6l12 12" />
-          <path d="M18 6 6 18" />
-        </svg>
-      );
-
-    case "chevron":
-      return (
-        <svg {...common}>
-          <path d="m7 9 5 5 5-5" />
-        </svg>
-      );
-
-    case "file":
-      return (
-        <svg {...common}>
-          <path d="M6.5 3.5h7l4 4v13h-11z" />
-          <path d="M13.5 3.5v4h4" />
-          <path d="M9 12h6" />
-          <path d="M9 16h5" />
-        </svg>
-      );
-
-    case "logout":
-      return (
-        <svg {...common}>
-          <path d="M10 4H6.5A2.5 2.5 0 0 0 4 6.5v11A2.5 2.5 0 0 0 6.5 20H10" />
-          <path d="m14 8 4 4-4 4" />
-          <path d="M9 12h9" />
-        </svg>
-      );
-
-    case "user":
-      return (
-        <svg {...common}>
-          <circle cx="12" cy="8" r="3.25" />
-          <path d="M5 20c.8-3.2 3.15-5 7-5s6.2 1.8 7 5" />
-        </svg>
-      );
-
-    case "lock":
-      return (
-        <svg {...common}>
-          <rect x="5" y="10" width="14" height="10" rx="2" />
-          <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-          <path d="M12 14v2" />
-        </svg>
-      );
-
-    case "mail":
-      return (
-        <svg {...common}>
-          <rect x="4" y="6" width="16" height="12" rx="2" />
-          <path d="m5 8 7 5 7-5" />
-        </svg>
-      );
-
-    case "copy":
-      return (
-        <svg {...common}>
-          <rect x="8" y="8" width="11" height="12" rx="2" />
-          <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2" />
-        </svg>
-      );
-
-    case "external":
-      return (
-        <svg {...common}>
-          <path d="M14 5h5v5" />
-          <path d="m19 5-8 8" />
-          <path d="M18 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
-        </svg>
-      );
-
-    case "download":
-      return (
-        <svg {...common}>
-          <path d="M12 4v11" />
-          <path d="m7 10 5 5 5-5" />
-          <path d="M5 20h14" />
-        </svg>
-      );
-
-    case "chat":
-      return (
-        <svg {...common}>
-          <path d="M20 11.5c0 4.15-3.58 7.5-8 7.5a9 9 0 0 1-3.6-.75L4 20l1.65-3.85A7.25 7.25 0 0 1 4 11.5C4 7.35 7.58 4 12 4s8 3.35 8 7.5Z" />
-          <path d="M8 11.5h.01" />
-          <path d="M12 11.5h.01" />
-          <path d="M16 11.5h.01" />
-        </svg>
-      );
-
-    case "menu":
-      return (
-        <svg {...common}>
-          <path d="M4 7h16" />
-          <path d="M4 12h16" />
-          <path d="M4 17h16" />
-        </svg>
-      );
-
-    case "refresh":
-      return (
-        <svg {...common}>
-          <path d="M20 11a8 8 0 0 0-14.8-4L3 10" />
-          <path d="M3 5v5h5" />
-          <path d="M4 13a8 8 0 0 0 14.8 4L21 14" />
-          <path d="M21 19v-5h-5" />
-        </svg>
-      );
-
-    default:
-      return (
-        <svg {...common}>
-          <circle cx="12" cy="12" r="8" />
-        </svg>
-      );
-  }
+  return <svg {...common}>{paths[name] || paths.spark}</svg>;
 }
 
-function Logo({ compact = false }) {
+function Logo({ onClick }) {
   return (
-    <div className={`verlo-logo ${compact ? "compact" : ""}`}>
-      <div className="verlo-logo-mark" aria-hidden="true">
-        <span />
-        <span />
-        <span />
-      </div>
-      <span>VERLO</span>
-    </div>
+    <button className="brand-button" onClick={onClick} type="button">
+      <span className="brand-mark">
+        <Icon name="spark" size={18} />
+      </span>
+      <span className="brand-name">VERLO</span>
+    </button>
   );
 }
 
 function LoadingDots() {
   return (
-    <span className="loading-dots" aria-hidden="true">
-      <i />
-      <i />
-      <i />
+    <span className="loading-dots" aria-label="Loading">
+      <span />
+      <span />
+      <span />
     </span>
   );
 }
@@ -303,23 +191,55 @@ function AuthModal({
   mode,
   setMode,
   onClose,
-  onLogin,
-  onSignup,
-  loading,
-  error
+  onAuthenticated,
+  onVerificationRequired
 }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const submit = async event => {
     event.preventDefault();
+    setError("");
+    setLoading(true);
 
-    if (mode === "login") {
-      await onLogin(email, password);
-    } else {
-      await onSignup(name, email, password);
+    try {
+      const endpoint = mode === "login" ? "/api/auth/login" : "/api/auth/signup";
+
+      const body =
+        mode === "login"
+          ? {
+              email,
+              password
+            }
+          : {
+              name,
+              email,
+              password
+            };
+
+      const data = await api(endpoint, {
+        method: "POST",
+        body: JSON.stringify(body)
+      });
+
+      if (data?.verificationRequired || data?.requiresVerification) {
+        onVerificationRequired(email);
+        return;
+      }
+
+      onAuthenticated(data?.user || data);
+    } catch (err) {
+      setError(err.message || "Something went wrong.");
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleGoogle = () => {
+    window.location.href = `${API_URL}/api/auth/google`;
   };
 
   return (
@@ -328,27 +248,28 @@ function AuthModal({
         className="auth-modal"
         onMouseDown={event => event.stopPropagation()}
       >
-        <button className="modal-close" onClick={onClose} aria-label="Close">
-          <Icon name="close" size={20} />
+        <button className="modal-close" type="button" onClick={onClose}>
+          <Icon name="close" size={19} />
         </button>
 
         <div className="auth-heading">
-          <Logo compact />
-          <h2>
-            {mode === "login"
-              ? "Welcome back"
-              : "Create your VERLO account"}
-          </h2>
-          <p>
-            {mode === "login"
-              ? "Continue where you left off."
-              : "Keep your assessments and reports available across sessions."}
-          </p>
+          <span className="auth-icon">
+            <Icon name="lock" size={19} />
+          </span>
+
+          <div>
+            <h2>{mode === "login" ? "Welcome back" : "Create your account"}</h2>
+            <p>
+              {mode === "login"
+                ? "Continue where you left off."
+                : "Save your decisions and access them anywhere."}
+            </p>
+          </div>
         </div>
 
         <form onSubmit={submit} className="auth-form">
           {mode === "signup" && (
-            <label>
+            <label className="auth-field">
               <span>Name</span>
               <div className="input-wrap">
                 <Icon name="user" size={18} />
@@ -363,34 +284,33 @@ function AuthModal({
             </label>
           )}
 
-          <label>
+          <label className="auth-field">
             <span>Email</span>
             <div className="input-wrap">
               <Icon name="mail" size={18} />
               <input
-                type="email"
                 value={email}
                 onChange={event => setEmail(event.target.value)}
                 placeholder="you@example.com"
+                type="email"
                 autoComplete="email"
                 required
               />
             </div>
           </label>
 
-          <label>
+          <label className="auth-field">
             <span>Password</span>
             <div className="input-wrap">
               <Icon name="lock" size={18} />
               <input
-                type="password"
                 value={password}
                 onChange={event => setPassword(event.target.value)}
-                placeholder="••••••••"
+                placeholder="Your password"
+                type="password"
                 autoComplete={
                   mode === "login" ? "current-password" : "new-password"
                 }
-                minLength={8}
                 required
               />
             </div>
@@ -398,17 +318,8 @@ function AuthModal({
 
           {error && <div className="form-error">{error}</div>}
 
-          <button className="primary-button full-button" disabled={loading}>
-            {loading ? (
-              <>
-                <LoadingDots />
-                {mode === "login" ? "Signing in" : "Creating account"}
-              </>
-            ) : mode === "login" ? (
-              "Sign in"
-            ) : (
-              "Create account"
-            )}
+          <button className="auth-submit" type="submit" disabled={loading}>
+            {loading ? <LoadingDots /> : mode === "login" ? "Sign in" : "Create account"}
           </button>
         </form>
 
@@ -416,19 +327,32 @@ function AuthModal({
           <span>or</span>
         </div>
 
-        <a className="google-button" href={`${API_URL}/api/auth/google`}>
-          <span className="google-letter">G</span>
-          Continue with Google
-        </a>
-
         <button
-          className="auth-switch"
-          onClick={() => setMode(mode === "login" ? "signup" : "login")}
+          className="google-button"
+          type="button"
+          onClick={handleGoogle}
         >
-          {mode === "login"
-            ? "Don't have an account? Create one"
-            : "Already have an account? Sign in"}
+          <Icon name="google" size={18} />
+          Continue with Google
         </button>
+
+        <div className="auth-switch">
+          <span>
+            {mode === "login"
+              ? "Don't have an account?"
+              : "Already have an account?"}
+          </span>
+
+          <button
+            type="button"
+            onClick={() => {
+              setError("");
+              setMode(mode === "login" ? "signup" : "login");
+            }}
+          >
+            {mode === "login" ? "Create one" : "Sign in"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -436,132 +360,156 @@ function AuthModal({
 
 function VerificationModal({
   email,
-  onVerify,
-  onResend,
   onClose,
-  loading,
-  resendLoading,
-  resendCooldown,
-  error,
-  message
+  onVerified
 }) {
   const [code, setCode] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-  const submit = async event => {
+  const verify = async event => {
     event.preventDefault();
+    setError("");
+    setSuccess("");
+    setLoading(true);
 
-    if (code.length === 6) {
-      await onVerify(code);
+    try {
+      const data = await api("/api/auth/verify-email", {
+        method: "POST",
+        body: JSON.stringify({
+          email,
+          code
+        })
+      });
+
+      setSuccess(data?.message || "Your email has been verified.");
+
+      setTimeout(() => {
+        onVerified(data?.user || data);
+      }, 600);
+    } catch (err) {
+      setError(err.message || "Verification failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resend = async () => {
+    setError("");
+    setSuccess("");
+    setResending(true);
+
+    try {
+      const data = await api("/api/auth/resend-verification", {
+        method: "POST",
+        body: JSON.stringify({ email })
+      });
+
+      setSuccess(data?.message || "A new verification code has been sent.");
+    } catch (err) {
+      setError(err.message || "Unable to resend the code.");
+    } finally {
+      setResending(false);
     }
   };
 
   return (
-    <div className="modal-backdrop">
-      <div className="auth-modal verification-modal">
-        <div className="auth-heading">
-          <div className="verification-icon">
-            <Icon name="mail" size={25} />
-          </div>
-          <h2>Check your email</h2>
-          <p>
-            We sent a 6-digit verification code to <strong>{email}</strong>.
-          </p>
+    <div className="modal-backdrop" onMouseDown={onClose}>
+      <div
+        className="auth-modal verification-modal"
+        onMouseDown={event => event.stopPropagation()}
+      >
+        <button className="modal-close" type="button" onClick={onClose}>
+          <Icon name="close" size={19} />
+        </button>
+
+        <div className="verification-icon">
+          <Icon name="mail" size={24} />
         </div>
 
-        <form onSubmit={submit} className="auth-form">
-          <label>
+        <div className="auth-heading">
+          <div>
+            <h2>Check your email</h2>
+            <p>
+              We sent a verification code to <strong>{email}</strong>.
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={verify} className="auth-form">
+          <label className="auth-field">
             <span>Verification code</span>
-            <input
-              className="verification-code"
-              value={code}
-              onChange={event =>
-                setCode(event.target.value.replace(/\D/g, "").slice(0, 6))
-              }
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              placeholder="000000"
-              maxLength={6}
-            />
+            <div className="input-wrap">
+              <input
+                value={code}
+                onChange={event => setCode(event.target.value)}
+                placeholder="Enter your code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                required
+              />
+            </div>
           </label>
 
           {error && <div className="form-error">{error}</div>}
-          {message && <div className="form-success">{message}</div>}
+          {success && <div className="form-success">{success}</div>}
 
-          <button
-            className="primary-button full-button"
-            disabled={loading || code.length !== 6}
-          >
-            {loading ? (
-              <>
-                <LoadingDots />
-                Verifying
-              </>
-            ) : (
-              "Verify email"
-            )}
+          <button className="auth-submit" type="submit" disabled={loading}>
+            {loading ? <LoadingDots /> : "Verify email"}
           </button>
         </form>
 
         <button
           className="resend-button"
-          onClick={onResend}
-          disabled={resendLoading || resendCooldown > 0}
+          type="button"
+          disabled={resending}
+          onClick={resend}
         >
-          <Icon name="refresh" size={17} />
-          {resendLoading
-            ? "Sending…"
-            : resendCooldown > 0
-            ? `Resend code in ${resendCooldown}s`
-            : "Resend verification email"}
-        </button>
-
-        <button className="auth-switch" onClick={onClose}>
-          Use a different email
+          {resending ? "Sending..." : "Resend code"}
         </button>
       </div>
     </div>
   );
 }
 
-function Home({
-  onStart,
-  onHistory,
-  onLogin,
-  onSignup,
-  user,
-  onLogout
-}) {
+function Home({ onStart, onHistory, user, onAuth }) {
   return (
     <div className="home-page">
       <header className="site-header">
-        <button className="brand-button" onClick={onStart}>
-          <Logo />
-        </button>
+        <Logo onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} />
 
         <nav className="site-nav">
-          <button onClick={onStart}>New assessment</button>
-
           {user && (
-            <button onClick={onHistory} className="history-nav-button">
-              <Icon name="history" size={18} />
-              <span>History</span>
+            <button
+              className="history-nav-button"
+              type="button"
+              onClick={onHistory}
+            >
+              <Icon name="history" size={17} />
+              History
             </button>
           )}
 
           {user ? (
-            <button className="account-button" onClick={onLogout}>
-              <Icon name="logout" size={17} />
-              Sign out
+            <button className="account-button" type="button">
+              <span>{user.name || user.email?.charAt(0)?.toUpperCase()}</span>
             </button>
           ) : (
-            <>
-              <button onClick={onLogin}>Sign in</button>
-              <button className="header-cta" onClick={onSignup}>
-                Get started
-                <Icon name="arrow" size={17} />
-              </button>
-            </>
+            <button
+              className="account-button"
+              type="button"
+              onClick={() => onAuth("login")}
+            >
+              Sign in
+            </button>
           )}
+
+          <button className="header-cta" type="button" onClick={onStart}>
+            Start
+            <Icon name="arrow" size={16} />
+          </button>
         </nav>
       </header>
 
@@ -569,105 +517,114 @@ function Home({
         <section className="hero-section">
           <div className="hero-content">
             <div className="eyebrow">
-              <Icon name="spark" size={16} />
-              DECISION INTELLIGENCE
+              <Icon name="spark" size={14} />
+              Decision intelligence
             </div>
 
             <h1>
-              Make sense of
+              Think clearly.
               <br />
-              <span>what comes next.</span>
+              <span>Decide confidently.</span>
             </h1>
 
             <p className="hero-description">
-              VERLO turns complicated situations into clear questions,
-              structured reasoning and practical next steps.
+              VERLO turns complicated situations into structured thinking,
+              useful questions and practical next steps.
             </p>
 
             <div className="hero-actions">
-              <button
-                className="primary-button hero-button"
-                onClick={onStart}
-              >
-                Start an assessment
-                <Icon name="arrow" size={19} />
+              <button className="hero-button" type="button" onClick={onStart}>
+                Start thinking
+                <Icon name="arrow" size={18} />
               </button>
 
-              {user && (
-                <button className="secondary-button" onClick={onHistory}>
-                  <Icon name="history" size={18} />
-                  View history
-                </button>
-              )}
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() =>
+                  document
+                    .getElementById("features")
+                    ?.scrollIntoView({ behavior: "smooth" })
+                }
+              >
+                See how it works
+              </button>
             </div>
 
             <div className="hero-note">
-              <Icon name="check" size={16} />
-              Adaptive questions change based on your answers.
+              <Icon name="check" size={15} />
+              No right answer. Just clearer thinking.
             </div>
           </div>
 
-          <div className="hero-visual">
-            <div className="hero-orbit orbit-one" />
-            <div className="hero-orbit orbit-two" />
-            <div className="hero-orbit orbit-three" />
-
+          <div className="hero-visual" aria-hidden="true">
+            <div className="hero-orbit hero-orbit-one" />
+            <div className="hero-orbit hero-orbit-two" />
             <div className="hero-core">
-              <Icon name="spark" size={34} />
+              <Icon name="spark" size={32} />
             </div>
 
-            <div className="floating-card card-top">
-              <Icon name="clock" size={17} />
-              <span>Context aware</span>
+            <div className="floating-card floating-card-one">
+              <span>Situation</span>
+              <strong>What actually matters?</strong>
             </div>
 
-            <div className="floating-card card-bottom">
-              <Icon name="check" size={17} />
-              <span>Action focused</span>
+            <div className="floating-card floating-card-two">
+              <span>Perspective</span>
+              <strong>What are you missing?</strong>
+            </div>
+
+            <div className="floating-card floating-card-three">
+              <span>Next step</span>
+              <strong>What can you do now?</strong>
             </div>
           </div>
         </section>
 
-        <section className="feature-section">
+        <section className="feature-section" id="features">
           <div className="section-heading">
-            <span className="eyebrow">HOW IT WORKS</span>
-            <h2>From uncertainty to a clearer plan.</h2>
+            <div className="eyebrow">A better way to think</div>
+            <h2>From uncertainty to a clear path.</h2>
+            <p>
+              VERLO does more than generate an answer. It adapts its questions
+              to understand what actually matters in your situation.
+            </p>
           </div>
 
           <div className="feature-grid">
             <article className="feature-card">
-              <div className="feature-icon">
-                <Icon name="spark" size={24} />
-              </div>
               <span className="feature-number">01</span>
-              <h3>Describe</h3>
+              <div className="feature-icon">
+                <Icon name="spark" size={20} />
+              </div>
+              <h3>Understand</h3>
               <p>
-                Explain what is happening in your own words. VERLO starts with
-                the context you provide.
+                Start with what is happening. VERLO identifies the important
+                context before jumping to conclusions.
               </p>
             </article>
 
             <article className="feature-card">
-              <div className="feature-icon">
-                <Icon name="chat" size={24} />
-              </div>
               <span className="feature-number">02</span>
+              <div className="feature-icon">
+                <Icon name="arrow" size={20} />
+              </div>
               <h3>Explore</h3>
               <p>
-                Answer adaptive questions that become more specific as VERLO
-                learns about the situation.
+                Answer adaptive questions that change depending on what you
+                have already told VERLO.
               </p>
             </article>
 
             <article className="feature-card">
-              <div className="feature-icon">
-                <Icon name="check" size={24} />
-              </div>
               <span className="feature-number">03</span>
+              <div className="feature-icon">
+                <Icon name="check" size={20} />
+              </div>
               <h3>Act</h3>
               <p>
-                Receive a structured report with practical next steps,
-                considerations and useful resources.
+                Receive a structured report with options, considerations and
+                practical next steps.
               </p>
             </article>
           </div>
@@ -684,69 +641,69 @@ function InputPage({
   setCategory,
   attachments,
   setAttachments,
-  onContinue,
   onBack,
-  loading,
-  error
+  onStart,
+  loading
 }) {
-  const fileInput = useRef(null);
+  const fileInputRef = useRef(null);
 
-  const handleFiles = async event => {
+  const categories = [
+    "School",
+    "Work",
+    "Relationships",
+    "Personal",
+    "Money",
+    "Health",
+    "Other"
+  ];
+
+  const addFiles = event => {
     const files = Array.from(event.target.files || []);
 
-    const parsed = await Promise.all(
-      files.slice(0, 5).map(async file => {
-        let text = "";
+    if (!files.length) return;
 
-        if (
-          file.type.startsWith("text/") ||
-          /\.(txt|md|csv|json)$/i.test(file.name)
-        ) {
-          try {
-            text = (await file.text()).slice(0, 20000);
-          } catch {
-            text = "";
-          }
-        }
+    setAttachments(previous => [
+      ...previous,
+      ...files.map(file => ({
+        name: file.name,
+        type: file.type,
+        size: file.size
+      }))
+    ]);
 
-        return {
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          text
-        };
-      })
-    );
-
-    setAttachments([...attachments, ...parsed].slice(0, 5));
     event.target.value = "";
   };
 
-  const removeFile = name => {
-    setAttachments(attachments.filter(file => file.name !== name));
+  const removeAttachment = index => {
+    setAttachments(previous =>
+      previous.filter((_, attachmentIndex) => attachmentIndex !== index)
+    );
   };
 
   return (
     <div className="assessment-page">
-      <header className="assessment-header">
-        <button className="brand-button" onClick={onBack}>
-          <Logo compact />
+      <header className="site-header">
+        <Logo onClick={onBack} />
+
+        <button className="back-button" type="button" onClick={onBack}>
+          <Icon name="back" size={17} />
+          Back
         </button>
       </header>
 
       <main className="assessment-main">
         <div className="assessment-intro">
-          <span className="eyebrow">NEW ASSESSMENT</span>
+          <div className="eyebrow">01 · Your situation</div>
           <h1>What are you trying to figure out?</h1>
           <p>
             Give VERLO enough context to understand the situation. You do not
-            need to phrase it perfectly.
+            need to have everything figured out yet.
           </p>
         </div>
 
-        <div className="input-card">
+        <div className="input-container">
           <label className="large-label" htmlFor="situation">
-            Describe the situation
+            Tell us what is happening
           </label>
 
           <div className="textarea-shell">
@@ -758,55 +715,55 @@ function InputPage({
               rows={9}
               maxLength={6000}
             />
+
             <div className="textarea-count">{situation.length}/6000</div>
           </div>
 
           <div className="category-row">
-            <label>
-              <span>Area</span>
-              <select
-                value={category}
-                onChange={event => setCategory(event.target.value)}
-              >
-                <option value="">Let VERLO decide</option>
-                <option value="education">Education</option>
-                <option value="career">Career</option>
-                <option value="technology">Technology</option>
-                <option value="business">Business</option>
-                <option value="personal">Personal</option>
-                <option value="finance">Finance</option>
-                <option value="planning">Planning</option>
-                <option value="other">Other</option>
-              </select>
-            </label>
+            <span className="category-label">Category</span>
+
+            <div className="category-options">
+              {categories.map(item => (
+                <button
+                  key={item}
+                  type="button"
+                  className={category === item ? "selected" : ""}
+                  onClick={() => setCategory(item)}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="attachment-area">
             <input
-              ref={fileInput}
+              ref={fileInputRef}
               type="file"
               multiple
               hidden
-              onChange={handleFiles}
+              onChange={addFiles}
             />
 
             <button
+              type="button"
               className="attachment-button"
-              onClick={() => fileInput.current?.click()}
+              onClick={() => fileInputRef.current?.click()}
             >
-              <Icon name="file" size={18} />
-              Add supporting files
+              <Icon name="paperclip" size={17} />
+              Attach files
             </button>
 
             {attachments.length > 0 && (
               <div className="attachment-list">
-                {attachments.map(file => (
-                  <div className="attachment-item" key={file.name}>
-                    <Icon name="file" size={16} />
-                    <span>{file.name}</span>
+                {attachments.map((attachment, index) => (
+                  <div className="attachment-item" key={`${attachment.name}-${index}`}>
+                    <span>{attachment.name}</span>
+
                     <button
-                      onClick={() => removeFile(file.name)}
-                      aria-label={`Remove ${file.name}`}
+                      type="button"
+                      onClick={() => removeAttachment(index)}
+                      aria-label={`Remove ${attachment.name}`}
                     >
                       <Icon name="close" size={15} />
                     </button>
@@ -816,25 +773,21 @@ function InputPage({
             )}
           </div>
 
-          {error && <div className="form-error">{error}</div>}
-
           <div className="input-footer">
-            <span>Your information is used to build this assessment.</span>
+            <span>Your answers help VERLO ask better questions.</span>
 
             <button
-              className="primary-button"
-              disabled={loading || situation.trim().length < 10}
-              onClick={onContinue}
+              className="continue-button"
+              type="button"
+              disabled={!situation.trim() || loading}
+              onClick={onStart}
             >
               {loading ? (
-                <>
-                  <LoadingDots />
-                  Preparing
-                </>
+                <LoadingDots />
               ) : (
                 <>
                   Continue
-                  <Icon name="arrow" size={18} />
+                  <Icon name="arrow" size={17} />
                 </>
               )}
             </button>
@@ -845,202 +798,329 @@ function InputPage({
   );
 }
 
-function normalizeQuestion(question, index) {
-  if (!question) {
-    return {
-      id: `question-${index}`,
-      question: "",
-      type: "text",
-      options: []
-    };
-  }
+function normalizeQuestion(question, index = 0) {
+  if (!question) return null;
 
   if (typeof question === "string") {
     return {
-      id: `question-${index}`,
+      id: `question-${index + 1}`,
       question,
       type: "text",
-      options: []
+      placeholder: "Type your answer here..."
     };
   }
 
   return {
-    id: question.id || `question-${index}`,
+    id:
+      question.id ||
+      question.questionId ||
+      question.key ||
+      `question-${index + 1}`,
     question:
       question.question ||
       question.text ||
+      question.questionText ||
       question.prompt ||
-      "Tell me more about this.",
-    type:
-      question.type ||
-      (Array.isArray(question.options) && question.options.length
-        ? "choice"
-        : "text"),
+      "",
+    type: question.type || "text",
+    placeholder: question.placeholder || "Type your answer here...",
     options: Array.isArray(question.options) ? question.options : [],
-    placeholder: question.placeholder || "",
-    imageUrl: question.imageUrl || "",
-    imageAlt: question.imageAlt || "",
-    imageCaption: question.imageCaption || ""
+    image: question.image || null,
+    required: question.required !== false
   };
 }
 
 function AdaptiveAssessment({
+  situation,
+  category,
   questions,
-  questionIndex,
+  setQuestions,
   answers,
-  onContinue,
-  onBack,
-  onSkip,
-  loading,
-  error
+  setAnswers,
+  questionIndex,
+  setQuestionIndex,
+  attachments,
+  onComplete
 }) {
-  const question = normalizeQuestion(
-    questions[questionIndex],
-    questionIndex
-  );
-
   // LUCKY NUMBER 888
-  const currentAnswer =
-    answers.find(answer => answer.questionId === question.id)?.answer || "";
+  const question = questions[questionIndex];
 
-  const [value, setValue] = useState(currentAnswer);
+  const [loading, setLoading] = useState(false);
+  const [value, setValue] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    const answer =
-      answers.find(item => item.questionId === question.id)?.answer || "";
-
-    setValue(answer);
-  }, [question.id, answers]);
-
-  const continueQuestion = () => {
-    const answer = value.trim();
-
-    if (!answer || loading) {
+    if (!question) {
+      setValue("");
       return;
     }
 
-    onContinue({
-      questionId: question.id,
-      question: question.question,
-      answer,
-      skipped: false
+    const currentAnswer =
+      answers.find(answer => answer.questionId === question.id)?.answer || "";
+
+    setValue(currentAnswer);
+  }, [question?.id, answers]);
+
+  const progress = Math.min(
+    100,
+    Math.round(((questionIndex + 1) / MAX_ADAPTIVE_QUESTIONS) * 100)
+  );
+
+  const saveAnswer = answerValue => {
+    setAnswers(previous => {
+      const existing = previous.findIndex(
+        answer => answer.questionId === question.id
+      );
+
+      const updated = [...previous];
+
+      const answerObject = {
+        questionId: question.id,
+        question: question.question,
+        answer: answerValue
+      };
+
+      if (existing >= 0) {
+        updated[existing] = answerObject;
+      } else {
+        updated.push(answerObject);
+      }
+
+      return updated;
     });
   };
 
-  const skipQuestion = () => {
-    if (loading) {
+  const runAnalysis = async finalAnswers => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const data = await api("/api/analyze", {
+        method: "POST",
+        body: JSON.stringify({
+          situation,
+          category,
+          answers: finalAnswers,
+          questions,
+          attachments
+        })
+      });
+
+      onComplete(data);
+    } catch (err) {
+      setError(err.message || "Unable to analyse your situation.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const requestNextQuestion = async finalAnswers => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const data = await api("/api/adaptive-question", {
+        method: "POST",
+        body: JSON.stringify({
+          situation,
+          category,
+          answers: finalAnswers,
+          questionIndex: questionIndex + 1,
+          previousQuestions: questions.map(item => ({
+            id: item.id,
+            question: item.question
+          })),
+          attachments
+        })
+      });
+
+      if (data?.complete || data?.done || data?.finished) {
+        await runAnalysis(finalAnswers);
+        return;
+      }
+
+      const rawQuestion =
+        data?.question ||
+        data?.questions?.[0] ||
+        data?.questionText;
+
+      const nextQuestion = normalizeQuestion(
+        rawQuestion,
+        questionIndex + 1
+      );
+
+      if (!nextQuestion || !nextQuestion.question) {
+        await runAnalysis(finalAnswers);
+        return;
+      }
+
+      setQuestions(previous => [...previous, nextQuestion]);
+      setQuestionIndex(previous => previous + 1);
+    } catch (err) {
+      setError(err.message || "Unable to create the next question.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveAnswerAndContinue = async answerValue => {
+    const finalAnswers = [
+      ...answers.filter(answer => answer.questionId !== question.id),
+      {
+        questionId: question.id,
+        question: question.question,
+        answer: answerValue
+      }
+    ];
+
+    setAnswers(finalAnswers);
+
+    if (questionIndex + 1 >= MAX_ADAPTIVE_QUESTIONS) {
+      await runAnalysis(finalAnswers);
       return;
     }
 
-    onSkip({
-      questionId: question.id,
-      question: question.question,
-      answer: "",
-      skipped: true
-    });
+    await requestNextQuestion(finalAnswers);
   };
 
-  const progress =
-    Math.min(
-      ((questionIndex + 1) / Math.max(questions.length, 1)) * 100,
-      100
+  const handleContinue = async () => {
+    if (!question) return;
+
+    setError("");
+
+    if (question.required && !value.trim()) {
+      setError("Please answer the question or choose Skip.");
+      return;
+    }
+
+    await saveAnswerAndContinue(value.trim());
+  };
+
+  const skipQuestion = async () => {
+    if (!question) return;
+
+    await saveAnswerAndContinue("");
+  };
+
+  if (!question) {
+    return (
+      <div className="assessment-page">
+        <header className="site-header">
+          <Logo onClick={() => window.location.reload()} />
+        </header>
+
+        <main className="adaptive-main">
+          <div className="question-card">
+            <div className="processing-inner">
+              <LoadingDots />
+              <p>Preparing your first question...</p>
+            </div>
+          </div>
+        </main>
+      </div>
     );
+  }
 
   return (
-    <div className="adaptive-page">
-      <header className="assessment-header">
-        <button className="brand-button" onClick={onBack}>
-          <Logo compact />
-        </button>
+    <div className="assessment-page">
+      <header className="site-header">
+        <Logo onClick={() => window.location.reload()} />
 
         <div className="assessment-progress-label">
-          Question {questionIndex + 1}
+          Question {questionIndex + 1} of {MAX_ADAPTIVE_QUESTIONS}
         </div>
       </header>
 
       <main className="adaptive-main">
-        <div className="adaptive-progress">
-          <div
-            className="adaptive-progress-bar"
-            style={{ width: `${progress}%` }}
-          />
+        <div className="assessment-progress">
+          <div className="assessment-progress-track">
+            <div
+              className="assessment-progress-fill"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
         </div>
 
-        <section className="question-card">
+        <div className="question-card">
           <div className="question-meta">
-            <span>ADAPTIVE ASSESSMENT</span>
+            <span>QUESTION {String(questionIndex + 1).padStart(2, "0")}</span>
+
+            {question.required && <span>REQUIRED</span>}
           </div>
 
-          <h1>{question.question}</h1>
+          <div className="question-content">
+            <h1>{question.question}</h1>
 
-          {question.imageUrl && (
-            <div className="question-image">
+            {question.image && (
               <img
-                src={question.imageUrl}
-                alt={question.imageAlt || "Question reference"}
+                className="question-image"
+                src={question.image}
+                alt=""
               />
-              {question.imageCaption && <p>{question.imageCaption}</p>}
-            </div>
-          )}
+            )}
 
-          {question.type === "choice" && question.options.length > 0 ? (
-            <div className="choice-list">
-              {question.options.map((option, index) => {
-                const optionValue =
-                  typeof option === "string"
-                    ? option
-                    : option.value || option.label || "";
+            {question.type === "choice" && question.options.length > 0 ? (
+              <div className="choice-list">
+                {question.options.map(option => {
+                  const optionValue =
+                    typeof option === "string"
+                      ? option
+                      : option.value || option.label || "";
 
-                return (
-                  <button
-                    type="button"
-                    key={`${optionValue}-${index}`}
-                    className={`choice-option ${
-                      value === optionValue ? "selected" : ""
-                    }`}
-                    onClick={() => setValue(optionValue)}
-                    disabled={loading}
-                  >
-                    <span className="choice-radio">
-                      {value === optionValue && <span />}
-                    </span>
+                  const optionLabel =
+                    typeof option === "string"
+                      ? option
+                      : option.label || option.value || "";
 
-                    <span>{optionValue}</span>
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="adaptive-textarea-shell">
-              <textarea
-                value={value}
-                onChange={event => setValue(event.target.value)}
-                placeholder={
-                  question.placeholder || "Type your answer here..."
-                }
-                rows={8}
-                maxLength={4000}
-                disabled={loading}
-                style={{
-                  width: "100%",
-                  maxWidth: "100%",
-                  boxSizing: "border-box",
-                  resize: "vertical"
-                }}
-              />
-
-              <div className="adaptive-textarea-count">
-                {value.length}/4000
+                  return (
+                    <button
+                      type="button"
+                      className={`choice-option ${
+                        value === optionValue ? "selected" : ""
+                      }`}
+                      key={optionValue}
+                      onClick={() => setValue(optionValue)}
+                    >
+                      <span className="choice-radio">
+                        {value === optionValue && <span />}
+                      </span>
+                      <span>{optionLabel}</span>
+                    </button>
+                  );
+                })}
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="adaptive-textarea-shell">
+                <textarea
+                  value={value}
+                  onChange={event => setValue(event.target.value)}
+                  placeholder={
+                    question.placeholder || "Type your answer here..."
+                  }
+                  rows={8}
+                  maxLength={4000}
+                  disabled={loading}
+                  style={{
+                    width: "100%",
+                    maxWidth: "100%",
+                    boxSizing: "border-box",
+                    resize: "vertical"
+                  }}
+                />
+
+                <div className="adaptive-textarea-count">
+                  {value.length}/4000
+                </div>
+              </div>
+            )}
+          </div>
 
           {error && <div className="form-error">{error}</div>}
 
           <div className="question-footer">
             <button
+              className="skip-button"
               type="button"
-              className="secondary-button skip-button"
               onClick={skipQuestion}
               disabled={loading}
             >
@@ -1048,73 +1128,72 @@ function AdaptiveAssessment({
             </button>
 
             <button
+              className="continue-button"
               type="button"
-              className="primary-button continue-button"
-              disabled={
-                loading ||
-                (!value.trim() && question.type !== "choice")
-              }
-              onClick={continueQuestion}
+              onClick={handleContinue}
+              disabled={loading}
             >
               {loading ? (
-                <>
-                  <LoadingDots />
-                  Thinking
-                </>
+                <LoadingDots />
               ) : (
                 <>
                   Continue
-                  <Icon name="arrow" size={18} />
+                  <Icon name="arrow" size={17} />
                 </>
               )}
             </button>
           </div>
-        </section>
+        </div>
       </main>
     </div>
   );
 }
 
-function Processing({ progress, step }) {
+function Processing({ progress = 0 }) {
   return (
-    <div className="processing-page">
-      <div className="processing-inner">
-        <Logo />
+    <div className="assessment-page processing-page">
+      <header className="site-header">
+        <Logo onClick={() => window.location.reload()} />
+      </header>
 
-        <div className="processing-orb">
-          <div />
-          <div />
-          <div />
+      <main className="processing-container">
+        <div className="processing-inner">
+          <div className="processing-orb">
+            <div className="processing-orb-core">
+              <Icon name="spark" size={28} />
+            </div>
+          </div>
+
+          <div className="eyebrow">VERLO is thinking</div>
+
+          <h1>Building your decision map.</h1>
+
+          <p>
+            We are bringing your situation and answers together into a
+            structured report.
+          </p>
+
+          <div className="processing-progress">
+            <div className="processing-progress-track">
+              <div
+                className="processing-progress-fill"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+
+            <span className="processing-percent">{progress}%</span>
+          </div>
         </div>
-
-        <span className="eyebrow">BUILDING YOUR REPORT</span>
-
-        <h1>{step}</h1>
-
-        <p>
-          VERLO is combining your situation and answers into a structured
-          analysis.
-        </p>
-
-        <div className="processing-progress">
-          <div
-            style={{
-              width: `${Math.max(5, Math.min(progress, 100))}%`
-            }}
-          />
-        </div>
-
-        <span className="processing-percent">
-          {Math.round(progress)}%
-        </span>
-      </div>
+      </main>
     </div>
   );
 }
 
 function getResultValue(result, keys, fallback = "") {
+  if (!result) return fallback;
+
   for (const key of keys) {
-    if (result?.[key] !== undefined && result?.[key] !== null) {
+    if (result[key] !== undefined && result[key] !== null) {
       return result[key];
     }
   }
@@ -1122,18 +1201,14 @@ function getResultValue(result, keys, fallback = "") {
   return fallback;
 }
 
-function ResultSection({ icon, eyebrow, title, children }) {
+function ResultSection({ icon, title, children }) {
   return (
     <section className="report-section">
       <div className="report-section-heading">
-        <div className="report-heading-icon">
-          <Icon name={icon} size={21} />
-        </div>
-
-        <div>
-          <span>{eyebrow}</span>
-          <h2>{title}</h2>
-        </div>
+        <span className="report-heading-icon">
+          <Icon name={icon} size={17} />
+        </span>
+        <h2>{title}</h2>
       </div>
 
       <div className="report-section-content">{children}</div>
@@ -1144,411 +1219,417 @@ function ResultSection({ icon, eyebrow, title, children }) {
 function Results({
   result,
   situation,
-  onNew,
-  onHistory,
-  onChat,
-  chatMessages,
-  chatInput,
-  setChatInput,
-  chatLoading,
-  user
+  answers,
+  onHome,
+  onHistory
 }) {
-  const [copied, setCopied] = useState(false);
+  const [message, setMessage] = useState("");
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatLoading, setChatLoading] = useState(false);
+
+  const title = getResultValue(
+    result,
+    ["title", "headline", "summaryTitle"],
+    "Your decision report"
+  );
 
   const summary = getResultValue(
     result,
     ["summary", "overview", "analysis"],
-    "VERLO has completed your assessment."
+    "VERLO has analysed your situation."
   );
 
-  const title = getResultValue(
+  const options = getResultValue(
     result,
-    ["title", "headline"],
-    "Your assessment"
+    ["options", "possibleOptions", "choices"],
+    []
   );
 
-  const confidence = getResultValue(
+  const nextSteps = getResultValue(
     result,
-    ["confidence", "confidenceLevel"],
-    ""
+    ["nextSteps", "steps", "actions"],
+    []
   );
 
-  const nextSteps =
-    getResultValue(
-      result,
-      ["nextSteps", "actions", "recommendations"],
-      []
-    ) || [];
-
-  const considerations =
-    getResultValue(
-      result,
-      ["considerations", "keyConsiderations", "factors"],
-      []
-    ) || [];
-
-  const resources =
-    getResultValue(result, ["resources", "usefulResources"], []) || [];
-
-  const references =
-    getResultValue(
-      result,
-      ["referenceLinks", "references", "sources"],
-      []
-    ) || [];
+  const considerations = getResultValue(
+    result,
+    ["considerations", "thingsToConsider", "risks"],
+    []
+  );
 
   const draft = getResultValue(
     result,
-    ["draft", "suggestedMessage", "template"],
+    ["draft", "suggestedResponse", "messageDraft"],
     ""
   );
 
-  const asArray = value => {
-    if (Array.isArray(value)) {
-      return value;
-    }
+  const resources = getResultValue(
+    result,
+    ["resources", "helpfulResources"],
+    []
+  );
 
-    if (!value) {
-      return [];
-    }
+  const references = getResultValue(
+    result,
+    ["references", "sources"],
+    []
+  );
 
-    return [value];
-  };
+  const sendMessage = async event => {
+    event.preventDefault();
 
-  const copyDraft = async () => {
-    if (!draft) {
-      return;
-    }
+    if (!message.trim() || chatLoading) return;
+
+    const userMessage = message.trim();
+
+    setMessage("");
+    setChatMessages(previous => [
+      ...previous,
+      {
+        role: "user",
+        content: userMessage
+      }
+    ]);
+
+    setChatLoading(true);
 
     try {
-      await navigator.clipboard.writeText(
-        typeof draft === "string"
-          ? draft
-          : JSON.stringify(draft, null, 2)
-      );
+      const data = await api("/api/chat", {
+        method: "POST",
+        body: JSON.stringify({
+          message: userMessage,
+          situation,
+          answers,
+          result,
+          history: chatMessages
+        })
+      });
 
-      setCopied(true);
+      setChatMessages(previous => [
+        ...previous,
+        {
+          role: "assistant",
+          content:
+            data?.message ||
+            data?.response ||
+            "I could not generate a response."
+        }
+      ]);
+    } catch {
+      setChatMessages(previous => [
+        ...previous,
+        {
+          role: "assistant",
+          content:
+            "I couldn't connect to the decision assistant right now."
+        }
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
 
-      setTimeout(() => {
-        setCopied(false);
-      }, 1800);
-    } catch {}
+  const renderList = items => {
+    if (!Array.isArray(items)) {
+      return <p>{String(items || "")}</p>;
+    }
+
+    return (
+      <div className="next-step-list">
+        {items.map((item, index) => {
+          const text =
+            typeof item === "string"
+              ? item
+              : item?.text ||
+                item?.description ||
+                item?.title ||
+                JSON.stringify(item);
+
+          return (
+            <div className="next-step" key={`${text}-${index}`}>
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <p>{text}</p>
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
-    <div className="results-page">
-      <header className="results-header">
-        <button className="brand-button" onClick={onNew}>
-          <Logo compact />
-        </button>
+    <div className="assessment-page results-page">
+      <header className="site-header">
+        <Logo onClick={onHome} />
 
-        <div className="results-actions">
-          {user && (
-            <button className="secondary-button" onClick={onHistory}>
-              <Icon name="history" size={17} />
-              History
-            </button>
-          )}
-
-          <button className="primary-button" onClick={onNew}>
-            <Icon name="plus" size={17} />
-            New assessment
+        <nav className="site-nav">
+          <button
+            className="history-nav-button"
+            type="button"
+            onClick={onHistory}
+          >
+            <Icon name="history" size={17} />
+            History
           </button>
-        </div>
+
+          <button className="header-cta" type="button" onClick={onHome}>
+            New decision
+            <Icon name="plus" size={16} />
+          </button>
+        </nav>
       </header>
 
       <main className="report-container">
         <section className="report-hero">
           <div className="report-hero-copy">
-            <span className="eyebrow">VERLO REPORT</span>
+            <div className="eyebrow">
+              <Icon name="check" size={14} />
+              Decision report
+            </div>
+
             <h1>{title}</h1>
             <p>{summary}</p>
-
-            {confidence && (
-              <div className="confidence-label">
-                <Icon name="check" size={16} />
-                Confidence: {String(confidence)}
-              </div>
-            )}
           </div>
 
           <div className="report-context">
-            <span>YOUR ORIGINAL SITUATION</span>
+            <span>Your original situation</span>
             <p>{situation}</p>
           </div>
         </section>
 
         <div className="report-grid">
-          <ResultSection
-            icon="arrow"
-            eyebrow="01 · ACTION"
-            title="Next steps"
-          >
-            <div className="next-step-list">
-              {asArray(nextSteps).length > 0 ? (
-                asArray(nextSteps).map((step, index) => {
-                  const text =
-                    typeof step === "string"
-                      ? step
-                      : step.text ||
-                        step.description ||
-                        step.action ||
-                        "";
-
-                  return (
-                    <div className="next-step" key={index}>
-                      <span>{String(index + 1).padStart(2, "0")}</span>
-                      <p>{text}</p>
-                    </div>
-                  );
-                })
-              ) : (
-                <p className="empty-report">
-                  No specific next steps were returned.
-                </p>
-              )}
-            </div>
-          </ResultSection>
-
-          <ResultSection
-            icon="spark"
-            eyebrow="02 · THINK ABOUT"
-            title="Key considerations"
-          >
-            <div className="consideration-list">
-              {asArray(considerations).length > 0 ? (
-                asArray(considerations).map((item, index) => {
-                  const text =
-                    typeof item === "string"
-                      ? item
-                      : item.text ||
-                        item.description ||
-                        item.title ||
-                        "";
-
-                  return (
-                    <div className="consideration" key={index}>
-                      <Icon name="check" size={17} />
-                      <p>{text}</p>
-                    </div>
-                  );
-                })
-              ) : (
-                <p className="empty-report">
-                  No additional considerations were returned.
-                </p>
-              )}
-            </div>
-          </ResultSection>
-
-          {draft && (
-            <ResultSection
-              icon="copy"
-              eyebrow="03 · READY TO USE"
-              title="Suggested draft"
-            >
-              <div className="draft-box">
-                <p>
-                  {typeof draft === "string"
-                    ? draft
-                    : JSON.stringify(draft)}
-                </p>
-
-                <button
-                  className="secondary-button"
-                  onClick={copyDraft}
-                >
-                  <Icon
-                    name={copied ? "check" : "copy"}
-                    size={17}
-                  />
-                  {copied ? "Copied" : "Copy draft"}
-                </button>
-              </div>
+          <div>
+            <ResultSection icon="spark" title="What this means">
+              <p>{summary}</p>
             </ResultSection>
-          )}
 
-          <ResultSection
-            icon="file"
-            eyebrow="04 · RESOURCES"
-            title="Useful resources"
-          >
-            <div className="resource-grid">
-              {asArray(resources).length > 0 ? (
-                asArray(resources).map((resource, index) => {
-                  const name =
-                    typeof resource === "string"
-                      ? resource
-                      : resource.title ||
-                        resource.name ||
-                        "Resource";
+            {options.length > 0 && (
+              <ResultSection icon="arrow" title="Your options">
+                {renderList(options)}
+              </ResultSection>
+            )}
 
-                  const description =
-                    typeof resource === "string"
-                      ? ""
-                      : resource.description || "";
+            {nextSteps.length > 0 && (
+              <ResultSection icon="check" title="Suggested next steps">
+                {renderList(nextSteps)}
+              </ResultSection>
+            )}
 
-                  const url =
-                    typeof resource === "object"
-                      ? resource.url ||
-                        resource.href ||
-                        ""
-                      : "";
-
-                  return (
-                    <div className="resource-card" key={index}>
-                      <div>
-                        <h3>{name}</h3>
-                        {description && <p>{description}</p>}
-                      </div>
-
-                      {/^https?:\/\//i.test(url) && (
-                        <a
-                          href={url}
-                          target="_blank"
-                          rel="noreferrer"
-                          aria-label={`Open ${name}`}
-                        >
-                          <Icon name="external" size={17} />
-                        </a>
-                      )}
+            {considerations.length > 0 && (
+              <ResultSection icon="spark" title="Things to consider">
+                <div className="consideration-list">
+                  {(Array.isArray(considerations)
+                    ? considerations
+                    : [considerations]
+                  ).map((item, index) => (
+                    <div className="consideration" key={index}>
+                      {typeof item === "string"
+                        ? item
+                        : item?.text ||
+                          item?.description ||
+                          JSON.stringify(item)}
                     </div>
-                  );
-                })
-              ) : (
-                <p className="empty-report">
-                  No resources were returned for this assessment.
-                </p>
-              )}
-            </div>
-          </ResultSection>
+                  ))}
+                </div>
+              </ResultSection>
+            )}
 
-          <ResultSection
-            icon="external"
-            eyebrow="05 · REFERENCES"
-            title="References"
-          >
-            <div className="reference-list">
-              {asArray(references).length > 0 ? (
-                asArray(references).map((reference, index) => {
-                  const title =
-                    typeof reference === "string"
-                      ? reference
-                      : reference.title ||
-                        reference.name ||
-                        reference.url;
+            {draft && (
+              <ResultSection icon="mail" title="Possible wording">
+                <div className="draft-box">
+                  <p>{draft}</p>
+                </div>
+              </ResultSection>
+            )}
 
-                  const url =
-                    typeof reference === "string"
-                      ? reference
-                      : reference.url ||
-                        reference.href ||
-                        "";
+            {resources.length > 0 && (
+              <ResultSection icon="arrow" title="Useful resources">
+                <div className="resource-grid">
+                  {(Array.isArray(resources) ? resources : [resources]).map(
+                    (resource, index) => {
+                      const label =
+                        typeof resource === "string"
+                          ? resource
+                          : resource?.title ||
+                            resource?.name ||
+                            "Resource";
 
-                  if (!/^https?:\/\//i.test(url)) {
+                      const description =
+                        typeof resource === "string"
+                          ? ""
+                          : resource?.description || "";
+
+                      const url =
+                        typeof resource === "object"
+                          ? resource?.url
+                          : null;
+
+                      return (
+                        <div className="resource-card" key={index}>
+                          <h3>{label}</h3>
+                          {description && <p>{description}</p>}
+                          {url && (
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              Open resource
+                              <Icon name="arrow" size={15} />
+                            </a>
+                          )}
+                        </div>
+                      );
+                    }
+                  )}
+                </div>
+              </ResultSection>
+            )}
+
+            {references.length > 0 && (
+              <ResultSection icon="check" title="References">
+                <div className="reference-list">
+                  {(Array.isArray(references)
+                    ? references
+                    : [references]
+                  ).map((reference, index) => {
+                    const label =
+                      typeof reference === "string"
+                        ? reference
+                        : reference?.title ||
+                          reference?.name ||
+                          reference?.url ||
+                          "Reference";
+
+                    const url =
+                      typeof reference === "object"
+                        ? reference?.url
+                        : null;
+
                     return (
-                      <div
-                        className="reference-row"
-                        key={index}
-                      >
-                        <span>{title}</span>
+                      <div className="reference-row" key={index}>
+                        {url ? (
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {label}
+                          </a>
+                        ) : (
+                          <span>{label}</span>
+                        )}
                       </div>
                     );
-                  }
-
-                  return (
-                    <a
-                      className="reference-row"
-                      href={url}
-                      target="_blank"
-                      rel="noreferrer"
-                      key={index}
-                    >
-                      <span>{title}</span>
-                      <Icon name="external" size={16} />
-                    </a>
-                  );
-                })
-              ) : (
-                <p className="empty-report">
-                  No external references were returned.
-                </p>
-              )}
-            </div>
-          </ResultSection>
-        </div>
-
-        <section className="report-chat">
-          <div className="report-chat-heading">
-            <div>
-              <span className="eyebrow">CONTINUE EXPLORING</span>
-              <h2>Ask VERLO about this report.</h2>
-            </div>
-
-            <Icon name="chat" size={25} />
-          </div>
-
-          <div className="chat-messages">
-            {chatMessages.length === 0 ? (
-              <div className="chat-empty">
-                <p>
-                  Ask for clarification, explore an alternative or request a
-                  simpler explanation.
-                </p>
-              </div>
-            ) : (
-              chatMessages.map((message, index) => (
-                <div
-                  className={`chat-message ${
-                    message.role === "user"
-                      ? "user-message"
-                      : "assistant-message"
-                  }`}
-                  key={index}
-                >
-                  <span>
-                    {message.role === "user" ? "You" : "VERLO"}
-                  </span>
-                  <p>{message.content}</p>
+                  })}
                 </div>
-              ))
+              </ResultSection>
             )}
           </div>
 
-          <form
-            className="chat-input-row"
-            onSubmit={event => {
-              event.preventDefault();
+          <aside className="report-chat">
+            <div className="report-chat-heading">
+              <div>
+                <span className="eyebrow">Continue thinking</span>
+                <h2>Ask VERLO</h2>
+              </div>
 
-              if (chatInput.trim() && !chatLoading) {
-                onChat();
-              }
-            }}
-          >
-            <input
-              value={chatInput}
-              onChange={event => setChatInput(event.target.value)}
-              placeholder="Ask a follow-up..."
-            />
+              <span className="chat-status">
+                <span />
+                Ready
+              </span>
+            </div>
 
-            <button
-              className="primary-button"
-              disabled={!chatInput.trim() || chatLoading}
-            >
-              {chatLoading ? (
-                <LoadingDots />
+            <div className="chat-messages">
+              {chatMessages.length === 0 ? (
+                <div className="chat-empty">
+                  <Icon name="spark" size={22} />
+                  <p>
+                    Ask a follow-up question about your report, options or
+                    next steps.
+                  </p>
+                </div>
               ) : (
-                <Icon name="arrow" size={18} />
+                chatMessages.map((item, index) => (
+                  <div
+                    className={
+                      item.role === "user"
+                        ? "user-message"
+                        : "assistant-message"
+                    }
+                    key={index}
+                  >
+                    {item.content}
+                  </div>
+                ))
               )}
-            </button>
-          </form>
-        </section>
+
+              {chatLoading && (
+                <div className="assistant-message">
+                  <LoadingDots />
+                </div>
+              )}
+            </div>
+
+            <form className="chat-input" onSubmit={sendMessage}>
+              <textarea
+                value={message}
+                onChange={event => setMessage(event.target.value)}
+                placeholder="Ask a follow-up..."
+                rows={2}
+              />
+
+              <button
+                type="submit"
+                disabled={!message.trim() || chatLoading}
+                aria-label="Send message"
+              >
+                <Icon name="send" size={18} />
+              </button>
+            </form>
+          </aside>
+        </div>
       </main>
     </div>
   );
 }
 
-function HistoryPanel({ history, onClose, onSelect, loading }) {
+function HistoryPanel({ onClose, onSelect }) {
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadHistory = async () => {
+      try {
+        const data = await api("/api/history");
+
+        if (!mounted) return;
+
+        setHistory(
+          Array.isArray(data)
+            ? data
+            : data?.history || data?.items || []
+        );
+      } catch (err) {
+        if (mounted) {
+          setError(err.message || "Unable to load history.");
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadHistory();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
       <div
@@ -1557,12 +1638,12 @@ function HistoryPanel({ history, onClose, onSelect, loading }) {
       >
         <div className="history-heading">
           <div>
-            <span className="eyebrow">YOUR HISTORY</span>
-            <h2>Previous assessments</h2>
+            <span className="eyebrow">Saved decisions</span>
+            <h2>History</h2>
           </div>
 
-          <button className="modal-close" onClick={onClose}>
-            <Icon name="close" size={20} />
+          <button className="modal-close" type="button" onClick={onClose}>
+            <Icon name="close" size={19} />
           </button>
         </div>
 
@@ -1570,39 +1651,49 @@ function HistoryPanel({ history, onClose, onSelect, loading }) {
           <div className="history-loading">
             <LoadingDots />
           </div>
+        ) : error ? (
+          <div className="form-error">{error}</div>
         ) : history.length === 0 ? (
           <div className="history-empty">
-            <Icon name="history" size={30} />
-            <h3>No assessments yet</h3>
-            <p>Your completed assessments will appear here.</p>
+            <Icon name="history" size={25} />
+            <h3>No saved decisions yet</h3>
+            <p>
+              Your completed VERLO decisions will appear here.
+            </p>
           </div>
         ) : (
           <div className="history-list">
             {history.map((item, index) => {
+              const id = item.id || item._id || index;
               const title =
                 item.title ||
+                item.result?.title ||
                 item.situation ||
-                item.prompt ||
-                `Assessment ${index + 1}`;
+                "Untitled decision";
 
-              const date = item.createdAt || item.updatedAt;
+              const date =
+                item.createdAt ||
+                item.created_at ||
+                item.date ||
+                "";
 
               return (
                 <button
                   className="history-item"
-                  key={item.id || index}
+                  type="button"
+                  key={id}
                   onClick={() => onSelect(item)}
                 >
                   <div>
-                    <span>
-                      {date
-                        ? new Date(date).toLocaleDateString()
-                        : "Assessment"}
-                    </span>
-                    <h3>{title}</h3>
+                    <strong>{title}</strong>
+                    {date && (
+                      <span>
+                        {new Date(date).toLocaleDateString()}
+                      </span>
+                    )}
                   </div>
 
-                  <Icon name="arrow" size={18} />
+                  <Icon name="arrow" size={17} />
                 </button>
               );
             })}
@@ -1616,107 +1707,37 @@ function HistoryPanel({ history, onClose, onSelect, loading }) {
 export default function App() {
   const [state, setState] = useState(loadState);
   const [user, setUser] = useState(null);
-
   const [authMode, setAuthMode] = useState(null);
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState("");
-
-  const [verificationLoading, setVerificationLoading] = useState(false);
-  const [verificationError, setVerificationError] = useState("");
-  const [verificationMessage, setVerificationMessage] = useState("");
-  const [resendLoading, setResendLoading] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
-
-  const [assessmentLoading, setAssessmentLoading] = useState(false);
-  const [assessmentError, setAssessmentError] = useState("");
-
-  const [processingProgress, setProcessingProgress] = useState(0);
-  const [processingStep, setProcessingStep] = useState(
-    "Preparing your assessment"
-  );
-
-  const [history, setHistory] = useState([]);
+  const [verificationEmail, setVerificationEmail] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [historyLoading, setHistoryLoading] = useState(false);
-
-  const [chatMessages, setChatMessages] = useState([]);
-  const [chatInput, setChatInput] = useState("");
-  const [chatLoading, setChatLoading] = useState(false);
-
-  const stateRef = useRef(state);
+  const [starting, setStarting] = useState(false);
 
   useEffect(() => {
-    stateRef.current = state;
-  }, [state]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          ...state,
-          attachments: (state.attachments || []).map(file => ({
-            name: file.name,
-            type: file.type,
-            size: file.size,
-            text: file.text || ""
-          }))
-        })
-      );
-    } catch {}
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
 
   useEffect(() => {
     let mounted = true;
 
-    const restoreSession = async () => {
+    const checkAuth = async () => {
       try {
         const data = await api("/api/auth/me");
 
         if (mounted) {
-          setUser(data.user || data);
+          setUser(data?.user || data || null);
         }
-      } catch {}
-
-      if (!mounted) {
-        return;
+      } catch {
+        if (mounted) {
+          setUser(null);
+        }
       }
     };
 
-    restoreSession();
+    checkAuth();
 
     return () => {
       mounted = false;
     };
-  }, []);
-
-  useEffect(() => {
-    if (resendCooldown <= 0) {
-      return;
-    }
-
-    const timer = setInterval(() => {
-      setResendCooldown(value => Math.max(0, value - 1));
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [resendCooldown]);
-
-  useEffect(() => {
-    if (state.screen !== "processing" || state.result) {
-      return;
-    }
-
-    if (!state.situation || !state.answers?.length) {
-      setState(previous => ({
-        ...previous,
-        screen: "home"
-      }));
-
-      return;
-    }
-
-    runAnalysis(state.answers);
   }, []);
 
   const updateState = updates => {
@@ -1726,173 +1747,7 @@ export default function App() {
     }));
   };
 
-  const openLogin = () => {
-    setAuthError("");
-    setAuthMode("login");
-  };
-
-  const openSignup = () => {
-    setAuthError("");
-    setAuthMode("signup");
-  };
-
-  const handleLogin = async (email, password) => {
-    setAuthLoading(true);
-    setAuthError("");
-
-    try {
-      const data = await api("/api/auth/login", {
-        method: "POST",
-        body: JSON.stringify({
-          email,
-          password
-        })
-      });
-
-      if (data.verificationRequired) {
-        updateState({
-          verificationEmail: email,
-          verificationRequired: true
-        });
-
-        setAuthMode(null);
-        setVerificationError("");
-        setVerificationMessage("");
-
-        return;
-      }
-
-      setUser(data.user || data);
-      setAuthMode(null);
-    } catch (error) {
-      if (error.data?.verificationRequired) {
-        updateState({
-          verificationEmail: email,
-          verificationRequired: true
-        });
-
-        setAuthMode(null);
-        setVerificationError("");
-
-        return;
-      }
-
-      setAuthError(error.message || "Unable to sign in.");
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  const handleSignup = async (name, email, password) => {
-    setAuthLoading(true);
-    setAuthError("");
-
-    try {
-      const data = await api("/api/auth/signup", {
-        method: "POST",
-        body: JSON.stringify({
-          name,
-          email,
-          password
-        })
-      });
-
-      updateState({
-        verificationEmail: email,
-        verificationRequired: true
-      });
-
-      setAuthMode(null);
-      setVerificationError("");
-      setVerificationMessage(
-        data.message || "Verification code sent to your email."
-      );
-    } catch (error) {
-      setAuthError(error.message || "Unable to create your account.");
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  const handleVerify = async code => {
-    setVerificationLoading(true);
-    setVerificationError("");
-    setVerificationMessage("");
-
-    try {
-      const data = await api("/api/auth/verify-email", {
-        method: "POST",
-        body: JSON.stringify({
-          email: state.verificationEmail,
-          code
-        })
-      });
-
-      setUser(data.user || data);
-
-      updateState({
-        verificationRequired: false,
-        verificationEmail: ""
-      });
-
-      setVerificationMessage("");
-    } catch (error) {
-      setVerificationError(
-        error.message || "That verification code is not valid."
-      );
-    } finally {
-      setVerificationLoading(false);
-    }
-  };
-
-  const handleResendVerification = async () => {
-    if (resendLoading || resendCooldown > 0) {
-      return;
-    }
-
-    setResendLoading(true);
-    setVerificationError("");
-    setVerificationMessage("");
-
-    try {
-      const data = await api("/api/auth/resend-verification", {
-        method: "POST",
-        body: JSON.stringify({
-          email: state.verificationEmail
-        })
-      });
-
-      setVerificationMessage(
-        data.message || "A new verification code has been sent."
-      );
-
-      setResendCooldown(data.retryAfter || 60);
-    } catch (error) {
-      const retry = error.data?.retryAfter || 60;
-
-      if (error.status === 429) {
-        setResendCooldown(retry);
-      }
-
-      setVerificationError(
-        error.message || "Unable to resend the verification email."
-      );
-    } finally {
-      setResendLoading(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      await api("/api/auth/logout", {
-        method: "POST"
-      });
-    } catch {}
-
-    setUser(null);
-  };
-
-  const startNewAssessment = () => {
+  const resetAssessment = () => {
     updateState({
       screen: "input",
       situation: "",
@@ -1905,484 +1760,196 @@ export default function App() {
       result: null,
       attachments: []
     });
+  };
 
-    setAssessmentError("");
-    setAssessmentLoading(false);
-    setProcessingProgress(0);
-    setProcessingStep("Preparing your assessment");
-    setChatMessages([]);
-    setChatInput("");
+  const start = () => {
+    resetAssessment();
   };
 
   const startAssessment = async () => {
-    const current = stateRef.current;
+    if (!state.situation.trim() || starting) return;
 
-    if (current.situation.trim().length < 10 || assessmentLoading) {
-      return;
-    }
-
-    setAssessmentLoading(true);
-    setAssessmentError("");
+    setStarting(true);
 
     try {
       const data = await api("/api/adaptive-question", {
         method: "POST",
         body: JSON.stringify({
-          situation: current.situation,
-          category: current.category,
+          situation: state.situation,
+          category: state.category,
           answers: [],
           questionIndex: 0,
           previousQuestions: [],
-          attachments: current.attachments
+          attachments: state.attachments
         })
       });
 
-      const firstQuestion =
-        data.question ||
-        data.questions?.[0] ||
-        (data.questionText
-          ? {
-              question: data.questionText
-            }
-          : null);
+      const rawQuestion =
+        data?.question ||
+        data?.questions?.[0] ||
+        data?.questionText;
 
-      if (!firstQuestion) {
+      const firstQuestion = normalizeQuestion(rawQuestion, 0);
+
+      if (!firstQuestion || !firstQuestion.question) {
         throw new Error(
           "Adaptive engine failed to create the first question."
         );
       }
 
       updateState({
-        screen: "questions",
-        questions: [normalizeQuestion(firstQuestion, 0)],
+        screen: "adaptive",
+        questions: [firstQuestion],
         answers: [],
         questionIndex: 0,
-        title: data.title || "",
-        context: data.context || ""
+        result: null
       });
-    } catch (error) {
-      setAssessmentError(
-        error.message ||
-          "Adaptive engine failed to create the first question."
-      );
+    } catch (err) {
+      window.alert(err.message || "Unable to start the assessment.");
     } finally {
-      setAssessmentLoading(false);
+      setStarting(false);
     }
   };
 
-  const requestNextQuestion = async (nextAnswers, nextIndex) => {
-    const current = stateRef.current;
-
-    if (nextIndex >= MAX_ADAPTIVE_QUESTIONS) {
-      await runAnalysis(nextAnswers);
-      return;
-    }
-
-    setAssessmentLoading(true);
-    setAssessmentError("");
-
-    try {
-      const data = await api("/api/adaptive-question", {
-        method: "POST",
-        body: JSON.stringify({
-          situation: current.situation,
-          category: current.category,
-          answers: nextAnswers,
-          questionIndex: nextIndex,
-          previousQuestions: current.questions,
-          attachments: current.attachments
-        })
-      });
-
-      const complete =
-        data.complete === true ||
-        data.done === true ||
-        data.finished === true;
-
-      if (complete) {
-        await runAnalysis(nextAnswers);
-        return;
-      }
-
-      const nextQuestion =
-        data.question ||
-        data.questions?.[0] ||
-        (data.questionText
-          ? {
-              question: data.questionText
-            }
-          : null);
-
-      if (!nextQuestion) {
-        await runAnalysis(nextAnswers);
-        return;
-      }
-
-      const normalized = normalizeQuestion(
-        nextQuestion,
-        nextIndex
-      );
-
-      updateState({
-        questions: [...current.questions, normalized],
-        questionIndex: nextIndex,
-        answers: nextAnswers,
-        title: data.title || current.title,
-        context: data.context || current.context
-      });
-    } catch (error) {
-      setAssessmentError(
-        error.message ||
-          "Unable to create the next adaptive question."
-      );
-    } finally {
-      setAssessmentLoading(false);
-    }
-  };
-
-  const saveAnswerAndContinue = async answer => {
-    const current = stateRef.current;
-
-    const existing = current.questions[current.questionIndex];
-
-    if (!existing) {
-      return;
-    }
-
-    const nextAnswers = [
-      ...(current.answers || []).filter(
-        item => item.questionId !== existing.id
-      ),
-      answer
-    ];
-
+  const completeAssessment = result => {
     updateState({
-      answers: nextAnswers
+      screen: "results",
+      result
     });
-
-    const nextIndex = current.questionIndex + 1;
-
-    if (nextIndex >= MAX_ADAPTIVE_QUESTIONS) {
-      await runAnalysis(nextAnswers);
-      return;
-    }
-
-    await requestNextQuestion(nextAnswers, nextIndex);
   };
 
-  const skipQuestion = async answer => {
-    await saveAnswerAndContinue(answer);
+  const handleAuthenticated = authenticatedUser => {
+    setUser(authenticatedUser || null);
+    setAuthMode(null);
   };
 
-  const runAnalysis = async answers => {
-    const current = stateRef.current;
+  const handleVerificationRequired = email => {
+    setAuthMode(null);
+    setVerificationEmail(email);
+  };
 
-    setAssessmentLoading(false);
-    setAssessmentError("");
-    setProcessingProgress(8);
-    setProcessingStep("Reading your situation");
+  const handleVerified = verifiedUser => {
+    setUser(verifiedUser || null);
+    setVerificationEmail("");
+  };
 
+  const handleHome = () => {
     updateState({
-      screen: "processing",
-      answers,
-      result: null
+      screen: "home"
     });
-
-    try {
-      setProcessingProgress(25);
-      setProcessingStep("Connecting the important details");
-
-      await new Promise(resolve => setTimeout(resolve, 350));
-
-      setProcessingProgress(48);
-      setProcessingStep("Comparing your answers");
-
-      const data = await api("/api/analyze", {
-        method: "POST",
-        body: JSON.stringify({
-          situation: current.situation,
-          category: current.category,
-          answers,
-          questions: current.questions,
-          attachments: current.attachments
-        })
-      });
-
-      setProcessingProgress(76);
-      setProcessingStep("Structuring your report");
-
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      setProcessingProgress(94);
-      setProcessingStep("Finishing your report");
-
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      const result =
-        data.result ||
-        data.analysis ||
-        data.report ||
-        data;
-
-      updateState({
-        screen: "results",
-        result
-      });
-
-      setProcessingProgress(100);
-      setProcessingStep("Complete");
-
-      if (user) {
-        loadHistory();
-      }
-    } catch (error) {
-      setAssessmentError(
-        error.message || "Unable to create your report."
-      );
-
-      updateState({
-        screen: "questions"
-      });
-    }
   };
 
-  const loadHistory = async () => {
-    if (!user) {
-      return;
-    }
-
-    setHistoryLoading(true);
-
-    try {
-      const data = await api("/api/history");
-
-      setHistory(
-        Array.isArray(data)
-          ? data
-          : data.history || data.items || []
-      );
-    } catch {
-      setHistory([]);
-    } finally {
-      setHistoryLoading(false);
-    }
-  };
-
-  const openHistory = async () => {
-    setHistoryOpen(true);
-    await loadHistory();
-  };
-
-  const selectHistory = item => {
-    const result =
-      item.result ||
-      item.analysis ||
-      item.report ||
-      null;
+  const handleHistorySelect = item => {
+    setHistoryOpen(false);
 
     updateState({
       screen: "results",
       situation: item.situation || "",
-      title: item.title || "",
       category: item.category || "",
-      context: item.context || "",
-      result,
       answers: item.answers || [],
-      questions: item.questions || [],
-      questionIndex: Math.max(
-        0,
-        (item.questions || []).length - 1
-      )
+      result: item.result || item
     });
-
-    setChatMessages([]);
-    setChatInput("");
-    setHistoryOpen(false);
   };
 
-  const handleChat = async () => {
-    const message = chatInput.trim();
+  const screen = useMemo(() => state.screen, [state.screen]);
 
-    if (!message || chatLoading) {
-      return;
-    }
-
-    setChatInput("");
-
-    const nextMessages = [
-      ...chatMessages,
-      {
-        role: "user",
-        content: message
-      }
-    ];
-
-    setChatMessages(nextMessages);
-    setChatLoading(true);
-
-    try {
-      const data = await api("/api/chat", {
-        method: "POST",
-        body: JSON.stringify({
-          message,
-          situation: state.situation,
-          report: state.result,
-          history: nextMessages
-        })
-      });
-
-      setChatMessages(previous => [
-        ...previous,
-        {
-          role: "assistant",
-          content:
-            data.message ||
-            data.response ||
-            data.answer ||
-            "I could not generate a response."
-        }
-      ]);
-    } catch (error) {
-      setChatMessages(previous => [
-        ...previous,
-        {
-          role: "assistant",
-          content: error.message || "Something went wrong."
-        }
-      ]);
-    } finally {
-      setChatLoading(false);
-    }
-  };
-
-  const currentScreen = useMemo(() => {
-    if (
-      state.result &&
-      state.screen !== "input" &&
-      state.screen !== "questions"
-    ) {
-      return "results";
-    }
-
-    return state.screen;
-  }, [state.result, state.screen]);
-
-  return (
-    <>
-      {currentScreen === "home" && (
+  if (screen === "home") {
+    return (
+      <>
         <Home
-          onStart={startNewAssessment}
-          onHistory={openHistory}
-          onLogin={openLogin}
-          onSignup={openSignup}
+          onStart={start}
+          onHistory={() => setHistoryOpen(true)}
           user={user}
-          onLogout={handleLogout}
+          onAuth={mode => setAuthMode(mode)}
         />
-      )}
 
-      {currentScreen === "input" && (
-        <InputPage
-          situation={state.situation}
-          setSituation={value =>
-            updateState({ situation: value })
-          }
-          category={state.category}
-          setCategory={value =>
-            updateState({ category: value })
-          }
-          attachments={state.attachments}
-          setAttachments={value =>
-            updateState({ attachments: value })
-          }
-          onContinue={startAssessment}
-          onBack={() =>
-            updateState({
-              screen: "home"
-            })
-          }
-          loading={assessmentLoading}
-          error={assessmentError}
-        />
-      )}
+        {authMode && (
+          <AuthModal
+            mode={authMode}
+            setMode={setAuthMode}
+            onClose={() => setAuthMode(null)}
+            onAuthenticated={handleAuthenticated}
+            onVerificationRequired={handleVerificationRequired}
+          />
+        )}
 
-      {currentScreen === "questions" && (
-        <AdaptiveAssessment
-          questions={state.questions}
-          questionIndex={state.questionIndex}
-          answers={state.answers}
-          onContinue={saveAnswerAndContinue}
-          onSkip={skipQuestion}
-          onBack={() =>
-            updateState({
-              screen: "input"
-            })
-          }
-          loading={assessmentLoading}
-          error={assessmentError}
-        />
-      )}
+        {verificationEmail && (
+          <VerificationModal
+            email={verificationEmail}
+            onClose={() => setVerificationEmail("")}
+            onVerified={handleVerified}
+          />
+        )}
 
-      {currentScreen === "processing" && (
-        <Processing
-          progress={processingProgress}
-          step={processingStep}
-        />
-      )}
+        {historyOpen && (
+          <HistoryPanel
+            onClose={() => setHistoryOpen(false)}
+            onSelect={handleHistorySelect}
+          />
+        )}
+      </>
+    );
+  }
 
-      {currentScreen === "results" && state.result && (
+  if (screen === "input") {
+    return (
+      <InputPage
+        situation={state.situation}
+        setSituation={situation => updateState({ situation })}
+        category={state.category}
+        setCategory={category => updateState({ category })}
+        attachments={state.attachments}
+        setAttachments={attachments => updateState({ attachments })}
+        onBack={handleHome}
+        onStart={startAssessment}
+        loading={starting}
+      />
+    );
+  }
+
+  if (screen === "adaptive") {
+    return (
+      <AdaptiveAssessment
+        situation={state.situation}
+        category={state.category}
+        questions={state.questions}
+        setQuestions={questions => updateState({ questions })}
+        answers={state.answers}
+        setAnswers={answers => updateState({ answers })}
+        questionIndex={state.questionIndex}
+        setQuestionIndex={questionIndex =>
+          updateState({ questionIndex })
+        }
+        attachments={state.attachments}
+        onComplete={completeAssessment}
+      />
+    );
+  }
+
+  if (screen === "processing") {
+    return <Processing progress={75} />;
+  }
+
+  if (screen === "results") {
+    return (
+      <>
         <Results
           result={state.result}
           situation={state.situation}
-          onNew={startNewAssessment}
-          onHistory={openHistory}
-          onChat={handleChat}
-          chatMessages={chatMessages}
-          chatInput={chatInput}
-          setChatInput={setChatInput}
-          chatLoading={chatLoading}
-          user={user}
+          answers={state.answers}
+          onHome={handleHome}
+          onHistory={() => setHistoryOpen(true)}
         />
-      )}
 
-      {authMode && (
-        <AuthModal
-          mode={authMode}
-          setMode={setAuthMode}
-          onClose={() => setAuthMode(null)}
-          onLogin={handleLogin}
-          onSignup={handleSignup}
-          loading={authLoading}
-          error={authError}
-        />
-      )}
+        {historyOpen && (
+          <HistoryPanel
+            onClose={() => setHistoryOpen(false)}
+            onSelect={handleHistorySelect}
+          />
+        )}
+      </>
+    );
+  }
 
-      {state.verificationRequired && (
-        <VerificationModal
-          email={state.verificationEmail}
-          onVerify={handleVerify}
-          onResend={handleResendVerification}
-          onClose={() =>
-            updateState({
-              verificationRequired: false,
-              verificationEmail: ""
-            })
-          }
-          loading={verificationLoading}
-          resendLoading={resendLoading}
-          resendCooldown={resendCooldown}
-          error={verificationError}
-          message={verificationMessage}
-        />
-      )}
-
-      {historyOpen && (
-        <HistoryPanel
-          history={history}
-          onClose={() => setHistoryOpen(false)}
-          onSelect={selectHistory}
-          loading={historyLoading}
-        />
-      )}
-    </>
-  );
+  return <Home onStart={start} user={user} onAuth={setAuthMode} />;
 }
