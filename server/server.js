@@ -209,8 +209,7 @@ function authenticate(req, res, next) {
     ) {
       return res.status(403).json({
         success: false,
-        error:
-          "Email verification is required.",
+        error: "Email verification is required.",
         verificationRequired: true,
         email: user.email,
       });
@@ -639,11 +638,395 @@ function questionKey(value) {
     .trim();
 }
 
+function getQuestionTopics(question) {
+  const text = questionKey(
+    typeof question === "string"
+      ? question
+      : question?.question ||
+          question?.stem ||
+          question?.text ||
+          ""
+  );
+
+  const topics = [];
+
+  const topicPatterns = {
+    problem: [
+      "what is wrong",
+      "what problem",
+      "what issue",
+      "what happened",
+      "experiencing",
+      "problem is",
+      "issue is",
+      "wrong with",
+      "describe the problem",
+      "describe what",
+      "what exactly",
+    ],
+
+    timing: [
+      "when did",
+      "when has",
+      "how long",
+      "started",
+      "begin",
+      "began",
+      "since when",
+      "deadline",
+      "due",
+      "expires",
+      "time limit",
+      "how recently",
+    ],
+
+    impact: [
+      "what can you",
+      "what cannot you",
+      "what cant you",
+      "able to",
+      "unable to",
+      "still work",
+      "still use",
+      "impact",
+      "affect",
+      "preventing you",
+      "consequence",
+      "lost access",
+    ],
+
+    troubleshooting: [
+      "tried to fix",
+      "already tried",
+      "troubleshoot",
+      "restart",
+      "reset",
+      "repair",
+      "attempted",
+      "steps have you",
+      "what have you done",
+      "what have you tried",
+    ],
+
+    evidence: [
+      "evidence",
+      "document",
+      "documents",
+      "receipt",
+      "proof",
+      "photo",
+      "photograph",
+      "screenshot",
+      "message",
+      "email",
+      "record",
+      "contract",
+      "invoice",
+      "serial number",
+    ],
+
+    responsibility: [
+      "warranty",
+      "seller",
+      "retailer",
+      "manufacturer",
+      "landlord",
+      "tenant",
+      "provider",
+      "company responsible",
+      "responsible",
+      "who is responsible",
+      "insurance",
+      "coverage",
+    ],
+
+    financial: [
+      "how much",
+      "amount",
+      "money",
+      "cost",
+      "price",
+      "payment",
+      "refund",
+      "fee",
+      "charge",
+      "financial",
+      "compensation",
+    ],
+
+    desiredOutcome: [
+      "what outcome",
+      "what would resolve",
+      "what do you want",
+      "what are you hoping",
+      "would you like",
+      "desired outcome",
+      "goal",
+      "want to achieve",
+      "prefer",
+    ],
+
+    constraints: [
+      "constraint",
+      "limitation",
+      "cannot afford",
+      "can't afford",
+      "availability",
+      "available",
+      "access",
+      "location",
+      "language",
+      "special requirement",
+      "anything preventing",
+    ],
+
+    communication: [
+      "what did they say",
+      "response",
+      "responded",
+      "reply",
+      "contacted",
+      "contact",
+      "conversation",
+      "told you",
+      "said",
+      "complaint",
+    ],
+
+    consequences: [
+      "what happens if",
+      "consequence",
+      "risk",
+      "damage",
+      "lose",
+      "loss",
+      "harm",
+      "impact if",
+      "worst case",
+    ],
+  };
+
+  for (const [topic, patterns] of Object.entries(
+    topicPatterns
+  )) {
+    if (
+      patterns.some((pattern) =>
+        text.includes(pattern)
+      )
+    ) {
+      topics.push(topic);
+    }
+  }
+
+  return topics;
+}
+
+function getUsedQuestionTopics(
+  previousQuestions
+) {
+  const topics = new Set();
+
+  for (const question of previousQuestions || []) {
+    const detected =
+      getQuestionTopics(question);
+
+    detected.forEach((topic) =>
+      topics.add(topic)
+    );
+  }
+
+  return [...topics];
+}
+
+function getSituationTopics(
+  title,
+  description,
+  context,
+  previousAnswers
+) {
+  const text = questionKey(
+    [
+      title,
+      description,
+      context,
+      ...Object.values(
+        previousAnswers || {}
+      ),
+    ]
+      .filter(Boolean)
+      .join(" ")
+  );
+
+  const topics = [];
+
+  if (
+    /\bcomputer\b|\blaptop\b|\bdesktop\b|\bpc\b|\bmac\b|\bmacbook\b|\bdevice\b|\bphone\b|\btablet\b|\btechnology\b|\bsoftware\b|\bhardware\b/.test(
+      text
+    )
+  ) {
+    topics.push("device");
+  }
+
+  if (
+    /\bwarranty\b|\bguarantee\b|\bseller\b|\bretailer\b|\bmanufacturer\b|\bconsumer\b|\brefund\b|\brepair\b/.test(
+      text
+    )
+  ) {
+    topics.push("consumer");
+  }
+
+  if (
+    /\brent\b|\blandlord\b|\btenant\b|\brental\b|\bproperty\b|\bhouse\b|\bapartment\b/.test(
+      text
+    )
+  ) {
+    topics.push("housing");
+  }
+
+  if (
+    /\bflight\b|\bairline\b|\bhotel\b|\bbooking\b|\btravel\b|\btrip\b|\bairport\b/.test(
+      text
+    )
+  ) {
+    topics.push("travel");
+  }
+
+  if (
+    /\bmoney\b|\bpayment\b|\bbill\b|\binvoice\b|\bcost\b|\bprice\b|\bfee\b|\bcharge\b/.test(
+      text
+    )
+  ) {
+    topics.push("financial");
+  }
+
+  if (
+    /\bdeadline\b|\bdue\b|\btoday\b|\btomorrow\b|\bexpires\b|\burgent\b|\bdate\b/.test(
+      text
+    )
+  ) {
+    topics.push("time-sensitive");
+  }
+
+  return topics;
+}
+
+function questionIsTooSimilar(
+  candidate,
+  previousQuestions
+) {
+  const candidateKey =
+    questionKey(candidate);
+
+  if (!candidateKey) {
+    return true;
+  }
+
+  for (const previous of previousQuestions || []) {
+    const previousText =
+      previous?.question ||
+      previous?.stem ||
+      previous?.text ||
+      "";
+
+    const previousKey =
+      questionKey(previousText);
+
+    if (!previousKey) {
+      continue;
+    }
+
+    if (
+      candidateKey ===
+      previousKey
+    ) {
+      return true;
+    }
+
+    const candidateWords =
+      new Set(
+        candidateKey.split(" ")
+      );
+
+    const previousWords =
+      new Set(
+        previousKey.split(" ")
+      );
+
+    const intersection =
+      [...candidateWords].filter(
+        (word) =>
+          previousWords.has(word)
+      );
+
+    const smallerLength =
+      Math.min(
+        candidateWords.size,
+        previousWords.size
+      );
+
+    if (
+      smallerLength >= 4 &&
+      intersection.length /
+        smallerLength >=
+        0.72
+    ) {
+      return true;
+    }
+
+    const candidateTopics =
+      getQuestionTopics(candidate);
+
+    const previousTopics =
+      getQuestionTopics(
+        previousText
+      );
+
+    if (
+      candidateTopics.length &&
+      previousTopics.length
+    ) {
+      const sharedTopics =
+        candidateTopics.filter(
+          (topic) =>
+            previousTopics.includes(
+              topic
+            )
+        );
+
+      if (
+        sharedTopics.length >= 1 &&
+        candidateKey.length > 30 &&
+        previousKey.length > 30
+      ) {
+        const meaningfulCandidateWords =
+          candidateWords.size;
+
+        const meaningfulOverlap =
+          intersection.length /
+          Math.max(
+            meaningfulCandidateWords,
+            1
+          );
+
+        if (
+          meaningfulOverlap >=
+          0.45
+        ) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
 function buildFallbackQuestion(
   title,
   description,
   context,
   previousAnswers,
+  previousQuestions,
   questionNumber
 ) {
   const source =
@@ -661,55 +1044,166 @@ function buildFallbackQuestion(
   const combined =
     `${source} ${answers}`;
 
+  const usedTopics =
+    getUsedQuestionTopics(
+      previousQuestions
+    );
+
   const makeQuestion = (
     question,
-    answerType = "short_text"
-  ) => ({
-    id: `adaptive-${questionNumber}`,
-    type: "text",
-    answerType,
-    question,
-    stem: question,
-    choices: [],
-    imageUrl: null,
-    imageAlt: "",
-    imageCaption: "",
-    placeholder: "",
-    required: true,
-    questionNumber,
-  });
+    answerType = "short_text",
+    topic = ""
+  ) => {
+    if (
+      questionIsTooSimilar(
+        question,
+        previousQuestions
+      )
+    ) {
+      return null;
+    }
+
+    return {
+      id: `adaptive-${questionNumber}`,
+      type: "text",
+      answerType,
+      question,
+      stem: question,
+      choices: [],
+      imageUrl: null,
+      imageAlt: "",
+      imageCaption: "",
+      placeholder: "",
+      required: true,
+      questionNumber,
+      topic,
+    };
+  };
 
   if (
-    /deadline|due|expires|urgent|today|tomorrow|date|time/.test(
+    /laptop|computer|desktop|pc|macbook|mac|phone|tablet|device|warranty|repair|broken|fault/.test(
       combined
     )
   ) {
-    return makeQuestion(
-      "What deadline or time limit applies to this situation?",
-      "short_text"
-    );
+    const deviceQuestions = [
+      {
+        topic: "problem",
+        question:
+          "What is the main problem with the device right now?",
+        type: "long_text",
+      },
+      {
+        topic: "timing",
+        question:
+          "When did the problem first start, and did anything change on the device shortly before it happened?",
+        type: "long_text",
+      },
+      {
+        topic: "impact",
+        question:
+          "What can you still do with the device, and what can you no longer use or access?",
+        type: "long_text",
+      },
+      {
+        topic: "troubleshooting",
+        question:
+          "What troubleshooting or repair steps have you already tried?",
+        type: "long_text",
+      },
+      {
+        topic: "responsibility",
+        question:
+          "When and where was the device purchased, and do you know whether it is still covered by a warranty or other protection?",
+        type: "long_text",
+      },
+      {
+        topic: "desiredOutcome",
+        question:
+          "What outcome would you prefer, such as a repair, replacement, refund, or simply getting the device working again?",
+        type: "short_text",
+      },
+    ];
+
+    for (
+      const candidate of deviceQuestions
+    ) {
+      if (
+        !usedTopics.includes(
+          candidate.topic
+        )
+      ) {
+        const result =
+          makeQuestion(
+            candidate.question,
+            candidate.type,
+            candidate.topic
+          );
+
+        if (result) {
+          return result;
+        }
+      }
+    }
+  }
+
+  if (
+    /deadline|due|expires|urgent|today|tomorrow|date|time limit/.test(
+      combined
+    ) &&
+    !usedTopics.includes(
+      "timing"
+    )
+  ) {
+    const result =
+      makeQuestion(
+        "What deadline or time limit applies to this situation?",
+        "short_text",
+        "timing"
+      );
+
+    if (result) {
+      return result;
+    }
   }
 
   if (
     /money|cost|price|payment|bill|invoice|refund|rent|fee|charge/.test(
       combined
+    ) &&
+    !usedTopics.includes(
+      "financial"
     )
   ) {
-    return makeQuestion(
-      "What amount of money is involved, and what payment or financial outcome are you trying to achieve?",
-      "short_text"
-    );
+    const result =
+      makeQuestion(
+        "What amount of money is involved, and what financial outcome are you trying to achieve?",
+        "short_text",
+        "financial"
+      );
+
+    if (result) {
+      return result;
+    }
   }
 
   if (
-    /email|message|letter|written|evidence|receipt|photo|document|proof|contract/.test(
+    /email|message|letter|written|evidence|receipt|photo|document|proof|contract|invoice/.test(
       combined
+    ) &&
+    !usedTopics.includes(
+      "evidence"
     )
   ) {
-    return makeQuestion(
-      "What records, messages, documents, or other evidence do you already have?",
-      "long_text"
-    );
+    const result =
+      makeQuestion(
+        "What records, messages, documents, receipts, or other evidence do you already have?",
+        "long_text",
+        "evidence"
+      );
+
+    if (result) {
+      return result;
+    }
   }
 
   if (
@@ -717,10 +1211,59 @@ function buildFallbackQuestion(
       combined
     )
   ) {
-    return makeQuestion(
-      "What has the other party said or done so far, and when did that happen?",
-      "long_text"
-    );
+    const housingQuestions = [
+      {
+        topic: "problem",
+        question:
+          "What is the main issue with the property?",
+        type: "long_text",
+      },
+      {
+        topic: "communication",
+        question:
+          "What has the landlord, agent, or other party said or done so far?",
+        type: "long_text",
+      },
+      {
+        topic: "timing",
+        question:
+          "When did the issue begin, and is there a deadline for it to be resolved?",
+        type: "short_text",
+      },
+      {
+        topic: "evidence",
+        question:
+          "Do you have photos, messages, inspection reports, or other records about the issue?",
+        type: "long_text",
+      },
+      {
+        topic: "desiredOutcome",
+        question:
+          "What outcome are you hoping to achieve?",
+        type: "short_text",
+      },
+    ];
+
+    for (
+      const candidate of housingQuestions
+    ) {
+      if (
+        !usedTopics.includes(
+          candidate.topic
+        )
+      ) {
+        const result =
+          makeQuestion(
+            candidate.question,
+            candidate.type,
+            candidate.topic
+          );
+
+        if (result) {
+          return result;
+        }
+      }
+    }
   }
 
   if (
@@ -728,48 +1271,138 @@ function buildFallbackQuestion(
       combined
     )
   ) {
-    return makeQuestion(
-      "Do you have any travel insurance, credit-card coverage, or other protection that may cover the booking?",
-      "short_text"
-    );
+    const travelQuestions = [
+      {
+        topic: "problem",
+        question:
+          "What happened with the booking or travel arrangement?",
+        type: "long_text",
+      },
+      {
+        topic: "timing",
+        question:
+          "When is the affected flight, booking, or trip scheduled?",
+        type: "short_text",
+      },
+      {
+        topic: "financial",
+        question:
+          "How much have you paid, and what financial loss are you concerned about?",
+        type: "short_text",
+      },
+      {
+        topic: "responsibility",
+        question:
+          "Have you contacted the airline, hotel, booking provider, or insurer yet, and what did they say?",
+        type: "long_text",
+      },
+      {
+        topic: "desiredOutcome",
+        question:
+          "What outcome would you prefer: changing the booking, receiving a refund, recovering costs, or something else?",
+        type: "short_text",
+      },
+    ];
+
+    for (
+      const candidate of travelQuestions
+    ) {
+      if (
+        !usedTopics.includes(
+          candidate.topic
+        )
+      ) {
+        const result =
+          makeQuestion(
+            candidate.question,
+            candidate.type,
+            candidate.topic
+          );
+
+        if (result) {
+          return result;
+        }
+      }
+    }
   }
 
-  if (
-    /laptop|computer|phone|device|warranty|repair|broken|fault/.test(
-      combined
-    )
+  const generalQuestions = [
+    {
+      topic: "desiredOutcome",
+      question:
+        "What outcome would resolve this situation for you?",
+      type: "short_text",
+    },
+    {
+      topic: "communication",
+      question:
+        "Who have you already contacted about this, and what response did you receive?",
+      type: "long_text",
+    },
+    {
+      topic: "timing",
+      question:
+        "Is there a deadline or upcoming date that could affect what you should do next?",
+      type: "short_text",
+    },
+    {
+      topic: "evidence",
+      question:
+        "What evidence or records do you have that could help explain or support the situation?",
+      type: "long_text",
+    },
+    {
+      topic: "constraints",
+      question:
+        "Is there any important limitation, cost, access issue, or other constraint VERLO should consider?",
+      type: "short_text",
+    },
+    {
+      topic: "consequences",
+      question:
+        "What could happen if the situation is not resolved soon?",
+      type: "long_text",
+    },
+  ];
+
+  for (
+    const candidate of generalQuestions
   ) {
-    return makeQuestion(
-      "What problem is the device experiencing, and what has already been tried to fix it?",
-      "long_text"
-    );
+    if (
+      !usedTopics.includes(
+        candidate.topic
+      )
+    ) {
+      const result =
+        makeQuestion(
+          candidate.question,
+          candidate.type,
+          candidate.topic
+        );
+
+      if (result) {
+        return result;
+      }
+    }
   }
 
-  if (questionNumber === 1) {
-    return makeQuestion(
-      "What outcome would resolve this situation for you?",
-      "short_text"
-    );
-  }
-
-  if (questionNumber === 2) {
-    return makeQuestion(
-      "What has happened so far, including any response you have received from the other person or organisation?",
-      "long_text"
-    );
-  }
-
-  if (questionNumber === 3) {
-    return makeQuestion(
-      "Is there any important constraint, deadline, cost, or consequence that VERLO should take into account?",
-      "short_text"
-    );
-  }
-
-  return makeQuestion(
-    "Is there anything else about this situation that could change what you should do next?",
-    "short_text"
-  );
+  return {
+    id: `adaptive-${questionNumber}`,
+    type: "text",
+    answerType: "short_text",
+    question:
+      "Is there anything important about this situation that VERLO has not asked about yet?",
+    stem:
+      "Is there anything important about this situation that VERLO has not asked about yet?",
+    choices: [],
+    imageUrl: null,
+    imageAlt: "",
+    imageCaption: "",
+    placeholder: "",
+    required: true,
+    questionNumber,
+    topic: "other",
+  };
 }
 
 async function askGroq(
@@ -859,66 +1492,163 @@ async function generateAdaptiveQuestion({
           .join("\n")
       : "No previous questions yet.";
 
+  const usedTopics =
+    getUsedQuestionTopics(
+      previousQuestions
+    );
 
+  const situationTopics =
+    getSituationTopics(
+      title,
+      description,
+      context,
+      previousAnswers
+    );
 
+  const topicInstructions =
+    usedTopics.length > 0
+      ? `Information areas already covered:
+${usedTopics.join(", ")}`
+      : "No information areas have been covered yet.";
 
+  const situationInstruction =
+    situationTopics.length > 0
+      ? `Detected situation areas:
+${situationTopics.join(", ")}`
+      : "No specific situation type was detected.";
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  // LUCKY NUMBER 888
   const systemPrompt = `
 You are VERLO's adaptive assessment engine.
 
 Generate exactly ONE useful follow-up question for the user's specific situation.
 
-The question must use the original situation, previous questions, and previous answers.
+Your job is NOT to make a generic questionnaire.
 
-The purpose is to discover the most important missing fact that could change the final action pathway.
+Your job is to identify the single most important piece of information that is still missing and could change the user's final action pathway.
 
-Do not create a generic questionnaire.
+QUESTION DIVERSITY IS IMPORTANT.
+
+A question can be worded differently but still be repetitive.
+
+For example, these are considered the SAME information area:
+
+- "What is wrong with your computer?"
+- "What problem is your computer having?"
+- "What exactly is happening with the computer?"
+- "Can you describe the issue with your computer?"
+
+If one of those has already been asked, do NOT ask another version of it.
+
+Instead, move to another information area such as:
+
+- when the problem started
+- what changed before it started
+- what the user can and cannot do now
+- what troubleshooting has already been attempted
+- whether there is a warranty or other coverage
+- who is responsible
+- what evidence exists
+- what financial impact exists
+- what outcome the user wants
+- what deadline or constraint exists
 
 Question number: ${questionNumber}
 Maximum questions: ${maxQuestions}
 
+${topicInstructions}
+
+${situationInstruction}
+
 Rules:
-- Return exactly one question.
-- Never repeat a previous question.
-- Never ask for information already provided.
-- Never ask a question merely because it is common in questionnaires.
-- Prioritise information that could change urgency, deadlines, money, evidence, responsibility, constraints, available options, consequences, or the user's desired outcome.
-- Make the question clearly relevant to the user's exact situation.
-- Use mcq when a small set of clear options genuinely helps.
-- Use text when a written answer is more appropriate.
-- For ordinary factual, yes/no, confirmation, availability, date, amount, or short-answer questions, use answerType "short_text".
-- For questions that genuinely require explanation, description, multiple details, or a longer response, use answerType "long_text".
-- Do not use long_text simply because the question itself is long.
-- MCQs must contain 3 to 5 choices.
-- If an image is genuinely necessary and an existing attachment is available, use imageUrl from that attachment.
-- Do not invent an image URL.
-- Keep the question concise.
-- Return JSON only.
-- Do not use markdown.
-- Do not explain your reasoning.
+
+1. Return exactly ONE question.
+
+2. Never repeat a previous question.
+
+3. Never ask a reworded version of a previous question.
+
+4. Never ask for information that the user has already provided.
+
+5. Before writing the question, mentally compare it with every previous question and answer.
+
+6. Choose a DIFFERENT information area whenever possible.
+
+7. Prioritise information that could change:
+   - urgency
+   - deadlines
+   - financial exposure
+   - responsibility
+   - evidence
+   - available options
+   - consequences
+   - constraints
+   - troubleshooting
+   - desired outcome
+
+8. Make the question clearly relevant to the exact situation.
+
+9. Do not ask generic questions such as:
+   - "Can you tell me more?"
+   - "What happened?"
+   - "Can you provide more details?"
+   unless that information genuinely has not been established and no more specific question is possible.
+
+10. If the situation is about a computer, phone, laptop, software, hardware, or another device, deliberately separate:
+   - the actual problem
+   - when it started
+   - what changed beforehand
+   - current impact
+   - troubleshooting already attempted
+   - warranty/purchase information
+   - desired outcome
+
+11. If the situation is about travel, deliberately separate:
+   - what happened
+   - timing
+   - money paid
+   - provider response
+   - insurance/coverage
+   - desired outcome
+
+12. If the situation is about housing, deliberately separate:
+   - problem
+   - timing
+   - communication
+   - evidence
+   - responsibility
+   - desired outcome
+
+13. If the situation is about money, deliberately separate:
+   - amount
+   - payment status
+   - reason for the charge
+   - evidence
+   - communication
+   - desired outcome
+
+14. Use mcq when a small set of clear options genuinely helps.
+
+15. Use text when a written answer is more appropriate.
+
+16. For ordinary factual, yes/no, confirmation, availability, date, amount, or short-answer questions, use answerType "short_text".
+
+17. For questions that genuinely require explanation, description, multiple details, or a longer response, use answerType "long_text".
+
+18. Do not use long_text simply because the question itself is long.
+
+19. MCQs must contain 3 to 5 choices.
+
+20. If an image is genuinely necessary and an existing attachment is available, use imageUrl from that attachment.
+
+21. Do not invent an image URL.
+
+22. Keep the question concise.
+
+23. Return JSON only.
+
+24. Do not use markdown.
+
+25. Do not explain your reasoning.
 
 Required JSON:
 
@@ -971,7 +1701,16 @@ ${previousQuestionText}
 Previous answers:
 ${previousAnswerText}
 
+Information areas already covered:
+${
+  usedTopics.length
+    ? usedTopics.join(", ")
+    : "None"
+}
+
 Generate the next adaptive question now.
+
+Choose a genuinely different information area from the previous questions whenever possible.
 `;
 
   for (
@@ -987,14 +1726,21 @@ Generate the next adaptive question now.
             ? userPrompt
             : `${userPrompt}
 
-Your previous response was unusable.
+Your previous question was rejected because it was too similar to information already requested.
+
+Choose a DIFFERENT information area.
+
+Do not ask another version of the same question.
 
 Return one valid JSON object only.
 Do not include reasoning.
 Do not include markdown.
 Do not include extra text.`,
           {
-            temperature: 0.2,
+            temperature:
+              attempt === 0
+                ? 0.35
+                : 0.55,
             max_tokens: 900,
           }
         );
@@ -1028,33 +1774,50 @@ Do not include extra text.`,
           "Adaptive engine returned no usable question."
         );
       }
-
-      const existingKeys =
-        previousQuestions
-          .map(
-            (item) =>
-              item?.question ||
-              item?.stem ||
-              item?.text ||
-              ""
-          )
-          .map(questionKey)
-          .filter(Boolean);
-
       if (
-        existingKeys.includes(
-          questionKey(
-            normalised.question
-          )
+        questionIsTooSimilar(
+          normalised.question,
+          previousQuestions
         )
       ) {
         throw new Error(
-          "Adaptive engine repeated a previous question."
+          "Adaptive engine repeated or closely reworded a previous question."
         );
+      }
+      const candidateTopics =
+        getQuestionTopics(
+          normalised.question
+        );
+
+      if (
+        candidateTopics.length &&
+        usedTopics.length &&
+        candidateTopics.some(
+          (topic) =>
+            usedTopics.includes(
+              topic
+            )
+        )
+      ) {
+        if (
+          questionNumber <= 5 &&
+          candidateTopics.every(
+            (topic) =>
+              usedTopics.includes(
+                topic
+              )
+          )
+        ) {
+          throw new Error(
+            "Adaptive engine selected an information area that has already been covered."
+          );
+        }
       }
 
       return normalised;
-    } catch {}
+    } catch (error) {
+      //
+    }
   }
 
   return buildFallbackQuestion(
@@ -1062,6 +1825,7 @@ Do not include extra text.`,
     description,
     context,
     previousAnswers,
+    previousQuestions,
     questionNumber
   );
 }
