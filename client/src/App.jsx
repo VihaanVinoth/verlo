@@ -95,7 +95,12 @@ function Icon({ name, size = 22, strokeWidth = 1.8 }) {
     strokeLinecap: "round",
     strokeLinejoin: "round",
     focusable: "false",
-    "aria-hidden": "true"
+    "aria-hidden": "true",
+    style: {
+      display: "block",
+      flex: "0 0 auto",
+      overflow: "visible"
+    }
   };
 
   switch (name) {
@@ -119,9 +124,9 @@ function Icon({ name, size = 22, strokeWidth = 1.8 }) {
     case "history":
       return (
         <svg {...common}>
-          <path d="M4 11a8 8 0 1 1 2.35 5.65" />
-          <path d="M4 5v6h6" />
-          <path d="M12 7v5l3 2" />
+          <path d="M3.5 12a8.5 8.5 0 1 0 2.7-6.2" />
+          <path d="M3.5 4.5v4.5H8" />
+          <path d="M12 7v5l3.25 2" />
         </svg>
       );
 
@@ -151,25 +156,25 @@ function Icon({ name, size = 22, strokeWidth = 1.8 }) {
     case "close":
       return (
         <svg {...common}>
-          <path d="m6 6 12 12" />
-          <path d="m18 6-12 12" />
+          <path d="M6 6l12 12" />
+          <path d="M18 6 6 18" />
         </svg>
       );
 
     case "chevron":
       return (
         <svg {...common}>
-          <path d="m7.5 9.5 4.5 4.5 4.5-4.5" />
+          <path d="m7 9 5 5 5-5" />
         </svg>
       );
 
     case "file":
       return (
         <svg {...common}>
-          <path d="M14 3H6.5A2.5 2.5 0 0 0 4 5.5v13A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5V9Z" />
-          <path d="M14 3v6h6" />
-          <path d="M8 13h8" />
-          <path d="M8 17h5" />
+          <path d="M6.5 3.5h7l4 4v13h-11z" />
+          <path d="M13.5 3.5v4h4" />
+          <path d="M9 12h6" />
+          <path d="M9 16h5" />
         </svg>
       );
 
@@ -186,7 +191,7 @@ function Icon({ name, size = 22, strokeWidth = 1.8 }) {
       return (
         <svg {...common}>
           <circle cx="12" cy="8" r="3.25" />
-          <path d="M5.5 20c.8-3.2 3-5 6.5-5s5.7 1.8 6.5 5" />
+          <path d="M5 20c.8-3.2 3.15-5 7-5s6.2 1.8 7 5" />
         </svg>
       );
 
@@ -1016,6 +1021,12 @@ function AdaptiveAssessment({
                 rows={8}
                 maxLength={4000}
                 disabled={loading}
+                style={{
+                  width: "100%",
+                  maxWidth: "100%",
+                  boxSizing: "border-box",
+                  resize: "vertical"
+                }}
               />
 
               <div className="adaptive-textarea-count">
