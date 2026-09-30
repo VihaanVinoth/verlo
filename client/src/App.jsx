@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import "./style.css";
+import "./index.css";
 
-const API_URL =
-  import.meta.env.VITE_API_URL || "https://verlo-30xs.onrender.com";
-
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:5001";
 const STORAGE_KEY = "verlo_app_state_v4";
 const MAX_ADAPTIVE_QUESTIONS = 7;
 
@@ -26,12 +24,9 @@ function loadState() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (!saved) return initialState;
-
-    const parsed = JSON.parse(saved);
-
     return {
       ...initialState,
-      ...parsed
+      ...JSON.parse(saved)
     };
   } catch {
     return initialState;
@@ -41,11 +36,11 @@ function loadState() {
 async function api(path, options = {}) {
   const response = await fetch(`${API_URL}${path}`, {
     credentials: "include",
-    ...options,
     headers: {
       "Content-Type": "application/json",
       ...(options.headers || {})
-    }
+    },
+    ...options
   });
 
   let data = null;
@@ -59,25 +54,25 @@ async function api(path, options = {}) {
   if (!response.ok) {
     throw new Error(
       data?.error ||
-        data?.message ||
-        `Request failed with status ${response.status}`
+      data?.message ||
+      `Request failed with status ${response.status}`
     );
   }
 
   return data;
 }
 
-function Icon({ name, size = 20 }) {
+function Icon({ name, size = 20, strokeWidth = 1.8 }) {
   const common = {
     width: size,
     height: size,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
-    strokeWidth: 1.8,
+    strokeWidth,
     strokeLinecap: "round",
     strokeLinejoin: "round",
-    "aria-hidden": true
+    "aria-hidden": "true"
   };
 
   const paths = {
@@ -96,8 +91,14 @@ function Icon({ name, size = 20 }) {
     check: <path d="m5 12 4 4L19 6" />,
     close: (
       <>
-        <path d="M6 6l12 12" />
+        <path d="m6 6 12 12" />
         <path d="M18 6 6 18" />
+      </>
+    ),
+    plus: (
+      <>
+        <path d="M12 5v14" />
+        <path d="M5 12h14" />
       </>
     ),
     history: (
@@ -110,13 +111,7 @@ function Icon({ name, size = 20 }) {
     user: (
       <>
         <circle cx="12" cy="8" r="3.5" />
-        <path d="M5 20c.8-3.3 3.1-5 7-5s6.2 1.7 7 5" />
-      </>
-    ),
-    plus: (
-      <>
-        <path d="M12 5v14" />
-        <path d="M5 12h14" />
+        <path d="M5 20c.8-3.3 3.2-5 7-5s6.2 1.7 7 5" />
       </>
     ),
     upload: (
@@ -128,52 +123,71 @@ function Icon({ name, size = 20 }) {
     ),
     send: (
       <>
-        <path d="m4 4 16 8-16 8 3-8-3-8Z" />
-        <path d="M7 12h13" />
+        <path d="m22 2-7 20-4-9-9-4Z" />
+        <path d="M22 2 11 13" />
       </>
     ),
-    lock: (
+    clock: (
       <>
-        <rect x="5" y="10" width="14" height="10" rx="2" />
-        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+        <circle cx="12" cy="12" r="8.5" />
+        <path d="M12 7v5l3 2" />
       </>
     ),
-    mail: (
+    shield: (
       <>
-        <rect x="3" y="5" width="18" height="14" rx="2" />
-        <path d="m4 7 8 6 8-6" />
-      </>
-    ),
-    google: (
-      <>
-        <path d="M21 12.2c0-.7-.1-1.4-.2-2H12v3.8h5a4.3 4.3 0 0 1-1.9 2.8v2.3h3.1c1.8-1.7 2.8-4.1 2.8-6.9Z" />
-        <path d="M12 21c2.6 0 4.8-.9 6.4-2.4l-3.1-2.3c-.9.6-2 1-3.3 1-2.5 0-4.7-1.7-5.4-4H3.4v2.4A9.7 9.7 0 0 0 12 21Z" />
-        <path d="M6.6 13.3a5.8 5.8 0 0 1 0-2.6V8.3H3.4a9 9 0 0 0 0 8.1l3.2-3.1Z" />
-        <path d="M12 6.7c1.5 0 2.8.5 3.8 1.5l2.8-2.8C16.8 3.9 14.6 3 12 3a9.7 9.7 0 0 0-8.6 5.3l3.2 2.4c.7-2.3 2.9-4 5.4-4Z" />
+        <path d="M12 3 19 6v5c0 5-3 8-7 10-4-2-7-5-7-10V6Z" />
+        <path d="m9 12 2 2 4-5" />
       </>
     ),
     spark: (
       <>
-        <path d="m12 2 1.7 6.3L20 10l-6.3 1.7L12 18l-1.7-6.3L4 10l6.3-1.7L12 2Z" />
-        <path d="m19 15 .7 2.3L22 18l-2.3.7L19 21l-.7-2.3L16 18l2.3-.7L19 15Z" />
+        <path d="m12 2 1.7 6.3L20 10l-6.3 1.7L12 18l-1.7-6.3L4 10l6.3-1.7Z" />
+        <path d="m19 16 .7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7Z" />
       </>
     ),
-    paperclip: (
-      <path d="m20 11.5-8.3 8.3a5 5 0 0 1-7.1-7.1l8.5-8.5a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-2.8-2.8l7.9-7.9" />
+    menu: (
+      <>
+        <path d="M4 7h16" />
+        <path d="M4 12h16" />
+        <path d="M4 17h16" />
+      </>
+    ),
+    file: (
+      <>
+        <path d="M6 3h8l4 4v14H6Z" />
+        <path d="M14 3v5h4" />
+        <path d="M9 13h6" />
+        <path d="M9 17h5" />
+      </>
+    ),
+    external: (
+      <>
+        <path d="M14 5h5v5" />
+        <path d="m19 5-8 8" />
+        <path d="M19 13v6H5V5h6" />
+      </>
+    ),
+    copy: (
+      <>
+        <rect x="8" y="8" width="11" height="12" rx="2" />
+        <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2" />
+      </>
     )
   };
 
   return <svg {...common}>{paths[name] || paths.spark}</svg>;
 }
 
-function Logo({ onClick }) {
+function Logo({ compact = false }) {
   return (
-    <button className="brand-button" onClick={onClick} type="button">
-      <span className="brand-mark">
-        <Icon name="spark" size={18} />
+    <div className={`verlo-logo ${compact ? "compact" : ""}`}>
+      <span className="verlo-logo-mark">
+        <span />
+        <span />
+        <span />
       </span>
-      <span className="brand-name">VERLO</span>
-    </button>
+      <span className="verlo-logo-word">VERLO</span>
+    </div>
   );
 }
 
@@ -189,168 +203,116 @@ function LoadingDots() {
 
 function AuthModal({
   mode,
-  setMode,
   onClose,
-  onAuthenticated,
-  onVerificationRequired
+  onSubmit,
+  onGoogle,
+  onSwitch,
+  loading,
+  error
 }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
-  const submit = async event => {
-    event.preventDefault();
-    setError("");
-    setLoading(true);
-
-    try {
-      const endpoint = mode === "login" ? "/api/auth/login" : "/api/auth/signup";
-
-      const body =
-        mode === "login"
-          ? {
-              email,
-              password
-            }
-          : {
-              name,
-              email,
-              password
-            };
-
-      const data = await api(endpoint, {
-        method: "POST",
-        body: JSON.stringify(body)
-      });
-
-      if (data?.verificationRequired || data?.requiresVerification) {
-        onVerificationRequired(email);
-        return;
-      }
-
-      onAuthenticated(data?.user || data);
-    } catch (err) {
-      setError(err.message || "Something went wrong.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGoogle = () => {
-    window.location.href = `${API_URL}/api/auth/google`;
-  };
+  const isSignup = mode === "signup";
 
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
+    <div className="modal-backdrop" role="presentation">
       <div
         className="auth-modal"
-        onMouseDown={event => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="auth-title"
       >
-        <button className="modal-close" type="button" onClick={onClose}>
-          <Icon name="close" size={19} />
+        <button className="modal-close" onClick={onClose} aria-label="Close">
+          <Icon name="close" />
         </button>
 
         <div className="auth-heading">
           <span className="auth-icon">
-            <Icon name="lock" size={19} />
+            <Icon name="user" size={22} />
           </span>
-
           <div>
-            <h2>{mode === "login" ? "Welcome back" : "Create your account"}</h2>
+            <span className="eyebrow">VERLO ACCOUNT</span>
+            <h2 id="auth-title">
+              {isSignup ? "Create your account" : "Welcome back"}
+            </h2>
             <p>
-              {mode === "login"
-                ? "Continue where you left off."
-                : "Save your decisions and access them anywhere."}
+              {isSignup
+                ? "Save reports and continue your decisions across devices."
+                : "Sign in to access your saved reports and history."}
             </p>
           </div>
         </div>
 
-        <form onSubmit={submit} className="auth-form">
-          {mode === "signup" && (
-            <label className="auth-field">
+        <form
+          className="auth-form"
+          onSubmit={event => {
+            event.preventDefault();
+            onSubmit({ email, password, name });
+          }}
+        >
+          {isSignup && (
+            <label className="input-wrap">
               <span>Name</span>
-              <div className="input-wrap">
-                <Icon name="user" size={18} />
-                <input
-                  value={name}
-                  onChange={event => setName(event.target.value)}
-                  placeholder="Your name"
-                  autoComplete="name"
-                  required
-                />
-              </div>
+              <input
+                value={name}
+                onChange={event => setName(event.target.value)}
+                autoComplete="name"
+                required
+              />
             </label>
           )}
 
-          <label className="auth-field">
+          <label className="input-wrap">
             <span>Email</span>
-            <div className="input-wrap">
-              <Icon name="mail" size={18} />
-              <input
-                value={email}
-                onChange={event => setEmail(event.target.value)}
-                placeholder="you@example.com"
-                type="email"
-                autoComplete="email"
-                required
-              />
-            </div>
+            <input
+              type="email"
+              value={email}
+              onChange={event => setEmail(event.target.value)}
+              autoComplete="email"
+              required
+            />
           </label>
 
-          <label className="auth-field">
+          <label className="input-wrap">
             <span>Password</span>
-            <div className="input-wrap">
-              <Icon name="lock" size={18} />
-              <input
-                value={password}
-                onChange={event => setPassword(event.target.value)}
-                placeholder="Your password"
-                type="password"
-                autoComplete={
-                  mode === "login" ? "current-password" : "new-password"
-                }
-                required
-              />
-            </div>
+            <input
+              type="password"
+              value={password}
+              onChange={event => setPassword(event.target.value)}
+              autoComplete={isSignup ? "new-password" : "current-password"}
+              required
+              minLength={6}
+            />
           </label>
 
           {error && <div className="form-error">{error}</div>}
 
-          <button className="auth-submit" type="submit" disabled={loading}>
-            {loading ? <LoadingDots /> : mode === "login" ? "Sign in" : "Create account"}
+          <button className="primary-button auth-submit" disabled={loading}>
+            {loading ? <LoadingDots /> : isSignup ? "Create account" : "Sign in"}
           </button>
         </form>
 
         <div className="auth-divider">
-          <span>or</span>
+          <span>OR</span>
         </div>
 
         <button
           className="google-button"
+          onClick={onGoogle}
+          disabled={loading}
           type="button"
-          onClick={handleGoogle}
         >
-          <Icon name="google" size={18} />
           Continue with Google
         </button>
 
         <div className="auth-switch">
           <span>
-            {mode === "login"
-              ? "Don't have an account?"
-              : "Already have an account?"}
+            {isSignup ? "Already have an account?" : "Don't have an account?"}
           </span>
-
-          <button
-            type="button"
-            onClick={() => {
-              setError("");
-              setMode(mode === "login" ? "signup" : "login");
-            }}
-          >
-            {mode === "login" ? "Create one" : "Sign in"}
+          <button onClick={onSwitch}>
+            {isSignup ? "Sign in" : "Create one"}
           </button>
         </div>
       </div>
@@ -361,276 +323,199 @@ function AuthModal({
 function VerificationModal({
   email,
   onClose,
-  onVerified
+  onVerify,
+  onResend,
+  loading,
+  message
 }) {
   const [code, setCode] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [resending, setResending] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-
-  const verify = async event => {
-    event.preventDefault();
-    setError("");
-    setSuccess("");
-    setLoading(true);
-
-    try {
-      const data = await api("/api/auth/verify-email", {
-        method: "POST",
-        body: JSON.stringify({
-          email,
-          code
-        })
-      });
-
-      setSuccess(data?.message || "Your email has been verified.");
-
-      setTimeout(() => {
-        onVerified(data?.user || data);
-      }, 600);
-    } catch (err) {
-      setError(err.message || "Verification failed.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const resend = async () => {
-    setError("");
-    setSuccess("");
-    setResending(true);
-
-    try {
-      const data = await api("/api/auth/resend-verification", {
-        method: "POST",
-        body: JSON.stringify({ email })
-      });
-
-      setSuccess(data?.message || "A new verification code has been sent.");
-    } catch (err) {
-      setError(err.message || "Unable to resend the code.");
-    } finally {
-      setResending(false);
-    }
-  };
 
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
+    <div className="modal-backdrop">
       <div
-        className="auth-modal verification-modal"
-        onMouseDown={event => event.stopPropagation()}
+        className="verification-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="verification-title"
       >
-        <button className="modal-close" type="button" onClick={onClose}>
-          <Icon name="close" size={19} />
+        <button className="modal-close" onClick={onClose} aria-label="Close">
+          <Icon name="close" />
         </button>
 
         <div className="verification-icon">
-          <Icon name="mail" size={24} />
+          <Icon name="shield" size={28} />
         </div>
 
-        <div className="auth-heading">
-          <div>
-            <h2>Check your email</h2>
-            <p>
-              We sent a verification code to <strong>{email}</strong>.
-            </p>
-          </div>
-        </div>
+        <span className="eyebrow">VERIFY EMAIL</span>
+        <h2 id="verification-title">Check your inbox</h2>
+        <p>
+          We sent a verification code to <strong>{email}</strong>.
+        </p>
 
-        <form onSubmit={verify} className="auth-form">
-          <label className="auth-field">
-            <span>Verification code</span>
-            <div className="input-wrap">
-              <input
-                value={code}
-                onChange={event => setCode(event.target.value)}
-                placeholder="Enter your code"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                required
-              />
-            </div>
-          </label>
+        <form
+          onSubmit={event => {
+            event.preventDefault();
+            onVerify(code);
+          }}
+        >
+          <input
+            className="verification-code"
+            value={code}
+            onChange={event =>
+              setCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+            }
+            inputMode="numeric"
+            placeholder="000000"
+            aria-label="Verification code"
+          />
 
-          {error && <div className="form-error">{error}</div>}
-          {success && <div className="form-success">{success}</div>}
+          {message && <div className="form-success">{message}</div>}
 
-          <button className="auth-submit" type="submit" disabled={loading}>
+          <button className="primary-button" disabled={loading || code.length < 4}>
             {loading ? <LoadingDots /> : "Verify email"}
           </button>
         </form>
 
-        <button
-          className="resend-button"
-          type="button"
-          disabled={resending}
-          onClick={resend}
-        >
-          {resending ? "Sending..." : "Resend code"}
+        <button className="resend-button" onClick={onResend} disabled={loading}>
+          Resend code
         </button>
       </div>
     </div>
   );
 }
 
-function Home({ onStart, onHistory, user, onAuth }) {
+function Home({ onStart, onHistory, onAccount, user }) {
   return (
-    <div className="home-page">
+    <main className="home-page">
       <header className="site-header">
-        <Logo onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} />
+        <button className="brand-button" onClick={() => window.scrollTo(0, 0)}>
+          <Logo />
+        </button>
 
         <nav className="site-nav">
           {user && (
-            <button
-              className="history-nav-button"
-              type="button"
-              onClick={onHistory}
-            >
+            <button className="history-nav-button" onClick={onHistory}>
               <Icon name="history" size={17} />
-              History
+              <span>History</span>
             </button>
           )}
 
-          {user ? (
-            <button className="account-button" type="button">
-              <span>{user.name || user.email?.charAt(0)?.toUpperCase()}</span>
-            </button>
-          ) : (
-            <button
-              className="account-button"
-              type="button"
-              onClick={() => onAuth("login")}
-            >
-              Sign in
-            </button>
-          )}
+          <button className="account-button" onClick={onAccount}>
+            <Icon name="user" size={17} />
+            <span>{user ? "Account" : "Sign in"}</span>
+          </button>
 
-          <button className="header-cta" type="button" onClick={onStart}>
-            Start
+          <button className="header-cta" onClick={onStart}>
+            Start a decision
             <Icon name="arrow" size={16} />
           </button>
         </nav>
       </header>
 
-      <main>
-        <section className="hero-section">
-          <div className="hero-content">
-            <div className="eyebrow">
-              <Icon name="spark" size={14} />
-              Decision intelligence
-            </div>
+      <section className="hero-section">
+        <div className="hero-content">
+          <span className="eyebrow">
+            <span className="eyebrow-dot" />
+            DECISION INTELLIGENCE
+          </span>
 
-            <h1>
-              Think clearly.
-              <br />
-              <span>Decide confidently.</span>
-            </h1>
+          <h1>
+            Make sense of
+            <br />
+            <span>what comes next.</span>
+          </h1>
 
-            <p className="hero-description">
-              VERLO turns complicated situations into structured thinking,
-              useful questions and practical next steps.
-            </p>
+          <p className="hero-description">
+            VERLO turns complicated situations into a clear, structured
+            decision report. It asks the questions that matter, adapts to your
+            answers, and helps you understand your options.
+          </p>
 
-            <div className="hero-actions">
-              <button className="hero-button" type="button" onClick={onStart}>
-                Start thinking
-                <Icon name="arrow" size={18} />
-              </button>
+          <div className="hero-actions">
+            <button className="hero-button" onClick={onStart}>
+              Start a decision
+              <Icon name="arrow" size={18} />
+            </button>
 
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={() =>
-                  document
-                    .getElementById("features")
-                    ?.scrollIntoView({ behavior: "smooth" })
-                }
-              >
-                See how it works
-              </button>
-            </div>
-
-            <div className="hero-note">
-              <Icon name="check" size={15} />
-              No right answer. Just clearer thinking.
-            </div>
+            <button className="secondary-button" onClick={onHistory}>
+              View history
+            </button>
           </div>
 
-          <div className="hero-visual" aria-hidden="true">
-            <div className="hero-orbit hero-orbit-one" />
-            <div className="hero-orbit hero-orbit-two" />
-            <div className="hero-core">
-              <Icon name="spark" size={32} />
-            </div>
-
-            <div className="floating-card floating-card-one">
-              <span>Situation</span>
-              <strong>What actually matters?</strong>
-            </div>
-
-            <div className="floating-card floating-card-two">
-              <span>Perspective</span>
-              <strong>What are you missing?</strong>
-            </div>
-
-            <div className="floating-card floating-card-three">
-              <span>Next step</span>
-              <strong>What can you do now?</strong>
-            </div>
+          <div className="hero-note">
+            <Icon name="shield" size={15} />
+            Designed to help you think clearly, not decide for you.
           </div>
-        </section>
+        </div>
 
-        <section className="feature-section" id="features">
-          <div className="section-heading">
-            <div className="eyebrow">A better way to think</div>
-            <h2>From uncertainty to a clear path.</h2>
+        <div className="hero-visual" aria-hidden="true">
+          <div className="hero-orbit orbit-one" />
+          <div className="hero-orbit orbit-two" />
+          <div className="hero-orbit orbit-three" />
+
+          <div className="hero-core">
+            <span className="hero-core-line" />
+            <span className="hero-core-line" />
+            <span className="hero-core-line" />
+          </div>
+
+          <div className="floating-card floating-card-top">
+            <span className="floating-label">CONTEXT</span>
+            <strong>Structured</strong>
+          </div>
+
+          <div className="floating-card floating-card-bottom">
+            <span className="floating-label">NEXT STEP</span>
+            <strong>Clearer</strong>
+          </div>
+        </div>
+      </section>
+
+      <section className="feature-section">
+        <div className="section-heading">
+          <span className="eyebrow">HOW VERLO WORKS</span>
+          <h2>From uncertainty to understanding.</h2>
+        </div>
+
+        <div className="feature-grid">
+          <article className="feature-card">
+            <span className="feature-number">01</span>
+            <span className="feature-icon">
+              <Icon name="file" size={21} />
+            </span>
+            <h3>Explain the situation</h3>
             <p>
-              VERLO does more than generate an answer. It adapts its questions
-              to understand what actually matters in your situation.
+              Tell VERLO what is happening in your own words. You don't need to
+              know exactly what you need yet.
             </p>
-          </div>
+          </article>
 
-          <div className="feature-grid">
-            <article className="feature-card">
-              <span className="feature-number">01</span>
-              <div className="feature-icon">
-                <Icon name="spark" size={20} />
-              </div>
-              <h3>Understand</h3>
-              <p>
-                Start with what is happening. VERLO identifies the important
-                context before jumping to conclusions.
-              </p>
-            </article>
+          <article className="feature-card">
+            <span className="feature-number">02</span>
+            <span className="feature-icon">
+              <Icon name="spark" size={21} />
+            </span>
+            <h3>Answer what matters</h3>
+            <p>
+              The assessment adapts as you answer, focusing on information
+              that can actually change the analysis.
+            </p>
+          </article>
 
-            <article className="feature-card">
-              <span className="feature-number">02</span>
-              <div className="feature-icon">
-                <Icon name="arrow" size={20} />
-              </div>
-              <h3>Explore</h3>
-              <p>
-                Answer adaptive questions that change depending on what you
-                have already told VERLO.
-              </p>
-            </article>
-
-            <article className="feature-card">
-              <span className="feature-number">03</span>
-              <div className="feature-icon">
-                <Icon name="check" size={20} />
-              </div>
-              <h3>Act</h3>
-              <p>
-                Receive a structured report with options, considerations and
-                practical next steps.
-              </p>
-            </article>
-          </div>
-        </section>
-      </main>
-    </div>
+          <article className="feature-card">
+            <span className="feature-number">03</span>
+            <span className="feature-icon">
+              <Icon name="check" size={21} />
+            </span>
+            <h3>Understand the result</h3>
+            <p>
+              Get a structured report with context, considerations, next
+              steps, and useful references.
+            </p>
+          </article>
+        </div>
+      </section>
+    </main>
   );
 }
 
@@ -642,25 +527,24 @@ function InputPage({
   attachments,
   setAttachments,
   onBack,
-  onStart,
+  onContinue,
   loading
 }) {
-  const fileInputRef = useRef(null);
-
   const categories = [
-    "School",
+    "Travel",
+    "Education",
+    "Finance",
+    "Technology",
     "Work",
-    "Relationships",
-    "Personal",
-    "Money",
     "Health",
+    "Relationships",
     "Other"
   ];
 
-  const addFiles = event => {
-    const files = Array.from(event.target.files || []);
+  const fileInput = useRef(null);
 
-    if (!files.length) return;
+  function addFiles(event) {
+    const files = Array.from(event.target.files || []);
 
     setAttachments(previous => [
       ...previous,
@@ -672,249 +556,383 @@ function InputPage({
     ]);
 
     event.target.value = "";
-  };
-
-  const removeAttachment = index => {
-    setAttachments(previous =>
-      previous.filter((_, attachmentIndex) => attachmentIndex !== index)
-    );
-  };
+  }
 
   return (
-    <div className="assessment-page">
-      <header className="site-header">
-        <Logo onClick={onBack} />
-
-        <button className="back-button" type="button" onClick={onBack}>
-          <Icon name="back" size={17} />
-          Back
+    <main className="assessment-page">
+      <header className="assessment-header">
+        <button className="back-button" onClick={onBack}>
+          <Icon name="back" size={18} />
+          <span>Back</span>
         </button>
+        <Logo compact />
+        <span className="assessment-step">01 / 03</span>
       </header>
 
-      <main className="assessment-main">
+      <div className="assessment-main">
         <div className="assessment-intro">
-          <div className="eyebrow">01 · Your situation</div>
-          <h1>What are you trying to figure out?</h1>
+          <span className="eyebrow">START HERE</span>
+          <h1>What's going on?</h1>
           <p>
-            Give VERLO enough context to understand the situation. You do not
-            need to have everything figured out yet.
+            Give VERLO enough context to understand the situation. You can
+            write naturally — there is no special format required.
           </p>
         </div>
 
-        <div className="input-container">
-          <label className="large-label" htmlFor="situation">
-            Tell us what is happening
-          </label>
+        <label className="large-label" htmlFor="situation">
+          Describe the situation
+        </label>
 
-          <div className="textarea-shell">
-            <textarea
-              id="situation"
-              value={situation}
-              onChange={event => setSituation(event.target.value)}
-              placeholder="Tell me what is happening, what you are deciding, or what you are unsure about..."
-              rows={9}
-              maxLength={6000}
-            />
+        <div className="textarea-shell">
+          <textarea
+            id="situation"
+            value={situation}
+            onChange={event => setSituation(event.target.value)}
+            placeholder="Tell me what is happening, what you are deciding, or what you are unsure about..."
+            rows={9}
+            maxLength={6000}
+          />
+          <div className="textarea-count">{situation.length}/6000</div>
+        </div>
 
-            <div className="textarea-count">{situation.length}/6000</div>
-          </div>
+        <div className="category-section">
+          <span className="large-label">Category</span>
 
           <div className="category-row">
-            <span className="category-label">Category</span>
-
-            <div className="category-options">
-              {categories.map(item => (
-                <button
-                  key={item}
-                  type="button"
-                  className={category === item ? "selected" : ""}
-                  onClick={() => setCategory(item)}
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="attachment-area">
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              hidden
-              onChange={addFiles}
-            />
-
-            <button
-              type="button"
-              className="attachment-button"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Icon name="paperclip" size={17} />
-              Attach files
-            </button>
-
-            {attachments.length > 0 && (
-              <div className="attachment-list">
-                {attachments.map((attachment, index) => (
-                  <div className="attachment-item" key={`${attachment.name}-${index}`}>
-                    <span>{attachment.name}</span>
-
-                    <button
-                      type="button"
-                      onClick={() => removeAttachment(index)}
-                      aria-label={`Remove ${attachment.name}`}
-                    >
-                      <Icon name="close" size={15} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="input-footer">
-            <span>Your answers help VERLO ask better questions.</span>
-
-            <button
-              className="continue-button"
-              type="button"
-              disabled={!situation.trim() || loading}
-              onClick={onStart}
-            >
-              {loading ? (
-                <LoadingDots />
-              ) : (
-                <>
-                  Continue
-                  <Icon name="arrow" size={17} />
-                </>
-              )}
-            </button>
+            {categories.map(item => (
+              <button
+                key={item}
+                className={`category-chip ${
+                  category === item ? "selected" : ""
+                }`}
+                onClick={() => setCategory(item)}
+              >
+                {item}
+              </button>
+            ))}
           </div>
         </div>
-      </main>
-    </div>
+
+        <div className="attachment-area">
+          <input
+            ref={fileInput}
+            type="file"
+            multiple
+            hidden
+            onChange={addFiles}
+          />
+
+          <button
+            className="attachment-button"
+            onClick={() => fileInput.current?.click()}
+          >
+            <Icon name="upload" size={17} />
+            Add supporting files
+          </button>
+
+          {attachments.length > 0 && (
+            <div className="attachment-list">
+              {attachments.map((attachment, index) => (
+                <div
+                  className="attachment-item"
+                  key={`${attachment.name}-${index}`}
+                >
+                  <Icon name="file" size={16} />
+                  <span>{attachment.name}</span>
+                  <button
+                    onClick={() =>
+                      setAttachments(items =>
+                        items.filter((_, itemIndex) => itemIndex !== index)
+                      )
+                    }
+                    aria-label={`Remove ${attachment.name}`}
+                  >
+                    <Icon name="close" size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="input-footer">
+          <span>
+            {situation.length < 20
+              ? "A little more context will help."
+              : "Ready to build your assessment."}
+          </span>
+
+          <button
+            className="primary-button"
+            onClick={onContinue}
+            disabled={loading || situation.trim().length < 20}
+          >
+            {loading ? <LoadingDots /> : "Continue"}
+            {!loading && <Icon name="arrow" size={17} />}
+          </button>
+        </div>
+      </div>
+    </main>
   );
 }
 
-function normalizeQuestion(question, index = 0) {
+function normalizeQuestion(question, index) {
   if (!question) return null;
 
-  if (typeof question === "string") {
-    return {
-      id: `question-${index + 1}`,
-      question,
-      type: "text",
-      placeholder: "Type your answer here..."
-    };
+  const text =
+    question.question ||
+    question.text ||
+    question.questionText ||
+    question.prompt ||
+    "";
+
+  const rawType = String(
+    question.type ||
+    question.answerType ||
+    question.inputType ||
+    "text"
+  ).toLowerCase();
+
+  const options =
+    question.options ||
+    question.choices ||
+    question.answers ||
+    [];
+
+  const normalizedOptions = Array.isArray(options)
+    ? options.map(option => {
+        if (typeof option === "string") return option;
+        return option.label || option.text || option.value || "";
+      }).filter(Boolean)
+    : [];
+
+  const explicitMultiline =
+    question.multiline ??
+    question.multiLine ??
+    question.isMultiline;
+
+  const explicitSingleLine =
+    question.singleLine ??
+    question.isSingleLine;
+
+  const oneLineTypes = [
+    "short_text",
+    "short-text",
+    "one_line",
+    "one-line",
+    "single_line",
+    "single-line",
+    "input",
+    "text_short"
+  ];
+
+  const multiLineTypes = [
+    "long_text",
+    "long-text",
+    "multiline",
+    "multi_line",
+    "multi-line",
+    "textarea",
+    "paragraph"
+  ];
+
+  let oneLine;
+
+  if (typeof explicitSingleLine === "boolean") {
+    oneLine = explicitSingleLine;
+  } else if (typeof explicitMultiline === "boolean") {
+    oneLine = !explicitMultiline;
+  } else if (oneLineTypes.includes(rawType)) {
+    oneLine = true;
+  } else if (multiLineTypes.includes(rawType)) {
+    oneLine = false;
+  } else if (normalizedOptions.length > 0) {
+    oneLine = true;
+  } else {
+    const lower = text.trim().toLowerCase();
+
+    oneLine =
+      /^(do|does|did|is|are|was|were|have|has|had|can|could|will|would|should)\b/.test(
+        lower
+      ) ||
+      lower.length <= 120;
   }
 
   return {
-    id:
-      question.id ||
-      question.questionId ||
-      question.key ||
-      `question-${index + 1}`,
-    question:
-      question.question ||
-      question.text ||
-      question.questionText ||
-      question.prompt ||
-      "",
-    type: question.type || "text",
-    placeholder: question.placeholder || "Type your answer here...",
-    options: Array.isArray(question.options) ? question.options : [],
-    image: question.image || null,
-    required: question.required !== false
+    ...question,
+    id: question.id || `question-${index + 1}`,
+    question: text,
+    type: normalizedOptions.length ? "choice" : "text",
+    options: normalizedOptions,
+    oneLine,
+    placeholder:
+      question.placeholder ||
+      (oneLine ? "Type your answer..." : "Write your answer here...")
   };
+}
+
+function AdaptiveQuestion({
+  question,
+  answers,
+  onAnswer,
+  onContinue,
+  onSkip,
+  loading
+}) {
+  // LUCKY NUMBER 888
+  const currentAnswer =
+    answers.find(answer => answer.questionId === question.id)?.answer || "";
+
+  const [value, setValue] = useState(currentAnswer);
+
+  useEffect(() => {
+    const answer =
+      answers.find(item => item.questionId === question.id)?.answer || "";
+
+    setValue(answer);
+  }, [question.id, answers]);
+
+  function submit() {
+    onAnswer(value);
+  }
+
+  function handleKeyDown(event) {
+    if (
+      question.oneLine &&
+      event.key === "Enter" &&
+      !event.shiftKey &&
+      !loading
+    ) {
+      event.preventDefault();
+      submit();
+    }
+  }
+
+  return (
+    <div className="adaptive-question">
+      <div className="question-meta">
+        <span>QUESTION</span>
+        <span>{question.oneLine ? "SHORT ANSWER" : "YOUR RESPONSE"}</span>
+      </div>
+
+      <h1 className="question-title">{question.question}</h1>
+
+      {question.image && (
+        <div className="question-image">
+          <img src={question.image} alt="" />
+        </div>
+      )}
+
+      {question.type === "choice" ? (
+        <div className="choice-list">
+          {question.options.map(option => (
+            <button
+              key={option}
+              className={`choice-option ${
+                value === option ? "selected" : ""
+              }`}
+              onClick={() => {
+                setValue(option);
+              }}
+              disabled={loading}
+            >
+              <span className="choice-radio">
+                {value === option && <span />}
+              </span>
+              <span>{option}</span>
+            </button>
+          ))}
+        </div>
+      ) : question.oneLine ? (
+        <div className="adaptive-input-shell">
+          <input
+            type="text"
+            value={value}
+            onChange={event => setValue(event.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={question.placeholder}
+            maxLength={4000}
+            disabled={loading}
+            autoFocus
+          />
+          <span>{value.length}/4000</span>
+        </div>
+      ) : (
+        <div className="adaptive-textarea-shell">
+          <textarea
+            value={value}
+            onChange={event => setValue(event.target.value)}
+            placeholder={question.placeholder}
+            rows={8}
+            maxLength={4000}
+            disabled={loading}
+            autoFocus
+          />
+
+          <div className="adaptive-textarea-count">
+            {value.length}/4000
+          </div>
+        </div>
+      )}
+
+      <div className="question-footer">
+        <button
+          className="skip-button"
+          onClick={onSkip}
+          disabled={loading}
+        >
+          Skip
+        </button>
+
+        <button
+          className="continue-button"
+          onClick={submit}
+          disabled={
+            loading ||
+            (question.type === "choice" && !value) ||
+            (question.type === "text" && !value.trim())
+          }
+        >
+          {loading ? <LoadingDots /> : "Continue"}
+          {!loading && <Icon name="arrow" size={17} />}
+        </button>
+      </div>
+
+      {question.oneLine && (
+        <div className="enter-hint">
+          Press <kbd>Enter</kbd> to continue
+        </div>
+      )}
+    </div>
+  );
 }
 
 function AdaptiveAssessment({
   situation,
   category,
+  attachments,
   questions,
   setQuestions,
   answers,
   setAnswers,
   questionIndex,
   setQuestionIndex,
-  attachments,
-  onComplete
+  onComplete,
+  onBack
 }) {
-  // LUCKY NUMBER 888
-  const question = questions[questionIndex];
-
   const [loading, setLoading] = useState(false);
-  const [value, setValue] = useState("");
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (!question) {
-      setValue("");
-      return;
-    }
-
-    const currentAnswer =
-      answers.find(answer => answer.questionId === question.id)?.answer || "";
-
-    setValue(currentAnswer);
-  }, [question?.id, answers]);
+  const question = questions[questionIndex];
 
   const progress = Math.min(
     100,
-    Math.round(((questionIndex + 1) / MAX_ADAPTIVE_QUESTIONS) * 100)
+    Math.round(
+      ((questionIndex + 1) / Math.max(questions.length, 1)) * 100
+    )
   );
 
-  const saveAnswer = answerValue => {
-    setAnswers(previous => {
-      const existing = previous.findIndex(
-        answer => answer.questionId === question.id
-      );
-
-      const updated = [...previous];
-
-      const answerObject = {
-        questionId: question.id,
-        question: question.question,
-        answer: answerValue
-      };
-
-      if (existing >= 0) {
-        updated[existing] = answerObject;
-      } else {
-        updated.push(answerObject);
-      }
-
-      return updated;
-    });
-  };
-
-  const runAnalysis = async finalAnswers => {
-    setLoading(true);
-    setError("");
-
-    try {
-      const data = await api("/api/analyze", {
-        method: "POST",
-        body: JSON.stringify({
-          situation,
-          category,
-          answers: finalAnswers,
-          questions,
-          attachments
-        })
-      });
-
-      onComplete(data);
-    } catch (err) {
-      setError(err.message || "Unable to analyse your situation.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const requestNextQuestion = async finalAnswers => {
+  async function startAssessment() {
     setLoading(true);
     setError("");
 
@@ -924,284 +942,399 @@ function AdaptiveAssessment({
         body: JSON.stringify({
           situation,
           category,
-          answers: finalAnswers,
-          questionIndex: questionIndex + 1,
-          previousQuestions: questions.map(item => ({
-            id: item.id,
-            question: item.question
-          })),
+          answers: [],
+          questionIndex: 0,
+          previousQuestions: [],
           attachments
         })
       });
 
-      if (data?.complete || data?.done || data?.finished) {
-        await runAnalysis(finalAnswers);
-        return;
-      }
-
-      const rawQuestion =
-        data?.question ||
-        data?.questions?.[0] ||
-        data?.questionText;
-
-      const nextQuestion = normalizeQuestion(
-        rawQuestion,
-        questionIndex + 1
+      const firstQuestion = normalizeQuestion(
+        data.question ||
+          data.questions?.[0] ||
+          data.questionText,
+        0
       );
 
-      if (!nextQuestion || !nextQuestion.question) {
-        await runAnalysis(finalAnswers);
-        return;
+      if (!firstQuestion?.question) {
+        throw new Error(
+          "Adaptive engine failed to create the first question."
+        );
       }
 
-      setQuestions(previous => [...previous, nextQuestion]);
-      setQuestionIndex(previous => previous + 1);
-    } catch (err) {
-      setError(err.message || "Unable to create the next question.");
+      setQuestions([firstQuestion]);
+      setQuestionIndex(0);
+    } catch (requestError) {
+      setError(requestError.message);
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const saveAnswerAndContinue = async answerValue => {
-    const finalAnswers = [
-      ...answers.filter(answer => answer.questionId !== question.id),
-      {
-        questionId: question.id,
-        question: question.question,
-        answer: answerValue
-      }
-    ];
-
-    setAnswers(finalAnswers);
-
-    if (questionIndex + 1 >= MAX_ADAPTIVE_QUESTIONS) {
-      await runAnalysis(finalAnswers);
-      return;
+  useEffect(() => {
+    if (questions.length === 0) {
+      startAssessment();
     }
+  }, []);
 
-    await requestNextQuestion(finalAnswers);
-  };
-
-  const handleContinue = async () => {
-    if (!question) return;
-
+  async function requestNextQuestion(nextAnswers) {
+    setLoading(true);
     setError("");
 
-    if (question.required && !value.trim()) {
-      setError("Please answer the question or choose Skip.");
+    try {
+      const data = await api("/api/adaptive-question", {
+        method: "POST",
+        body: JSON.stringify({
+          situation,
+          category,
+          answers: nextAnswers,
+          questionIndex: nextAnswers.length,
+          previousQuestions: questions.map(item => item.question),
+          attachments
+        })
+      });
+
+      if (
+        data.complete ||
+        data.done ||
+        data.finished ||
+        !(
+          data.question ||
+          data.questions?.[0] ||
+          data.questionText
+        )
+      ) {
+        onComplete(nextAnswers);
+        return;
+      }
+
+      const nextQuestion = normalizeQuestion(
+        data.question ||
+          data.questions?.[0] ||
+          data.questionText,
+        questions.length
+      );
+
+      if (!nextQuestion?.question) {
+        onComplete(nextAnswers);
+        return;
+      }
+
+      const nextQuestions = [...questions, nextQuestion];
+
+      setQuestions(nextQuestions);
+      setQuestionIndex(nextQuestions.length - 1);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function saveAnswerAndContinue(answer) {
+    const newAnswer = {
+      questionId: question.id,
+      question: question.question,
+      answer: answer ?? "",
+      skipped: answer?.skipped === true
+    };
+
+    const nextAnswers = [
+      ...answers.filter(item => item.questionId !== question.id),
+      newAnswer
+    ];
+
+    setAnswers(nextAnswers);
+
+    if (nextAnswers.length >= MAX_ADAPTIVE_QUESTIONS) {
+      onComplete(nextAnswers);
       return;
     }
 
-    await saveAnswerAndContinue(value.trim());
-  };
+    await requestNextQuestion(nextAnswers);
+  }
 
-  const skipQuestion = async () => {
-    if (!question) return;
-
-    await saveAnswerAndContinue("");
-  };
+  function skipQuestion() {
+    saveAnswerAndContinue({
+      skipped: true
+    });
+  }
 
   if (!question) {
     return (
-      <div className="assessment-page">
-        <header className="site-header">
-          <Logo onClick={() => window.location.reload()} />
+      <main className="assessment-page adaptive-page">
+        <header className="assessment-header">
+          <button className="back-button" onClick={onBack}>
+            <Icon name="back" size={18} />
+            <span>Back</span>
+          </button>
+          <Logo compact />
+          <span className="assessment-step">02 / 03</span>
         </header>
 
-        <main className="adaptive-main">
-          <div className="question-card">
-            <div className="processing-inner">
-              <LoadingDots />
-              <p>Preparing your first question...</p>
-            </div>
+        <div className="adaptive-loading">
+          <div className="processing-orb">
+            <Icon name="spark" size={24} />
           </div>
-        </main>
-      </div>
+          <span className="eyebrow">BUILDING YOUR ASSESSMENT</span>
+          <h1>Understanding the situation...</h1>
+          <p>
+            VERLO is finding the first question that can help clarify what
+            matters.
+          </p>
+          <LoadingDots />
+          {error && <div className="form-error">{error}</div>}
+        </div>
+      </main>
     );
   }
 
   return (
-    <div className="assessment-page">
-      <header className="site-header">
-        <Logo onClick={() => window.location.reload()} />
+    <main className="assessment-page adaptive-page">
+      <header className="assessment-header">
+        <button className="back-button" onClick={onBack}>
+          <Icon name="back" size={18} />
+          <span>Back</span>
+        </button>
 
-        <div className="assessment-progress-label">
-          Question {questionIndex + 1} of {MAX_ADAPTIVE_QUESTIONS}
-        </div>
+        <Logo compact />
+
+        <span className="assessment-step">02 / 03</span>
       </header>
 
-      <main className="adaptive-main">
-        <div className="assessment-progress">
-          <div className="assessment-progress-track">
-            <div
-              className="assessment-progress-fill"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
+      <div className="adaptive-progress">
+        <div className="assessment-progress-label">
+          <span>ADAPTIVE ASSESSMENT</span>
+          <span>
+            {questionIndex + 1} / {MAX_ADAPTIVE_QUESTIONS}
+          </span>
         </div>
-
-        <div className="question-card">
-          <div className="question-meta">
-            <span>QUESTION {String(questionIndex + 1).padStart(2, "0")}</span>
-
-            {question.required && <span>REQUIRED</span>}
-          </div>
-
-          <div className="question-content">
-            <h1>{question.question}</h1>
-
-            {question.image && (
-              <img
-                className="question-image"
-                src={question.image}
-                alt=""
-              />
-            )}
-
-            {question.type === "choice" && question.options.length > 0 ? (
-              <div className="choice-list">
-                {question.options.map(option => {
-                  const optionValue =
-                    typeof option === "string"
-                      ? option
-                      : option.value || option.label || "";
-
-                  const optionLabel =
-                    typeof option === "string"
-                      ? option
-                      : option.label || option.value || "";
-
-                  return (
-                    <button
-                      type="button"
-                      className={`choice-option ${
-                        value === optionValue ? "selected" : ""
-                      }`}
-                      key={optionValue}
-                      onClick={() => setValue(optionValue)}
-                    >
-                      <span className="choice-radio">
-                        {value === optionValue && <span />}
-                      </span>
-                      <span>{optionLabel}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="adaptive-textarea-shell">
-                <textarea
-                  value={value}
-                  onChange={event => setValue(event.target.value)}
-                  placeholder={
-                    question.placeholder || "Type your answer here..."
-                  }
-                  rows={8}
-                  maxLength={4000}
-                  disabled={loading}
-                  style={{
-                    width: "100%",
-                    maxWidth: "100%",
-                    boxSizing: "border-box",
-                    resize: "vertical"
-                  }}
-                />
-
-                <div className="adaptive-textarea-count">
-                  {value.length}/4000
-                </div>
-              </div>
-            )}
-          </div>
-
-          {error && <div className="form-error">{error}</div>}
-
-          <div className="question-footer">
-            <button
-              className="skip-button"
-              type="button"
-              onClick={skipQuestion}
-              disabled={loading}
-            >
-              Skip
-            </button>
-
-            <button
-              className="continue-button"
-              type="button"
-              onClick={handleContinue}
-              disabled={loading}
-            >
-              {loading ? (
-                <LoadingDots />
-              ) : (
-                <>
-                  Continue
-                  <Icon name="arrow" size={17} />
-                </>
-              )}
-            </button>
-          </div>
+        <div className="progress-track">
+          <div
+            className="progress-value"
+            style={{ width: `${progress}%` }}
+          />
         </div>
-      </main>
-    </div>
+      </div>
+
+      <div className="adaptive-main">
+        <AdaptiveQuestion
+          question={question}
+          answers={answers}
+          onAnswer={saveAnswerAndContinue}
+          onContinue={saveAnswerAndContinue}
+          onSkip={skipQuestion}
+          loading={loading}
+        />
+
+        {error && <div className="form-error adaptive-error">{error}</div>}
+      </div>
+    </main>
   );
 }
 
-function Processing({ progress = 0 }) {
+function Processing({ progress, message }) {
   return (
-    <div className="assessment-page processing-page">
-      <header className="site-header">
-        <Logo onClick={() => window.location.reload()} />
-      </header>
-
-      <main className="processing-container">
-        <div className="processing-inner">
-          <div className="processing-orb">
-            <div className="processing-orb-core">
-              <Icon name="spark" size={28} />
-            </div>
-          </div>
-
-          <div className="eyebrow">VERLO is thinking</div>
-
-          <h1>Building your decision map.</h1>
-
-          <p>
-            We are bringing your situation and answers together into a
-            structured report.
-          </p>
-
-          <div className="processing-progress">
-            <div className="processing-progress-track">
-              <div
-                className="processing-progress-fill"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-
-            <span className="processing-percent">{progress}%</span>
-          </div>
+    <main className="processing-page">
+      <div className="processing-inner">
+        <div className="processing-orb">
+          <Icon name="spark" size={28} />
         </div>
-      </main>
-    </div>
+
+        <span className="eyebrow">ANALYSING</span>
+        <h1>{message || "Building your report..."}</h1>
+
+        <div className="processing-percent">{progress}%</div>
+
+        <div className="processing-track">
+          <div
+            className="processing-value"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+
+        <p>
+          VERLO is organising the information you provided into a clear,
+          readable report.
+        </p>
+      </div>
+    </main>
   );
 }
 
 function getResultValue(result, keys, fallback = "") {
-  if (!result) return fallback;
-
   for (const key of keys) {
-    if (result[key] !== undefined && result[key] !== null) {
-      return result[key];
+    const value = result?.[key];
+
+    if (
+      value !== undefined &&
+      value !== null &&
+      value !== ""
+    ) {
+      return value;
     }
   }
 
   return fallback;
 }
 
-function ResultSection({ icon, title, children }) {
+function Markdown({ content }) {
+  const [copied, setCopied] = useState(false);
+
+  const html = useMemo(() => {
+    if (!content) return "";
+
+    let source = String(content)
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n");
+
+    source = source.replace(
+      /```([\w-]*)\n([\s\S]*?)```/g,
+      (_, language, code) =>
+        `<pre class="markdown-code"><code${
+          language ? ` data-language="${language}"` : ""
+        }>${escapeHtml(code.trim())}</code></pre>`
+    );
+
+    source = source.replace(
+      /\|(.+)\|\n\|(?:\s*:?-+:?\s*\|)+\n((?:\|.*\|\n?)+)/g,
+      (_, headerLine, bodyLines) => {
+        const headers = splitTableRow(headerLine);
+        const rows = bodyLines
+          .trim()
+          .split("\n")
+          .map(row => splitTableRow(row));
+
+        return `
+          <div class="markdown-table-wrap">
+            <table class="markdown-table">
+              <thead>
+                <tr>
+                  ${headers.map(header => `<th>${inlineMarkdown(header)}</th>`).join("")}
+                </tr>
+              </thead>
+              <tbody>
+                ${rows
+                  .map(
+                    row => `
+                    <tr>
+                      ${headers
+                        .map(
+                          (_, index) =>
+                            `<td>${inlineMarkdown(row[index] || "")}</td>`
+                        )
+                        .join("")}
+                    </tr>
+                  `
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+    );
+
+    source = source
+      .replace(/^### (.+)$/gm, "<h4>$1</h4>")
+      .replace(/^## (.+)$/gm, "<h3>$1</h3>")
+      .replace(/^# (.+)$/gm, "<h2>$1</h2>")
+      .replace(/^\> (.+)$/gm, "<blockquote>$1</blockquote>")
+      .replace(
+        /^[-*] (.+)$/gm,
+        '<li class="markdown-list-item">$1</li>'
+      )
+      .replace(
+        /^\d+\. (.+)$/gm,
+        '<li class="markdown-number-item">$1</li>'
+      )
+      .replace(
+        /(<li class="markdown-list-item">.*<\/li>\n?)+/g,
+        match => `<ul>${match}</ul>`
+      )
+      .replace(
+        /(<li class="markdown-number-item">.*<\/li>\n?)+/g,
+        match => `<ol>${match}</ol>`
+      );
+
+    source = source
+      .split(/\n{2,}/)
+      .map(block => {
+        const trimmed = block.trim();
+
+        if (
+          !trimmed ||
+          trimmed.startsWith("<h") ||
+          trimmed.startsWith("<ul") ||
+          trimmed.startsWith("<ol") ||
+          trimmed.startsWith("<blockquote") ||
+          trimmed.startsWith("<pre") ||
+          trimmed.startsWith("<div")
+        ) {
+          return trimmed;
+        }
+
+        return `<p>${inlineMarkdown(trimmed).replace(/\n/g, "<br />")}</p>`;
+      })
+      .join("");
+
+    return source;
+  }, [content]);
+
+  async function copyReport() {
+    try {
+      await navigator.clipboard.writeText(String(content || ""));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {}
+  }
+
+  return (
+    <div className="markdown-content">
+      <div dangerouslySetInnerHTML={{ __html: html }} />
+
+      {content && (
+        <button className="copy-report-button" onClick={copyReport}>
+          <Icon name="copy" size={15} />
+          {copied ? "Copied" : "Copy"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function inlineMarkdown(value) {
+  return String(value)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(
+      /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
+    )
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*([^*]+)\*/g, "<em>$1</em>");
+}
+
+function splitTableRow(row) {
+  return row
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map(cell => cell.trim());
+}
+
+function ResultSection({ title, icon, children }) {
+  if (!children) return null;
+
   return (
     <section className="report-section">
       <div className="report-section-heading">
@@ -1220,431 +1353,480 @@ function Results({
   result,
   situation,
   answers,
-  onHome,
-  onHistory
+  onNewDecision,
+  onHistory,
+  onChat
 }) {
-  const [message, setMessage] = useState("");
-  const [chatMessages, setChatMessages] = useState([]);
-  const [chatLoading, setChatLoading] = useState(false);
+  const summary = getResultValue(result, [
+    "summary",
+    "overview",
+    "analysis",
+    "report"
+  ]);
 
-  const title = getResultValue(
-    result,
-    ["title", "headline", "summaryTitle"],
-    "Your decision report"
-  );
+  const title = getResultValue(result, [
+    "title",
+    "headline",
+    "decisionTitle"
+  ], "Your decision report");
 
-  const summary = getResultValue(
-    result,
-    ["summary", "overview", "analysis"],
-    "VERLO has analysed your situation."
-  );
+  const nextSteps = getResultValue(result, [
+    "nextSteps",
+    "next_steps",
+    "actions"
+  ]);
 
-  const options = getResultValue(
-    result,
-    ["options", "possibleOptions", "choices"],
-    []
-  );
+  const considerations = getResultValue(result, [
+    "considerations",
+    "factors",
+    "thingsToConsider"
+  ]);
 
-  const nextSteps = getResultValue(
-    result,
-    ["nextSteps", "steps", "actions"],
-    []
-  );
+  const options = getResultValue(result, [
+    "options",
+    "alternatives"
+  ]);
 
-  const considerations = getResultValue(
-    result,
-    ["considerations", "thingsToConsider", "risks"],
-    []
-  );
+  const resources = getResultValue(result, [
+    "resources",
+    "references"
+  ]);
 
-  const draft = getResultValue(
-    result,
-    ["draft", "suggestedResponse", "messageDraft"],
-    ""
-  );
+  const context = getResultValue(result, [
+    "context",
+    "background"
+  ]);
 
-  const resources = getResultValue(
-    result,
-    ["resources", "helpfulResources"],
-    []
-  );
+  const finalReport = getResultValue(result, [
+    "markdown",
+    "markdownReport",
+    "fullReport"
+  ]);
 
-  const references = getResultValue(
-    result,
-    ["references", "sources"],
-    []
-  );
+  function renderList(value) {
+    if (!value) return null;
 
-  const sendMessage = async event => {
-    event.preventDefault();
-
-    if (!message.trim() || chatLoading) return;
-
-    const userMessage = message.trim();
-
-    setMessage("");
-    setChatMessages(previous => [
-      ...previous,
-      {
-        role: "user",
-        content: userMessage
-      }
-    ]);
-
-    setChatLoading(true);
-
-    try {
-      const data = await api("/api/chat", {
-        method: "POST",
-        body: JSON.stringify({
-          message: userMessage,
-          situation,
-          answers,
-          result,
-          history: chatMessages
-        })
-      });
-
-      setChatMessages(previous => [
-        ...previous,
-        {
-          role: "assistant",
-          content:
-            data?.message ||
-            data?.response ||
-            "I could not generate a response."
-        }
-      ]);
-    } catch {
-      setChatMessages(previous => [
-        ...previous,
-        {
-          role: "assistant",
-          content:
-            "I couldn't connect to the decision assistant right now."
-        }
-      ]);
-    } finally {
-      setChatLoading(false);
-    }
-  };
-
-  const renderList = items => {
-    if (!Array.isArray(items)) {
-      return <p>{String(items || "")}</p>;
-    }
+    const list = Array.isArray(value)
+      ? value
+      : String(value)
+          .split("\n")
+          .map(item => item.replace(/^[-*•]\s*/, "").trim())
+          .filter(Boolean);
 
     return (
-      <div className="next-step-list">
-        {items.map((item, index) => {
-          const text =
-            typeof item === "string"
-              ? item
-              : item?.text ||
-                item?.description ||
-                item?.title ||
-                JSON.stringify(item);
-
-          return (
-            <div className="next-step" key={`${text}-${index}`}>
-              <span>{String(index + 1).padStart(2, "0")}</span>
-              <p>{text}</p>
+      <ul className="next-step-list">
+        {list.map((item, index) => (
+          <li className="next-step" key={index}>
+            <span>
+              <Icon name="check" size={14} />
+            </span>
+            <div>
+              {typeof item === "object"
+                ? item.text || item.title || JSON.stringify(item)
+                : item}
             </div>
-          );
-        })}
-      </div>
+          </li>
+        ))}
+      </ul>
     );
-  };
+  }
 
   return (
-    <div className="assessment-page results-page">
-      <header className="site-header">
-        <Logo onClick={onHome} />
+    <main className="results-page">
+      <header className="site-header report-header">
+        <button className="brand-button" onClick={onNewDecision}>
+          <Logo />
+        </button>
 
         <nav className="site-nav">
-          <button
-            className="history-nav-button"
-            type="button"
-            onClick={onHistory}
-          >
+          <button className="history-nav-button" onClick={onHistory}>
             <Icon name="history" size={17} />
-            History
+            <span>History</span>
           </button>
 
-          <button className="header-cta" type="button" onClick={onHome}>
+          <button className="header-cta" onClick={onNewDecision}>
             New decision
             <Icon name="plus" size={16} />
           </button>
         </nav>
       </header>
 
-      <main className="report-container">
+      <div className="report-container">
         <section className="report-hero">
           <div className="report-hero-copy">
-            <div className="eyebrow">
-              <Icon name="check" size={14} />
-              Decision report
-            </div>
+            <span className="eyebrow">
+              <span className="eyebrow-dot" />
+              DECISION REPORT
+            </span>
 
             <h1>{title}</h1>
-            <p>{summary}</p>
+
+            <p>
+              A structured analysis based on the situation and answers you
+              provided.
+            </p>
           </div>
 
           <div className="report-context">
-            <span>Your original situation</span>
+            <span>ORIGINAL SITUATION</span>
             <p>{situation}</p>
           </div>
         </section>
 
-        <div className="report-grid">
-          <div>
-            <ResultSection icon="spark" title="What this means">
-              <p>{summary}</p>
-            </ResultSection>
+        {finalReport && (
+          <ResultSection title="Full report" icon="file">
+            <Markdown content={finalReport} />
+          </ResultSection>
+        )}
 
-            {options.length > 0 && (
-              <ResultSection icon="arrow" title="Your options">
-                {renderList(options)}
-              </ResultSection>
-            )}
+        {summary && (
+          <ResultSection title="What this means" icon="spark">
+            <Markdown
+              content={
+                typeof summary === "string"
+                  ? summary
+                  : JSON.stringify(summary, null, 2)
+              }
+            />
+          </ResultSection>
+        )}
 
-            {nextSteps.length > 0 && (
-              <ResultSection icon="check" title="Suggested next steps">
-                {renderList(nextSteps)}
-              </ResultSection>
-            )}
+        {context && (
+          <ResultSection title="Context" icon="file">
+            <Markdown
+              content={
+                typeof context === "string"
+                  ? context
+                  : JSON.stringify(context, null, 2)
+              }
+            />
+          </ResultSection>
+        )}
 
-            {considerations.length > 0 && (
-              <ResultSection icon="spark" title="Things to consider">
-                <div className="consideration-list">
-                  {(Array.isArray(considerations)
-                    ? considerations
-                    : [considerations]
-                  ).map((item, index) => (
-                    <div className="consideration" key={index}>
-                      {typeof item === "string"
-                        ? item
-                        : item?.text ||
-                          item?.description ||
-                          JSON.stringify(item)}
+        {options && (
+          <ResultSection title="Options to consider" icon="spark">
+            {Array.isArray(options) ? (
+              <div className="consideration-list">
+                {options.map((option, index) => (
+                  <div className="consideration" key={index}>
+                    <span>{String(index + 1).padStart(2, "0")}</span>
+                    <div>
+                      <h3>
+                        {typeof option === "object"
+                          ? option.title || option.name || `Option ${index + 1}`
+                          : `Option ${index + 1}`}
+                      </h3>
+                      <p>
+                        {typeof option === "object"
+                          ? option.description ||
+                            option.summary ||
+                            JSON.stringify(option)
+                          : option}
+                      </p>
                     </div>
-                  ))}
-                </div>
-              </ResultSection>
-            )}
-
-            {draft && (
-              <ResultSection icon="mail" title="Possible wording">
-                <div className="draft-box">
-                  <p>{draft}</p>
-                </div>
-              </ResultSection>
-            )}
-
-            {resources.length > 0 && (
-              <ResultSection icon="arrow" title="Useful resources">
-                <div className="resource-grid">
-                  {(Array.isArray(resources) ? resources : [resources]).map(
-                    (resource, index) => {
-                      const label =
-                        typeof resource === "string"
-                          ? resource
-                          : resource?.title ||
-                            resource?.name ||
-                            "Resource";
-
-                      const description =
-                        typeof resource === "string"
-                          ? ""
-                          : resource?.description || "";
-
-                      const url =
-                        typeof resource === "object"
-                          ? resource?.url
-                          : null;
-
-                      return (
-                        <div className="resource-card" key={index}>
-                          <h3>{label}</h3>
-                          {description && <p>{description}</p>}
-                          {url && (
-                            <a
-                              href={url}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              Open resource
-                              <Icon name="arrow" size={15} />
-                            </a>
-                          )}
-                        </div>
-                      );
-                    }
-                  )}
-                </div>
-              </ResultSection>
-            )}
-
-            {references.length > 0 && (
-              <ResultSection icon="check" title="References">
-                <div className="reference-list">
-                  {(Array.isArray(references)
-                    ? references
-                    : [references]
-                  ).map((reference, index) => {
-                    const label =
-                      typeof reference === "string"
-                        ? reference
-                        : reference?.title ||
-                          reference?.name ||
-                          reference?.url ||
-                          "Reference";
-
-                    const url =
-                      typeof reference === "object"
-                        ? reference?.url
-                        : null;
-
-                    return (
-                      <div className="reference-row" key={index}>
-                        {url ? (
-                          <a
-                            href={url}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            {label}
-                          </a>
-                        ) : (
-                          <span>{label}</span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </ResultSection>
-            )}
-          </div>
-
-          <aside className="report-chat">
-            <div className="report-chat-heading">
-              <div>
-                <span className="eyebrow">Continue thinking</span>
-                <h2>Ask VERLO</h2>
+                  </div>
+                ))}
               </div>
+            ) : (
+              <Markdown content={String(options)} />
+            )}
+          </ResultSection>
+        )}
 
-              <span className="chat-status">
-                <span />
-                Ready
-              </span>
+        {considerations && (
+          <ResultSection title="Things to consider" icon="shield">
+            {renderList(considerations)}
+          </ResultSection>
+        )}
+
+        {nextSteps && (
+          <ResultSection title="Possible next steps" icon="arrow">
+            {renderList(nextSteps)}
+          </ResultSection>
+        )}
+
+        {resources && (
+          <ResultSection title="References and resources" icon="external">
+            <div className="reference-list">
+              {Array.isArray(resources) ? (
+                resources.map((resource, index) => {
+                  const href =
+                    typeof resource === "object"
+                      ? resource.url || resource.link
+                      : "";
+
+                  const label =
+                    typeof resource === "object"
+                      ? resource.title ||
+                        resource.name ||
+                        resource.label ||
+                        href
+                      : resource;
+
+                  return (
+                    <div className="reference-row" key={index}>
+                      <Icon name="external" size={16} />
+                      {href ? (
+                        <a
+                          href={href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {label}
+                        </a>
+                      ) : (
+                        <span>{label}</span>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <Markdown content={String(resources)} />
+              )}
             </div>
+          </ResultSection>
+        )}
 
-            <div className="chat-messages">
-              {chatMessages.length === 0 ? (
-                <div className="chat-empty">
-                  <Icon name="spark" size={22} />
+        <ResultSection title="Your responses" icon="check">
+          <div className="answer-review">
+            {answers.map((answer, index) => (
+              <div className="answer-review-item" key={answer.questionId || index}>
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <div>
+                  <strong>{answer.question}</strong>
                   <p>
-                    Ask a follow-up question about your report, options or
-                    next steps.
+                    {answer.skipped
+                      ? "Skipped"
+                      : answer.answer || "No answer provided"}
                   </p>
                 </div>
-              ) : (
-                chatMessages.map((item, index) => (
-                  <div
-                    className={
-                      item.role === "user"
-                        ? "user-message"
-                        : "assistant-message"
-                    }
-                    key={index}
-                  >
-                    {item.content}
-                  </div>
-                ))
-              )}
+              </div>
+            ))}
+          </div>
+        </ResultSection>
 
-              {chatLoading && (
-                <div className="assistant-message">
-                  <LoadingDots />
-                </div>
-              )}
+        <section className="report-chat">
+          <div className="report-chat-heading">
+            <div>
+              <span className="eyebrow">CONTINUE THINKING</span>
+              <h2>Ask VERLO about this report.</h2>
             </div>
 
-            <form className="chat-input" onSubmit={sendMessage}>
-              <textarea
-                value={message}
-                onChange={event => setMessage(event.target.value)}
-                placeholder="Ask a follow-up..."
-                rows={2}
-              />
+            <span className="chat-status">
+              <span />
+              Ready
+            </span>
+          </div>
 
-              <button
-                type="submit"
-                disabled={!message.trim() || chatLoading}
-                aria-label="Send message"
-              >
-                <Icon name="send" size={18} />
-              </button>
-            </form>
-          </aside>
+          <ReportChat
+            result={result}
+            situation={situation}
+            onChat={onChat}
+          />
+        </section>
+
+        <div className="report-actions">
+          <button className="secondary-button" onClick={onHistory}>
+            <Icon name="history" size={16} />
+            View history
+          </button>
+
+          <button className="primary-button" onClick={onNewDecision}>
+            Start another decision
+            <Icon name="arrow" size={17} />
+          </button>
         </div>
-      </main>
+      </div>
+    </main>
+  );
+}
+
+function ReportChat({ result, situation, onChat }) {
+  const [messages, setMessages] = useState([]);
+  const [value, setValue] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const endRef = useRef(null);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest"
+    });
+  }, [messages, loading]);
+
+  async function sendMessage() {
+    const message = value.trim();
+
+    if (!message || loading) return;
+
+    const userMessage = {
+      role: "user",
+      content: message
+    };
+
+    setMessages(previous => [...previous, userMessage]);
+    setValue("");
+    setLoading(true);
+    setError("");
+
+    try {
+      const data = await api("/api/chat", {
+        method: "POST",
+        body: JSON.stringify({
+          message,
+          situation,
+          result,
+          history: [...messages, userMessage]
+        })
+      });
+
+      const reply =
+        data.reply ||
+        data.message ||
+        data.content ||
+        data.response ||
+        "";
+
+      if (!reply) {
+        throw new Error("The response was empty.");
+      }
+
+      setMessages(previous => [
+        ...previous,
+        {
+          role: "assistant",
+          content: reply
+        }
+      ]);
+    } catch (chatError) {
+      setError(chatError.message);
+
+      setMessages(previous => [
+        ...previous,
+        {
+          role: "assistant",
+          content:
+            "I couldn't finish that response. Please try sending the question again."
+        }
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleKeyDown(event) {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      sendMessage();
+    }
+  }
+
+  return (
+    <div className="chat-container">
+      <div className="chat-messages" aria-live="polite">
+        {messages.length === 0 && (
+          <div className="chat-empty">
+            <span className="chat-empty-icon">
+              <Icon name="spark" size={19} />
+            </span>
+            <p>
+              Ask about the report, a specific option, a consideration, or
+              what you could do next.
+            </p>
+          </div>
+        )}
+
+        {messages.map((message, index) => (
+          <div
+            className={
+              message.role === "user"
+                ? "user-message"
+                : "assistant-message"
+            }
+            key={index}
+          >
+            <span className="chat-message-label">
+              {message.role === "user" ? "YOU" : "VERLO"}
+            </span>
+
+            {message.role === "assistant" ? (
+              <Markdown content={message.content} />
+            ) : (
+              <p>{message.content}</p>
+            )}
+          </div>
+        ))}
+
+        {loading && (
+          <div className="assistant-message">
+            <span className="chat-message-label">VERLO</span>
+            <LoadingDots />
+          </div>
+        )}
+
+        <div ref={endRef} />
+      </div>
+
+      {error && <div className="form-error chat-error">{error}</div>}
+
+      <div className="chat-input">
+        <textarea
+          value={value}
+          onChange={event => setValue(event.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Ask a follow-up question..."
+          rows={2}
+          disabled={loading}
+        />
+
+        <button
+          onClick={sendMessage}
+          disabled={loading || !value.trim()}
+          aria-label="Send message"
+        >
+          <Icon name="send" size={17} />
+        </button>
+      </div>
+
+      <span className="chat-hint">
+        Press Enter to send · Shift + Enter for a new line
+      </span>
     </div>
   );
 }
 
-function HistoryPanel({ onClose, onSelect }) {
+function HistoryPanel({ onClose, onOpen }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    let mounted = true;
-
-    const loadHistory = async () => {
+    async function loadHistory() {
       try {
         const data = await api("/api/history");
-
-        if (!mounted) return;
-
-        setHistory(
-          Array.isArray(data)
-            ? data
-            : data?.history || data?.items || []
-        );
-      } catch (err) {
-        if (mounted) {
-          setError(err.message || "Unable to load history.");
-        }
+        setHistory(data.history || data.items || data || []);
+      } catch (requestError) {
+        setError(requestError.message);
       } finally {
-        if (mounted) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
-    };
+    }
 
     loadHistory();
-
-    return () => {
-      mounted = false;
-    };
   }, []);
 
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
-      <div
-        className="history-modal"
-        onMouseDown={event => event.stopPropagation()}
-      >
-        <div className="history-heading">
-          <div>
-            <span className="eyebrow">Saved decisions</span>
-            <h2>History</h2>
-          </div>
+    <div className="modal-backdrop">
+      <div className="history-modal">
+        <button className="modal-close" onClick={onClose} aria-label="Close">
+          <Icon name="close" />
+        </button>
 
-          <button className="modal-close" type="button" onClick={onClose}>
-            <Icon name="close" size={19} />
-          </button>
+        <div className="history-heading">
+          <span className="eyebrow">SAVED DECISIONS</span>
+          <h2>Your history</h2>
+          <p>Previous reports saved to your VERLO account.</p>
         </div>
 
         {loading ? (
@@ -1655,45 +1837,45 @@ function HistoryPanel({ onClose, onSelect }) {
           <div className="form-error">{error}</div>
         ) : history.length === 0 ? (
           <div className="history-empty">
-            <Icon name="history" size={25} />
+            <Icon name="clock" size={26} />
             <h3>No saved decisions yet</h3>
-            <p>
-              Your completed VERLO decisions will appear here.
-            </p>
+            <p>Your completed reports will appear here.</p>
           </div>
         ) : (
           <div className="history-list">
             {history.map((item, index) => {
-              const id = item.id || item._id || index;
-              const title =
+              const itemTitle =
                 item.title ||
-                item.result?.title ||
                 item.situation ||
-                "Untitled decision";
+                item.name ||
+                `Decision ${index + 1}`;
 
-              const date =
-                item.createdAt ||
-                item.created_at ||
-                item.date ||
-                "";
+              const date = item.createdAt || item.created_at || item.date;
 
               return (
                 <button
                   className="history-item"
-                  type="button"
-                  key={id}
-                  onClick={() => onSelect(item)}
+                  key={item.id || index}
+                  onClick={() => onOpen(item)}
                 >
-                  <div>
-                    <strong>{title}</strong>
-                    {date && (
-                      <span>
-                        {new Date(date).toLocaleDateString()}
-                      </span>
-                    )}
-                  </div>
+                  <span className="history-item-icon">
+                    <Icon name="file" size={17} />
+                  </span>
 
-                  <Icon name="arrow" size={17} />
+                  <span className="history-item-copy">
+                    <strong>{itemTitle}</strong>
+                    {date && (
+                      <small>
+                        {new Date(date).toLocaleDateString(undefined, {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric"
+                        })}
+                      </small>
+                    )}
+                  </span>
+
+                  <Icon name="arrow" size={16} />
                 </button>
               );
             })}
@@ -1708,46 +1890,47 @@ export default function App() {
   const [state, setState] = useState(loadState);
   const [user, setUser] = useState(null);
   const [authMode, setAuthMode] = useState(null);
-  const [verificationEmail, setVerificationEmail] = useState("");
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [starting, setStarting] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [verificationMessage, setVerificationMessage] = useState("");
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [processingMessage, setProcessingMessage] = useState(
+    "Building your report..."
+  );
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
 
   useEffect(() => {
-    let mounted = true;
-
-    const checkAuth = async () => {
+    async function checkAuth() {
       try {
         const data = await api("/api/auth/me");
-
-        if (mounted) {
-          setUser(data?.user || data || null);
-        }
+        setUser(data.user || data || null);
       } catch {
-        if (mounted) {
-          setUser(null);
-        }
+        setUser(null);
       }
-    };
+    }
 
     checkAuth();
-
-    return () => {
-      mounted = false;
-    };
   }, []);
 
-  const updateState = updates => {
+  function updateState(updates) {
     setState(previous => ({
       ...previous,
       ...updates
     }));
-  };
+  }
 
-  const resetAssessment = () => {
+  function resetDecision() {
+    updateState({
+      ...initialState,
+      screen: "input"
+    });
+  }
+
+  function startDecision() {
     updateState({
       screen: "input",
       situation: "",
@@ -1760,196 +1943,342 @@ export default function App() {
       result: null,
       attachments: []
     });
-  };
+  }
 
-  const start = () => {
-    resetAssessment();
-  };
-
-  const startAssessment = async () => {
-    if (!state.situation.trim() || starting) return;
-
-    setStarting(true);
+  async function handleAuthSubmit(credentials) {
+    setAuthLoading(true);
+    setAuthError("");
 
     try {
-      const data = await api("/api/adaptive-question", {
+      const endpoint =
+        authMode === "signup"
+          ? "/api/auth/signup"
+          : "/api/auth/login";
+
+      const data = await api(endpoint, {
+        method: "POST",
+        body: JSON.stringify(credentials)
+      });
+
+      if (data.verificationRequired || data.requiresVerification) {
+        updateState({
+          verificationEmail: credentials.email,
+          verificationRequired: true
+        });
+        setAuthMode(null);
+      } else {
+        setUser(data.user || data);
+        setAuthMode(null);
+      }
+    } catch (error) {
+      setAuthError(error.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function verifyEmail(code) {
+    setAuthLoading(true);
+    setVerificationMessage("");
+
+    try {
+      const data = await api("/api/auth/verify-email", {
+        method: "POST",
+        body: JSON.stringify({
+          email: state.verificationEmail,
+          code
+        })
+      });
+
+      setUser(data.user || data);
+      updateState({
+        verificationRequired: false
+      });
+    } catch (error) {
+      setVerificationMessage(error.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function resendVerification() {
+    setAuthLoading(true);
+    setVerificationMessage("");
+
+    try {
+      await api("/api/auth/resend-verification", {
+        method: "POST",
+        body: JSON.stringify({
+          email: state.verificationEmail
+        })
+      });
+
+      setVerificationMessage("A new verification code has been sent.");
+    } catch (error) {
+      setVerificationMessage(error.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function logout() {
+    try {
+      await api("/api/auth/logout", {
+        method: "POST"
+      });
+    } catch {}
+
+    setUser(null);
+    setShowHistory(false);
+  }
+
+  async function runAnalysis(answers) {
+    updateState({
+      screen: "processing",
+      answers
+    });
+
+    setProcessingProgress(8);
+    setProcessingMessage("Reviewing your answers...");
+
+    const progressSteps = [
+      [24, "Connecting the important details..."],
+      [43, "Comparing the relevant factors..."],
+      [61, "Structuring the analysis..."],
+      [79, "Preparing practical next steps..."],
+      [92, "Finishing your report..."]
+    ];
+
+    let currentStep = 0;
+
+    const interval = setInterval(() => {
+      if (currentStep >= progressSteps.length) {
+        clearInterval(interval);
+        return;
+      }
+
+      const [progress, message] = progressSteps[currentStep];
+      setProcessingProgress(progress);
+      setProcessingMessage(message);
+      currentStep += 1;
+    }, 700);
+
+    try {
+      const data = await api("/api/analyze", {
         method: "POST",
         body: JSON.stringify({
           situation: state.situation,
           category: state.category,
-          answers: [],
-          questionIndex: 0,
-          previousQuestions: [],
+          answers,
           attachments: state.attachments
         })
       });
 
-      const rawQuestion =
-        data?.question ||
-        data?.questions?.[0] ||
-        data?.questionText;
+      clearInterval(interval);
+      setProcessingProgress(100);
+      setProcessingMessage("Your report is ready.");
 
-      const firstQuestion = normalizeQuestion(rawQuestion, 0);
+      const result = data.result || data;
 
-      if (!firstQuestion || !firstQuestion.question) {
-        throw new Error(
-          "Adaptive engine failed to create the first question."
-        );
-      }
-
-      updateState({
-        screen: "adaptive",
-        questions: [firstQuestion],
-        answers: [],
-        questionIndex: 0,
-        result: null
-      });
-    } catch (err) {
-      window.alert(err.message || "Unable to start the assessment.");
-    } finally {
-      setStarting(false);
+      setTimeout(() => {
+        updateState({
+          screen: "results",
+          result,
+          answers
+        });
+      }, 450);
+    } catch (error) {
+      clearInterval(interval);
+      setProcessingProgress(100);
+      setProcessingMessage(error.message);
     }
-  };
+  }
 
-  const completeAssessment = result => {
-    updateState({
-      screen: "results",
-      result
-    });
-  };
+  function completeAssessment(answers) {
+    runAnalysis(answers);
+  }
 
-  const handleAuthenticated = authenticatedUser => {
-    setUser(authenticatedUser || null);
-    setAuthMode(null);
-  };
-
-  const handleVerificationRequired = email => {
-    setAuthMode(null);
-    setVerificationEmail(email);
-  };
-
-  const handleVerified = verifiedUser => {
-    setUser(verifiedUser || null);
-    setVerificationEmail("");
-  };
-
-  const handleHome = () => {
-    updateState({
-      screen: "home"
-    });
-  };
-
-  const handleHistorySelect = item => {
-    setHistoryOpen(false);
+  function openHistoryItem(item) {
+    setShowHistory(false);
 
     updateState({
       screen: "results",
       situation: item.situation || "",
       category: item.category || "",
       answers: item.answers || [],
-      result: item.result || item
+      result: item.result || item.report || item
     });
-  };
+  }
 
-  const screen = useMemo(() => state.screen, [state.screen]);
+  async function handleChat(message, history) {
+    return api("/api/chat", {
+      method: "POST",
+      body: JSON.stringify({
+        message,
+        history,
+        situation: state.situation,
+        result: state.result
+      })
+    });
+  }
 
-  if (screen === "home") {
-    return (
-      <>
+  return (
+    <>
+      {state.screen === "home" && (
         <Home
-          onStart={start}
-          onHistory={() => setHistoryOpen(true)}
+          onStart={startDecision}
+          onHistory={() => setShowHistory(true)}
+          onAccount={() => {
+            if (user) {
+              setAuthMode("account");
+            } else {
+              setAuthMode("login");
+            }
+          }}
           user={user}
-          onAuth={mode => setAuthMode(mode)}
         />
+      )}
 
-        {authMode && (
-          <AuthModal
-            mode={authMode}
-            setMode={setAuthMode}
-            onClose={() => setAuthMode(null)}
-            onAuthenticated={handleAuthenticated}
-            onVerificationRequired={handleVerificationRequired}
-          />
-        )}
+      {state.screen === "input" && (
+        <InputPage
+          situation={state.situation}
+          setSituation={value => updateState({ situation: value })}
+          category={state.category}
+          setCategory={value => updateState({ category: value })}
+          attachments={state.attachments}
+          setAttachments={value =>
+            updateState({
+              attachments:
+                typeof value === "function"
+                  ? value(state.attachments)
+                  : value
+            })
+          }
+          onBack={() => updateState({ screen: "home" })}
+          onContinue={() =>
+            updateState({
+              screen: "adaptive",
+              questions: [],
+              answers: [],
+              questionIndex: 0
+            })
+          }
+          loading={false}
+        />
+      )}
 
-        {verificationEmail && (
-          <VerificationModal
-            email={verificationEmail}
-            onClose={() => setVerificationEmail("")}
-            onVerified={handleVerified}
-          />
-        )}
+      {state.screen === "adaptive" && (
+        <AdaptiveAssessment
+          situation={state.situation}
+          category={state.category}
+          attachments={state.attachments}
+          questions={state.questions}
+          setQuestions={value => updateState({ questions: value })}
+          answers={state.answers}
+          setAnswers={value => updateState({ answers: value })}
+          questionIndex={state.questionIndex}
+          setQuestionIndex={value =>
+            updateState({ questionIndex: value })
+          }
+          onComplete={completeAssessment}
+          onBack={() => updateState({ screen: "input" })}
+        />
+      )}
 
-        {historyOpen && (
-          <HistoryPanel
-            onClose={() => setHistoryOpen(false)}
-            onSelect={handleHistorySelect}
-          />
-        )}
-      </>
-    );
-  }
+      {state.screen === "processing" && (
+        <Processing
+          progress={processingProgress}
+          message={processingMessage}
+        />
+      )}
 
-  if (screen === "input") {
-    return (
-      <InputPage
-        situation={state.situation}
-        setSituation={situation => updateState({ situation })}
-        category={state.category}
-        setCategory={category => updateState({ category })}
-        attachments={state.attachments}
-        setAttachments={attachments => updateState({ attachments })}
-        onBack={handleHome}
-        onStart={startAssessment}
-        loading={starting}
-      />
-    );
-  }
-
-  if (screen === "adaptive") {
-    return (
-      <AdaptiveAssessment
-        situation={state.situation}
-        category={state.category}
-        questions={state.questions}
-        setQuestions={questions => updateState({ questions })}
-        answers={state.answers}
-        setAnswers={answers => updateState({ answers })}
-        questionIndex={state.questionIndex}
-        setQuestionIndex={questionIndex =>
-          updateState({ questionIndex })
-        }
-        attachments={state.attachments}
-        onComplete={completeAssessment}
-      />
-    );
-  }
-
-  if (screen === "processing") {
-    return <Processing progress={75} />;
-  }
-
-  if (screen === "results") {
-    return (
-      <>
+      {state.screen === "results" && (
         <Results
           result={state.result}
           situation={state.situation}
           answers={state.answers}
-          onHome={handleHome}
-          onHistory={() => setHistoryOpen(true)}
+          onNewDecision={startDecision}
+          onHistory={() => setShowHistory(true)}
+          onChat={handleChat}
         />
+      )}
 
-        {historyOpen && (
-          <HistoryPanel
-            onClose={() => setHistoryOpen(false)}
-            onSelect={handleHistorySelect}
-          />
-        )}
-      </>
-    );
-  }
+      {showHistory && (
+        <HistoryPanel
+          onClose={() => setShowHistory(false)}
+          onOpen={openHistoryItem}
+        />
+      )}
 
-  return <Home onStart={start} user={user} onAuth={setAuthMode} />;
+      {authMode && authMode !== "account" && (
+        <AuthModal
+          mode={authMode}
+          onClose={() => {
+            setAuthMode(null);
+            setAuthError("");
+          }}
+          onSubmit={handleAuthSubmit}
+          onGoogle={() => {
+            window.location.href = `${API_URL}/api/auth/google`;
+          }}
+          onSwitch={() => {
+            setAuthError("");
+            setAuthMode(authMode === "login" ? "signup" : "login");
+          }}
+          loading={authLoading}
+          error={authError}
+        />
+      )}
+
+      {authMode === "account" && user && (
+        <div className="modal-backdrop">
+          <div className="account-modal">
+            <button
+              className="modal-close"
+              onClick={() => setAuthMode(null)}
+              aria-label="Close"
+            >
+              <Icon name="close" />
+            </button>
+
+            <span className="eyebrow">ACCOUNT</span>
+            <h2>{user.name || user.email || "Your account"}</h2>
+            {user.email && <p>{user.email}</p>}
+
+            <div className="account-actions">
+              <button
+                className="secondary-button"
+                onClick={() => {
+                  setAuthMode(null);
+                  setShowHistory(true);
+                }}
+              >
+                <Icon name="history" size={16} />
+                View history
+              </button>
+
+              <button className="danger-button" onClick={logout}>
+                Sign out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {state.verificationRequired && (
+        <VerificationModal
+          email={state.verificationEmail}
+          onClose={() =>
+            updateState({
+              verificationRequired: false
+            })
+          }
+          onVerify={verifyEmail}
+          onResend={resendVerification}
+          loading={authLoading}
+          message={verificationMessage}
+        />
+      )}
+    </>
+  );
 }
