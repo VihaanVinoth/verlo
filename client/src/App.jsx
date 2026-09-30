@@ -2400,11 +2400,11 @@ export default function App() {
                   : "Continue with Google"}
               </span>
             </button>
-
+            <br />
             <div className="auth-divider">
               <span>or continue with email</span>
             </div>
-
+            <br />
             <form onSubmit={handleAuthSubmit}>
               <div className="form-group">
                 <label className="form-label">Email Address</label>
